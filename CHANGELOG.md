@@ -4,6 +4,17 @@ All notable changes to the Sign Proof Generator are listed here, newest first.
 
 ---
 
+## [5.5.2] – 2026-10-08
+### Added
+- **Editable section names:** the red section title on each part card in the proof builder (e.g. "Acrylic 2") is now a plain-text field. Type a specific name such as "Front Menu" or "Side Menu".
+- Renamed sections carry through to the proof sheet section heading, the cover page's package contents sub-rows, the QA checklist pages and the QA `.csv`.
+- Clearing the field and pressing Enter (or clicking away) returns the section to its default name.
+
+### Changed
+- **Section numbering:** a single section keeps its plain name ("Acrylic"). Once **+ Add Another** is used, sections are numbered ("Acrylic 1", "Acrylic 2", "Acrylic 3"). Sections that haven't been renamed renumber automatically when one is removed (Acrylic 3 becomes Acrylic 2), while renamed sections keep their names.
+
+---
+
 ## [5.5] – 2026-10-08
 ### Added
 - When **Sub-customer** is checked, the sub-customer name prints next to the customer name as `Customer - Sub-Customer`. This applies to every proof sheet (the red sidebar box), the cover page and the QA checklist header.
