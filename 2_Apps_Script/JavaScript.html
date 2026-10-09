@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.5  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.6  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -912,7 +912,10 @@
       let v = id => (document.getElementById(id) ? document.getElementById(id).value.trim() : '');
       let orig = v('cf-orig');
       if (/^\d{4}-\d{2}-\d{2}$/.test(orig)) { let [y, m, d] = orig.split('-'); orig = `${m}/${d}/${y}`; }
-      return { name: v('cf-name'), project: v('cf-project'), location: v('cf-location'), sales: v('cf-sales'), inv: v('cf-inv'), ticket: v('cf-ticket'),
+      let hasSub = !!(document.getElementById('cf-has-sub') || {}).checked;
+      let name = v('cf-name'), sub = hasSub ? v('cf-sub') : '';
+      return { name, hasSub, sub, custName: name && sub ? `${name} - ${sub}` : name,   // custName = what prints on the pages
+               project: v('cf-project'), location: v('cf-location'), sales: v('cf-sales'), inv: v('cf-inv'), ticket: v('cf-ticket'),
                designer: v('cf-designer'), orig: orig, rev: v('cf-rev') || todayStr(), path: v('cf-path'), notes: v('cf-notes') };
   }
 
@@ -926,16 +929,16 @@
       o += R(x0, 84, x1 - x0, 58, RED_BOX);
       // customer name (bold) with the project name under it (regular)
       let size = 12.5, nameLines = [];
-      if (info.name) {
+      if (info.custName) {
           let maxL = info.project ? 1 : 2;
-          nameLines = wrapText(info.name, size, true, 138);
-          while (nameLines.length > maxL && size > 8) { size -= 0.5; nameLines = wrapText(info.name, size, true, 138); }
+          nameLines = wrapText(info.custName, size, true, 138);
+          while (nameLines.length > maxL && size > 8) { size -= 0.5; nameLines = wrapText(info.custName, size, true, 138); }
           nameLines = nameLines.slice(0, maxL + 1);
       }
       let projLines = info.project ? wrapText(info.project, 7.5, false, 138).slice(0, 2) : [];
-      let lh = size * 1.15, nameH = info.name ? nameLines.length * lh : 12, projH = projLines.length ? 3 + projLines.length * 9 : 0;
+      let lh = size * 1.15, nameH = info.custName ? nameLines.length * lh : 12, projH = projLines.length ? 3 + projLines.length * 9 : 0;
       let ny = 113 - (nameH + projH) / 2;
-      if (info.name) nameLines.forEach((l, i) => o += T(cx, ny + i * lh + size * 0.85, l, size, { anchor: 'middle', bold: true, fill: '#FFFFFF' }));
+      if (info.custName) nameLines.forEach((l, i) => o += T(cx, ny + i * lh + size * 0.85, l, size, { anchor: 'middle', bold: true, fill: '#FFFFFF' }));
       else o += missingTag(cx + tw('MISSING: CUSTOMER', 7.5, true) / 2 + 3, ny + 9, 'MISSING: CUSTOMER', 7.5,
                            { x: cx, y: ny + 10.6, size: 12.5, anchor: 'middle', bold: true, fill: '#FFFFFF' });
       projLines.forEach((l, i) => o += T(cx, ny + nameH + 3 + i * 9 + 6.8, l, 7.5, { anchor: 'middle', fill: '#FFFFFF' }));
@@ -1085,7 +1088,7 @@
       let pkg = pkgItems.map(it => `${it.name} (${counts[it.iid] || 0} page${counts[it.iid] === 1 ? '' : 's'})`).join(' + ');
       let t = 'DESIGN HELP CENTER - PROOF PACKAGE\n' + '='.repeat(W) + '\n';
       t += wrapLine(pkg, W, 'Package:  ', '          ') + '\n';
-      if (info.name) t += 'Customer: ' + info.name + '\n';
+      if (info.custName) t += 'Customer: ' + info.custName + '\n';
       t += 'Date:     ' + todayStr() + '\n';
       t += `Rules:    ${rules.length} standards apply to this package (${rules.filter(r => !r.always).length} of them because of its specs)\n\n`;
       t += 'BASIS   [SignOS] from our SignOS equipment and material data\n        [Industry] sign industry standard\n        [House] Sign Store design department standard\n';
@@ -1204,8 +1207,8 @@
       o += `<g id="Customer">` + T(X0, y, 'PREPARED FOR', 8.5, { bold: true, fill: '#888888', ls: 1.5 });
       y += 32;
       if (info.name) {
-          let sz = 30, ls = wrapText(info.name, sz, true, 590);
-          while (ls.length > 2 && sz > 18) { sz -= 2; ls = wrapText(info.name, sz, true, 590); }
+          let sz = 30, ls = wrapText(info.custName, sz, true, 590);
+          while (ls.length > 2 && sz > 18) { sz -= 2; ls = wrapText(info.custName, sz, true, 590); }
           ls.slice(0, 2).forEach((l, i) => o += T(X0, y + i * sz * 1.1, l, sz, { bold: true }));
           y += (Math.min(ls.length, 2) - 1) * sz * 1.1;
       } else o += missingTag(X0 + tw('MISSING: CUSTOMER NAME', 13, true) + 6, y - 4, 'MISSING: CUSTOMER NAME', 13, { x: X0, y, size: 30, bold: true });
@@ -1249,8 +1252,9 @@
       if (left.length) o += T(X0, CONTACT_Y, left[0], 9.5, { bold: true }) + (left[1] ? T(X0 + tw(left[0], 9.5, true) + 10, CONTACT_Y, left[1], 9, { fill: '#555555' }) : '');
       if (right.length) o += T(XR, CONTACT_Y, right.join('   \u00B7   '), 9.5, { anchor: 'end', bold: true });
       o += `</g>`;
-      o += `<g id="Cover_Legal">` + T(X0, M + FH - 16, TEMPLATE.Legal_Text || '', 6.5, { fill: '#777777' }) +
-           T(XR, M + FH - 6, (TEMPLATE.Copyright_Text || '').replace('{YEAR}', new Date().getFullYear()), 6.5, { anchor: 'end', fill: '#777777' }) + `</g>`;
+      // legal (left) and copyright (right) share one baseline
+      o += `<g id="Cover_Legal">` + T(X0, M + FH - 12, TEMPLATE.Legal_Text || '', 6.5, { fill: '#777777' }) +
+           T(XR, M + FH - 12, (TEMPLATE.Copyright_Text || '').replace('{YEAR}', new Date().getFullYear()), 6.5, { anchor: 'end', fill: '#777777' }) + `</g>`;
       return o + `</svg>`;
   }
 
@@ -1410,16 +1414,19 @@
           let val = (v, x, yy, label) => v ? T(x, yy, v, 9.5, { bold: true }) : missingTag(x + tw('MISSING', 7, true) + 6, yy, 'MISSING', 7, { x, y: yy, size: 9.5, bold: true });
           if (pi === 0) {
               let col = [X, 330, 590], r1 = 104, r2 = 128, r3 = 152;
-              [[col[0], r1, 'CUSTOMER', info.name], [col[1], r1, 'PROJECT', info.project], [col[2], r1, 'TICKET NO.', info.ticket],
+              [[col[0], r1, 'CUSTOMER', info.custName], [col[1], r1, 'PROJECT', info.project], [col[2], r1, 'TICKET NO.', info.ticket],
                [col[0], r2, 'INSTALLATION LOCATION', info.location], [col[1], r2, 'SALESPERSON', info.sales], [col[2], r2, 'INV/EST #', info.inv],
                [col[0], r3, 'DESIGNER', info.designer], [col[1], r3, 'REVISION DATE', info.rev], [col[2], r3, 'QA DUE / SHIP DATE', '__________']].forEach(([x, yy, lab, v]) => {
                   o += T(x, yy - 9, lab, 6.5, { bold: true, fill: '#888888', ls: 0.8 });
-                  let shown = v && v.length > 44 ? v.slice(0, 42) + '...' : v;
-                  o += val(shown, x, yy + 3);
+                  // fit the column: shrink the text first, cut only if it still does not fit
+                  let colW = x === col[2] ? XR - x : (x === col[0] ? col[1] : col[2]) - x - 12, sz = 9.5, shown = v;
+                  while (v && tw(v, sz, true) > colW && sz > 7) sz -= 0.25;
+                  if (v && tw(v, sz, true) > colW) { while (shown.length > 3 && tw(shown + '...', sz, true) > colW) shown = shown.slice(0, -1); shown += '...'; }
+                  o += v ? T(x, yy + 3, shown, sz, { bold: true }) : val(v, x, yy + 3);
               });
               o += L(X, 166, XR, 166, '#CCCCCC', 0.6);
           } else {
-              o += T(X, 104, [info.name || 'MISSING CUSTOMER', info.project, info.ticket ? 'Ticket ' + info.ticket : ''].filter(Boolean).join('  \u00B7  '), 9.5, { bold: true });
+              o += T(X, 104, [info.custName || 'MISSING CUSTOMER', info.project, info.ticket ? 'Ticket ' + info.ticket : ''].filter(Boolean).join('  \u00B7  '), 9.5, { bold: true });
           }
           o += `</g><g id="QA_List">`;
           rowsOnPage.forEach(r => {
@@ -1485,7 +1492,7 @@
               }
           });
           o += `</g><g id="QA_Footer">` + L(X, 1040, XR, 1040, '#CCCCCC', 0.6) +
-               T(X, 1058, `${info.name || ''}${info.project ? ' \u00B7 ' + info.project : ''}`, 7.5, { fill: '#666666' }) +
+               T(X, 1058, `${info.custName || ''}${info.project ? ' \u00B7 ' + info.project : ''}`, 7.5, { fill: '#666666' }) +
                T(XR, 1058, `Checked against the proof package dated ${info.rev}  \u00B7  QA page ${pi + 1} / ${n}`, 7.5, { anchor: 'end', fill: '#666666' }) + `</g>`;
           return o + `</svg>`;
       });
@@ -1494,7 +1501,7 @@
   // ---------- QA checklist as a spreadsheet (.csv) ----------
   function buildQACsv(pages, info) {
       let q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`, out = [];
-      out.push(['Customer', info.name], ['Project', info.project], ['Ticket No.', info.ticket], ['Inv/Est #', info.inv], ['Revision Date', info.rev], []);
+      out.push(['Customer', info.name], ['Sub-Customer', info.sub], ['Project', info.project], ['Ticket No.', info.ticket], ['Inv/Est #', info.inv], ['Revision Date', info.rev], []);
       out.push(['Item #', 'Product / Component', 'Proof Pages', 'Section', 'Spec', 'Value', 'Status', 'Checked (Y/N)', 'Initials', 'Notes']);
       qaData(pages, coverOn() ? 1 : 0).forEach(item => {
           item.sections.forEach(sec => sec.items.forEach(it =>
@@ -1680,7 +1687,7 @@
   }
 
   function updateCustomerTags(info) {
-      let req = { 'cf-name': info.name, 'cf-project': info.project, 'cf-location': info.location, 'cf-sales': info.sales, 'cf-inv': info.inv, 'cf-ticket': info.ticket,
+      let req = { 'cf-name': info.name, 'cf-project': info.project, 'cf-sub': !info.hasSub || info.sub, 'cf-location': info.location, 'cf-sales': info.sales, 'cf-inv': info.inv, 'cf-ticket': info.ticket,
                   'cf-designer': info.designer, 'cf-orig': info.orig, 'cf-path': info.path };
       Object.keys(req).forEach(id => { let g = document.getElementById(id); if (g) g.parentElement.classList.toggle('missing', !req[id]); });
   }
@@ -1688,6 +1695,32 @@
   // =====================================================================
   //  EXPORT: zip of SVG (editable) + PNG (300 ppi) per page
   // =====================================================================
+  // Multi-page letter PDF from JPEG page images (8.5 x 11 portrait = 612 x 792 pt), no library needed
+  function jpegPagesToPdf(pages, title) {
+      let enc = new TextEncoder(), parts = [], offsets = [], size = 0;
+      let add = x => { let b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); size += b.length; };
+      let obj = (n, body) => { offsets[n] = size; add(`${n} 0 obj\n`); body(); add(`\nendobj\n`); };
+      let n = pages.length, kids = [];
+      for (let i = 0; i < n; i++) kids.push(`${3 + i * 3} 0 R`);
+      add('%PDF-1.4\n%\u00E2\u00E3\u00CF\u00D3\n');
+      obj(1, () => add('<< /Type /Catalog /Pages 2 0 R >>'));
+      obj(2, () => add(`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${n} >>`));
+      pages.forEach((pgImg, i) => {
+          let pageN = 3 + i * 3, contN = pageN + 1, imgN = pageN + 2;
+          let cs = `q 612 0 0 792 0 0 cm /Im${i + 1} Do Q`;
+          obj(pageN, () => add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /Im${i + 1} ${imgN} 0 R >> >> /Contents ${contN} 0 R >>`));
+          obj(contN, () => { add(`<< /Length ${cs.length} >>\nstream\n`); add(cs); add('\nendstream'); });
+          obj(imgN, () => { add(`<< /Type /XObject /Subtype /Image /Width ${pgImg.w} /Height ${pgImg.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pgImg.bytes.length} >>\nstream\n`);
+                            add(pgImg.bytes); add('\nendstream'); });
+      });
+      let infoN = 3 + n * 3, safe = String(title || '').replace(/[()\\]/g, ' ').replace(/[^\x20-\x7E]/g, '');
+      obj(infoN, () => add(`<< /Title (${safe}) /Producer (Sign Proof Generator) >>`));
+      let xref = size, total = infoN + 1, x = `xref\n0 ${total}\n0000000000 65535 f \n`;
+      for (let k = 1; k < total; k++) x += String(offsets[k]).padStart(10, '0') + ' 00000 n \n';
+      add(x + `trailer\n<< /Size ${total} /Root 1 0 R /Info ${infoN} 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+      return new Blob(parts, { type: 'application/pdf' });
+  }
+
   function svgToPngBlob(svg, pw, ph) {
       pw = pw || 3300; ph = ph || 2550;   // 300 ppi
       return new Promise((resolve, reject) => {
@@ -1698,7 +1731,11 @@
               let ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
               ctx.drawImage(img, 0, 0, c.width, c.height);
               URL.revokeObjectURL(url);
-              c.toBlob(b => b ? resolve(b) : reject(new Error('PNG failed')), 'image/png');
+              c.toBlob(b => {
+                  if (!b) return reject(new Error('PNG failed'));
+                  if (!svgToPngBlob.wantJpeg) return resolve(b);
+                  c.toBlob(j => j.arrayBuffer().then(buf => { b.jpeg = { bytes: new Uint8Array(buf), w: c.width, h: c.height }; resolve(b); }), 'image/jpeg', 0.9);
+              }, 'image/png');
           };
           img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not render SVG')); };
           img.src = url;
@@ -1712,10 +1749,17 @@
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
 
-  // File names: "Ticket - Customer - Project" (same as the CorelDRAW macro), Windows-safe
+  function toggleSubCustomer() {
+      let on = document.getElementById('cf-has-sub').checked;
+      document.getElementById('cf-sub-group').style.display = on ? 'flex' : 'none';
+      if (on) document.getElementById('cf-sub').focus();
+      schedulePreview();
+  }
+
+  // File names: "Ticket - Customer - [Sub-Customer -] Project" (same as the CorelDRAW macro), Windows-safe
   function exportBase(info) {
       let clean = v => String(v == null ? '' : v).replace(/[\\\/:*?"<>|\t\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
-      let b = [info.ticket, info.name, info.project].map(clean).filter(x => x).join(' - ') || 'Proof Package';
+      let b = [info.ticket, info.name, info.sub, info.project].map(clean).filter(x => x).join(' - ') || 'Proof Package';
       // keep it short enough for Windows paths (the name repeats in the zip's folder and in each file inside it)
       if (b.length > 80) { b = b.slice(0, 80); let cut = b.lastIndexOf(' '); if (cut > 40) b = b.slice(0, cut); b = b.replace(/[^A-Za-z0-9)\]]+$/, ''); }
       return b;
@@ -1724,7 +1768,7 @@
   // package_info.txt: plain key=value lines read by the CorelDRAW ImportProofPackage macro
   function packageInfoText(info, total, pageNames) {
       let clean = v => String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim();
-      return [['Ticket', info.ticket], ['Customer', info.name], ['Project', info.project], ['Invoice', info.inv],
+      return [['Ticket', info.ticket], ['Customer', info.name], ['SubCustomer', info.sub], ['Project', info.project], ['Invoice', info.inv],
               ['Salesperson', info.sales], ['Designer', info.designer], ['Location', info.location],
               ['OriginalDate', info.orig], ['RevisionDate', info.rev], ['FileLocation', info.path], ['Pages', total],
               ['FileBase', exportBase(info)]].concat(pageNames || [])
@@ -1733,7 +1777,7 @@
 
   async function generatePackage() {
       let info = getCustomerInfo();
-      let missing = ['name', 'project', 'location', 'sales', 'inv', 'ticket', 'designer', 'orig', 'path'].filter(k => !info[k]);
+      let missing = (info.hasSub && !info.sub ? ['sub'] : []).concat(['name', 'project', 'location', 'sales', 'inv', 'ticket', 'designer', 'orig', 'path'].filter(k => !info[k]));
       if (missing.length && !confirm(`${missing.length} customer field(s) are empty and will print as yellow MISSING tags.\nGenerate anyway?`)) return;
       let btn = document.getElementById('generate-btn'), label = btn.innerHTML;
       let pages = packagePages();
@@ -1774,13 +1818,18 @@
           else { saveBlob(blob, name.split('/').pop()); await new Promise(r => setTimeout(r, 400)); }
       };
       try {
+          let qaJpegs = [];
           for (let i = 0; i < jobs.length; i++) {
               btn.innerHTML = `Generating ${i + 1} of ${jobs.length}...`;
               let j = jobs[i], svg = j.svg();
+              svgToPngBlob.wantJpeg = j.dir === 'QA_Checklist/';
               let png = await svgToPngBlob(svg, j.pw, j.ph);
+              svgToPngBlob.wantJpeg = false;
+              if (png.jpeg) qaJpegs.push(png.jpeg);
               await save(`${j.dir}SVG/${j.file}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
               await save(`${j.dir}PNG/${j.file}.png`, png);
           }
+          if (qaJpegs.length) await save(`QA_Checklist/PRINT - ${base} - QA checklist.pdf`, jpegPagesToPdf(qaJpegs, `${base} - QA checklist`));
           if (qaOn() && pages.length) await save(`QA_Checklist/${base} - QA checklist.csv`, new Blob([buildQACsv(pages, info)], { type: 'text/csv' }));
           // job details for the CorelDRAW macro (names the .cdr: Ticket - Customer - Project)
           await save('package_info.txt', new Blob([packageInfoText(info, total, pageNames)], { type: 'text/plain' }));

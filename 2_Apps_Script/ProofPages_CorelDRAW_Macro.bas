@@ -15,7 +15,7 @@ Option Explicit
 '                      file. Optionally adds the QA checklist pages too.
 '                      One Ctrl+Z (Undo) removes the whole import.
 '                      Then it saves the file as
-'                        Ticket# - Customer - Project.cdr
+'                        Ticket# - Customer - [Sub-Customer -] Project.cdr
 '                      using package_info.txt from the package (you can
 '                      edit the name / folder before it saves).
 '
@@ -28,64 +28,7 @@ Option Explicit
 Private Const TITLE As String = "Proof Package"
 Private Const LETTER_SHORT As Double = 8.5
 Private Const LETTER_LONG As Double = 11
-Private Const PICK_HINT As String = "Use this folder"
 
-' Windows Explorer-style "Open" window (comdlg32), 64-bit and 32-bit CorelDRAW
-#If VBA7 Then
-Private Type OPENFILENAME
-    lStructSize As Long
-    hwndOwner As LongPtr
-    hInstance As LongPtr
-    lpstrFilter As String
-    lpstrCustomFilter As String
-    nMaxCustFilter As Long
-    nFilterIndex As Long
-    lpstrFile As String
-    nMaxFile As Long
-    lpstrFileTitle As String
-    nMaxFileTitle As Long
-    lpstrInitialDir As String
-    lpstrTitle As String
-    flags As Long
-    nFileOffset As Integer
-    nFileExtension As Integer
-    lpstrDefExt As String
-    lCustData As LongPtr
-    lpfnHook As LongPtr
-    lpTemplateName As String
-    pvReserved As LongPtr
-    dwReserved As Long
-    FlagsEx As Long
-End Type
-Private Declare PtrSafe Function GetOpenFileName Lib "comdlg32.dll" Alias "GetOpenFileNameA" (ofn As OPENFILENAME) As Long
-#Else
-Private Type OPENFILENAME
-    lStructSize As Long
-    hwndOwner As Long
-    hInstance As Long
-    lpstrFilter As String
-    lpstrCustomFilter As String
-    nMaxCustFilter As Long
-    nFilterIndex As Long
-    lpstrFile As String
-    nMaxFile As Long
-    lpstrFileTitle As String
-    nMaxFileTitle As Long
-    lpstrInitialDir As String
-    lpstrTitle As String
-    flags As Long
-    nFileOffset As Integer
-    nFileExtension As Integer
-    lpstrDefExt As String
-    lCustData As Long
-    lpfnHook As Long
-    lpTemplateName As String
-    pvReserved As Long
-    dwReserved As Long
-    FlagsEx As Long
-End Type
-Private Declare Function GetOpenFileName Lib "comdlg32.dll" Alias "GetOpenFileNameA" (ofn As OPENFILENAME) As Long
-#End If
 
 Public Sub ImportProofPackage()
     If Documents.Count = 0 Then
@@ -233,10 +176,10 @@ End Sub
 '  file name:  Ticket# - Customer - Project.cdr   (from package_info.txt)
 ' ---------------------------------------------------------------------
 Private Sub NameAndSave(doc As Document, ByVal root As String, ByVal nPages As Long, info As Object)
-    Dim ticket As String, customer As String, project As String
+    Dim ticket As String, customer As String, subCustomer As String, project As String
     Dim folder As String, baseName As String, fullPath As String, answer As String
 
-    ticket = info("Ticket"): customer = info("Customer"): project = info("Project")
+    ticket = info("Ticket"): customer = info("Customer"): subCustomer = info("SubCustomer"): project = info("Project")
     If ticket = "" Then ticket = InputBox("Ticket # for the file name:", TITLE)
     If customer = "" Then customer = InputBox("Customer / company name for the file name:", TITLE)
     If project = "" Then project = InputBox("Project name for the file name:", TITLE)
@@ -244,7 +187,7 @@ Private Sub NameAndSave(doc As Document, ByVal root As String, ByVal nPages As L
     ' same name the Proof Generator gave the exported files, when the package has it
     baseName = SafeName(info("FileBase"))
     If baseName = "" Or ticket <> info("Ticket") Or customer <> info("Customer") Or project <> info("Project") Then _
-        baseName = JoinName(Array(ticket, customer, project))
+        baseName = JoinName(Array(ticket, customer, subCustomer, project))
     If baseName = "" Then baseName = "Proof Package"
 
     ' folder: the job folder from the proof (File Location) if it exists, else the unzipped package folder
@@ -323,7 +266,7 @@ Private Function ReadInfo(ByVal path As String) As Object
     Set d = CreateObject("Scripting.Dictionary")
     d.CompareMode = 1
     Dim k As Variant
-    For Each k In Array("Ticket", "Customer", "Project", "FileLocation")
+    For Each k In Array("Ticket", "Customer", "SubCustomer", "Project", "FileLocation", "FileBase")
         d(k) = ""
     Next k
     If Dir(path) = "" Then Set ReadInfo = d: Exit Function
@@ -349,43 +292,15 @@ End Function
 '  helpers
 ' ---------------------------------------------------------------------
 Private Function PickFolder() As String
-    ' Explorer-style Open window that picks a FOLDER: double-click into the unzipped package
-    ' folder (or its SVG folder) and click Open while the name box says "Use this folder".
-    ' Clicking a file in the folder (e.g. package_info.txt) and Open works too.
-    Dim ofn As OPENFILENAME, ok As Long, f As String, startDir As String
-    startDir = Environ("USERPROFILE") & "\Downloads"
-    If Dir(startDir, vbDirectory) = "" Then startDir = ""
-    ofn.lStructSize = LenB(ofn)
-    ofn.lpstrFilter = "Proof package files (package_info.txt, SVG, PNG, JPG)" & Chr(0) & "package_info.txt;*.svg;*.png;*.jpg;*.jpeg" & Chr(0) & _
-                      "All files" & Chr(0) & "*.*" & Chr(0) & Chr(0)
-    ofn.nFilterIndex = 1
-    ofn.lpstrFile = PICK_HINT & String(1024 - Len(PICK_HINT), Chr(0))
-    ofn.nMaxFile = 1024
-    ofn.lpstrInitialDir = startDir
-    ofn.lpstrTitle = "Double-click into the unzipped proof package folder, then click Open"
-    ofn.flags = &H80000 Or &H800 Or &H4 Or &H8              ' Explorer style, folder must exist, no read-only box, keep current dir
-    On Error GoTo NoDialog
-    ok = GetOpenFileName(ofn)
-    On Error GoTo 0
-    If ok = 0 Then Exit Function                           ' Cancel
-    f = Left(ofn.lpstrFile, InStr(ofn.lpstrFile, Chr(0)) - 1)
-    ' a folder typed or selected into the name box: use it; otherwise use the folder the window is in
-    If Right(f, 1) <> "\" Then
-        On Error Resume Next
-        If (GetAttr(f) And vbDirectory) = vbDirectory Then f = f & "\"
-        On Error GoTo 0
-    End If
-    PickFolder = Left(f, InStrRev(f, "\"))
-    Exit Function
-
-NoDialog:                                                  ' fallback: Windows folder browser, then a typed path
-    Dim sh As Object, fld As Object
+    ' Windows "Browse for Folder" window: click the unzipped package folder (or its SVG folder), then OK.
+    ' The box at the bottom also accepts a pasted path.
+    Dim sh As Object, fld As Object, f As String
     On Error Resume Next
     Set sh = CreateObject("Shell.Application")
-    Set fld = sh.BrowseForFolder(0, "Select the unzipped proof package folder (or its SVG folder)", &H10 Or &H40, 0)
+    Set fld = sh.BrowseForFolder(0, "Select the unzipped proof package folder (or its SVG folder), then click OK", &H10 Or &H40 Or &H200, 0)
     If Not fld Is Nothing Then f = fld.Self.Path
+    If sh Is Nothing Then f = InputBox("Paste the path of the unzipped proof package folder (or its SVG folder):", TITLE)
     On Error GoTo 0
-    If f = "" Then f = InputBox("Paste the path of the unzipped proof package folder (or its SVG folder):", TITLE)
     If f <> "" And Right(f, 1) <> "\" Then f = f & "\"
     PickFolder = f
 End Function

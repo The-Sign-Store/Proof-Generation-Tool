@@ -72,7 +72,11 @@
           <span class="link-btn" onclick="goSpecs()">&larr; Back to Specs</span>
         </div>
         <div class="cf-note">Fields left blank print as yellow <b>MISSING</b> tags so they can be filled in later.</div>
-        <div class="cf-group"><label>Customer Name *</label><input type="text" id="cf-name" oninput="schedulePreview()"></div>
+        <div class="cf-group"><label>Customer Name *</label><input type="text" id="cf-name" oninput="schedulePreview()">
+          <label class="cf-check"><input type="checkbox" id="cf-has-sub" onchange="toggleSubCustomer()"> Sub-customer</label>
+        </div>
+        <div class="cf-group" id="cf-sub-group" style="display:none;"><label>Sub-Customer Name *</label>
+          <input type="text" id="cf-sub" placeholder="e.g. tenant, location or division" oninput="schedulePreview()"></div>
         <div class="cf-group"><label>Project Name *</label><input type="text" id="cf-project" placeholder="e.g. Main Entry Monument + Wayfinding" oninput="schedulePreview()"></div>
         <div class="cf-group"><label>Installation Location *</label><input type="text" id="cf-location" placeholder="Site name, street, city" oninput="schedulePreview()"></div>
         <div class="cf-row">

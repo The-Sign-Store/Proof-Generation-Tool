@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.5  (October 8, 2026)
+SIGN PROOF GENERATOR  v1.6  (October 8, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -27,6 +27,7 @@ WHAT IS IN THIS PACKAGE
    Sample_Proof_Package_Export.zip          what "Generate Proof Package" downloads
    Sample_Cover_Page.png                    page 1 of every package
    Sample_QA_Checklist_p1.png               first QA checklist page
+   Sample_QA_Checklist_PRINT.pdf            the multi-page QA print PDF
    Sample_QA_Checklist_Final_Checks.png     last QA page: red Final Checks box
    Sample_Page_*.png                        single exported pages
    Sample_Page_With_Artwork_Image.png       a page with a placed screenshot
@@ -116,9 +117,8 @@ Every job
 1. Unzip the proof package from the Proof Generator.
 2. File > New from Template > Sign Store Proof Package.
 3. Run ImportProofPackage (Tools > Scripts > Run Script, or the button).
-   An Explorer-style Open window starts in Downloads: double-click into
-   the unzipped package folder (or its SVG folder) and click Open while
-   the name box says "Use this folder" (or click any file in it, Open).
+   In the "Browse for Folder" window click the unzipped package folder
+   (or its SVG folder) and click OK (a path can also be pasted in the box).
    - One page per SVG in order (p01 cover, p02 ...). The template's blank
      page is used first; pages are added as needed.
    - Each sheet is scaled to fill its page and centered; the page turns
@@ -158,7 +158,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.5)
+WHAT THE APP DOES (v1.6)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 17 products and 10 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -170,13 +170,17 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           page; drag to move, - / + to size. Kept until the page is closed.
           Click a page's bar to select it for Ctrl+V (gold outline); click
           it again, press Esc or click the background to deselect.
-Step 3  Customer info (customer and project are separate fields): blanks
+Step 3  Customer info (customer and project are separate fields; check
+        "Sub-customer" for a Sub-Customer Name: printed as "Customer -
+        Sub-Customer" on every page and added to the file names after
+        the customer): blanks
         print as yellow MISSING tags.
 Export  One zip (Chrome / Edge ask where to save it when they can; inside
         Apps Script the browser usually blocks that window, so the zip goes
         to Downloads. Chrome > Settings > Downloads > "Ask where to save each
         file before downloading" makes every download ask):
-          File names: "Ticket - Customer - Project - p01" (shortened to 80
+          File names: "Ticket - Customer - [Sub-Customer -] Project - p01"
+          (Sub-Customer only when its box is checked; shortened to 80
           characters if needed), e.g.
             47391 - Macon Housing Authority - Central City Apartments - p01.svg
           SVG/  PNG/                p01 = cover (logo, customer, project,
@@ -184,6 +188,8 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
                                     notes, company contact info), p02 ... =
                                     proof pages (SVG editable, PNG 300 ppi)
           QA_Checklist/SVG/ + PNG/  "... - qa01" ... for the QA manager
+          QA_Checklist/"PRINT - ... - QA checklist.pdf"   all QA pages in one
+                                    letter-size PDF, ready to print
           QA_Checklist/"... - QA checklist.csv"   (Excel / Sheets)
           package_info.txt          ticket, customer, project, file location,
                                     page names (read by the CorelDRAW macro)
@@ -198,6 +204,33 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.6  (2026-10-08)
+  Added
+    - QA checklist print PDF: all QA pages are combined into one multi-page
+      letter-size PDF, saved as QA_Checklist/PRINT - … - QA checklist.pdf
+      next to the SVG, PNG and CSV versions. The PDF is built in the browser,
+      so nothing extra is required.
+    - Sub-customer field: a Sub-customer checkbox on the Customer Info step
+      shows a Sub-Customer Name field. A blank sub-customer is flagged as
+      MISSING.
+    - File names include the sub-customer right after the customer: Ticket -
+      Customer - Sub-Customer - Project - p01. The same names are used for
+      the zip, the QA files and the CorelDRAW .cdr.
+    - package_info.txt now records SubCustomer= and FileBase=.
+    - When Sub-customer is checked, the sub-customer name prints next to the
+      customer name as Customer - Sub-Customer. This applies to every proof
+      sheet (the red sidebar box), the cover page and the QA checklist
+      header.
+    - The QA checklist header text shrinks to fit long customer and
+      sub-customer names, so it no longer gets cut off.
+  Changed
+    - Cover page: the "This design and engineering…" legal text and the
+      copyright line now sit on the same baseline.
+    - CorelDRAW macro: the folder picker is back to the classic Browse for
+      Folder window. The Explorer-style picker was tried and removed because
+      it only let you select single files, not a folder. A typed-path box
+      appears only if the Windows Shell is unavailable.
+
 v1.5  (2026-10-08)
   Added
     - Cover page:
