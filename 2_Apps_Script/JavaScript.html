@@ -1,0 +1,1180 @@
+<script>
+  // =====================================================================
+  //  SIGN PROOF GENERATOR v1.1  -  Proof Packages
+  //  Step 1: pick any mix of products / components
+  //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
+  //  Step 3: customer info, then export editable SVG + PNG per page (zip)
+  //  Everything is driven by the Google Sheet:
+  //    Product_Assembly, Component_Registry, Component_Schema, color tabs, Proof_Template
+  // =====================================================================
+
+  window.__JS_LOADED = true;
+  let appData = {};
+  let TEMPLATE = {};
+  let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
+  let pkgItems = [];           // [{iid, key, kind, name, defs:[...]}]
+  let allParts = [];           // [{uid, iid, di, comp, title, include, enabled, overrides, num}]
+  let itemSeq = 0, partSeq = 0;
+  let modalItems = [], modalTarget = null;
+  let renderTimer = null;
+  let step = 'select';
+  let excludedDrawings = {};   // 'iid|DRAWING_ID' -> true when unchecked in the Specs panel
+
+  const CUSTOM_PAINT = "Custom Paint (SW / PMS)";
+  const basicColorMap = {
+      "WHITE": "#FFFFFF", "BLACK": "#000000", "GLOSS BLACK": "#000000", "CLEAR": "transparent",
+      "RED": "#C1272D", "BRONZE": "#3B312B", "BLUE": "#004B87", "NICKEL": "#A8A9AD", "BRASS": "#C5A059",
+      "GREEN": "#00FF00", "YELLOW": "#FFFF00"
+  };
+
+  // ---------- STARTUP ----------
+  function showLoadError(msg) {
+      window.__DATA_ARRIVED = true; // stops the startup watchdog from overwriting this message
+      let el = document.getElementById('loading');
+      if (el) { el.style.display = 'block'; el.innerHTML = '<span style="color:#c1272d;">Could not start the Proof Generator:</span><br><span style="font-weight:normal;font-size:14px;">' + esc(msg) + '</span>'; }
+  }
+  window.addEventListener('error', e => showLoadError((e.message || 'Script error') + (e.lineno ? ' (line ' + e.lineno + ')' : '')));
+  window.onload = function () {
+      let slow = setTimeout(() => showLoadError('Still waiting for the Google Sheet after 30 seconds. Check Apps Script > Executions for a getAppData error.'), 30000);
+      google.script.run
+          .withSuccessHandler(raw => {
+              clearTimeout(slow); window.__DATA_ARRIVED = true;
+              try {
+                  if (raw === null || raw === undefined) throw new Error('The server returned no data (getAppData returned empty).');
+                  initApp(typeof raw === 'string' ? JSON.parse(raw) : raw);
+              } catch (e) { console.error(e); showLoadError(e.message); }
+          })
+          .withFailureHandler(err => { clearTimeout(slow); showLoadError(err.message || String(err)); })
+          .getAppData();
+  };
+  window.onclick = function (e) { if (e.target === document.getElementById('swatch-modal')) closeModal(); };
+
+  function initApp(data) {
+      appData = data;
+      if (typeof PROOF_ASSETS === 'undefined' || !PROOF_ASSETS.loaded) throw new Error('The "Assets" HTML file is missing or incomplete in Apps Script. Re-paste Assets.html into a file named Assets.');
+      if (!data.assemblies || !Object.keys(data.assemblies).length) throw new Error('No products found. Check that the Product_Assembly tab exists in this Google Sheet.');
+      if (!data.components || !Object.keys(data.components).length) throw new Error('No components found. Check the Component_Registry and Component_Schema tabs.');
+      TEMPLATE = data.template || {};
+      appData.drawings = validDrawings(data.drawings || []);
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('cf-rev').value = todayStr();
+      renderDashboard();
+      showStep('select');
+  }
+
+  // ---------- SMALL HELPERS ----------
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  // XML-safe for exported SVG: also writes non-ASCII characters as numeric entities (Illustrator / CorelDRAW safe)
+  function escX(s) { return esc(s).replace(/[^\x00-\x7E]/g, ch => '&#' + ch.codePointAt(0) + ';'); }
+  function splitOpts(s) { return String(s == null ? '' : s).split('|').map(x => x.trim()).filter(x => x !== ''); }
+  function slug(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'proof'; }
+  function todayStr() { let d = new Date(); return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`; }
+  function cssBg(hex) {
+      if (!hex || hex === 'transparent') return '#ffffff';
+      if (hex.indexOf('http') !== -1) return `url('${hex}') center / cover`;
+      return hex.charAt(0) === '#' ? hex : '#' + hex;
+  }
+  function normHex(hex) { if (!hex) return ''; if (hex === 'transparent') return 'transparent'; return hex.charAt(0) === '#' ? hex : '#' + hex; }
+  function parseOverrides(str) {
+      let o = {};
+      String(str || '').split(';').forEach(pair => { let i = pair.indexOf('='); if (i > 0) o[pair.slice(0, i).trim().toUpperCase()] = pair.slice(i + 1).trim(); });
+      return o;
+  }
+  function getModDb(key) {
+      const map = { LED: 'colors_led', COIL: 'colors_coil', TRIMCAP: 'colors_trimcap', ACM: 'colors_acm', ACRYLIC: 'colors_acrylic',
+                    PVC: 'colors_pvc', CORO: 'colors_coro', FINISH: 'colors_finish' };
+      return appData[map[String(key).toUpperCase()]] || [];
+  }
+  function colorHex(name) {
+      let n = String(name || '').toUpperCase();
+      let hit = (appData.colors_finish || []).find(c => c.name.toUpperCase() === n);
+      if (hit && hit.hex) return hit.hex;
+      return basicColorMap[n] || '';
+  }
+
+  // =====================================================================
+  //  STEP NAVIGATION
+  // =====================================================================
+  function showStep(s) {
+      step = s;
+      document.getElementById('step-select').style.display = s === 'select' ? 'flex' : 'none';
+      document.getElementById('step-build').style.display = s === 'select' ? 'none' : 'flex';
+      document.getElementById('builder-panel').style.display = s === 'specs' ? 'block' : 'none';
+      document.getElementById('customer-panel').style.display = s === 'customer' ? 'block' : 'none';
+      ['select', 'specs', 'customer'].forEach((k, i) => {
+          let el = document.getElementById('stepper-' + k);
+          if (el) el.className = 'step' + (k === s ? ' active' : (['select', 'specs', 'customer'].indexOf(s) > i ? ' done' : ''));
+      });
+      if (s !== 'select') schedulePreview();
+  }
+
+  function goSelect() { showStep('select'); }
+  function goCustomer() { showStep('customer'); }
+  function goSpecs() { showStep('specs'); }
+
+  // =====================================================================
+  //  STEP 1: DASHBOARD
+  // =====================================================================
+  function catalog() {
+      let products = Object.keys(appData.assemblies || {}).sort((a, b) => a.localeCompare(b)).map(name => {
+          let defs = appData.assemblies[name];
+          let desc = defs.length === 1 && appData.components[defs[0].component]
+              ? appData.components[defs[0].component].description
+              : 'Built from: ' + defs.map(d => d.title || d.component).join(' + ');
+          return { key: 'P::' + name, name: name, desc: desc };
+      });
+      let comps = Object.values(appData.components || {}).filter(c => c.tool).sort((a, b) => a.name.localeCompare(b.name))
+          .map(c => ({ key: 'C::' + c.id, name: c.name, desc: c.description }));
+      return { products, comps };
+  }
+
+  function renderDashboard() {
+      let cat = catalog();
+      let card = c => `<label class="cat-card" data-name="${esc(c.name.toLowerCase())}" id="card-${esc(c.key)}">
+              <input type="checkbox" onchange="toggleSelect('${esc(c.key).replace(/'/g, "\\'")}', this.checked)">
+              <div><div class="cat-name">${esc(c.name)}</div><div class="cat-desc">${esc(c.desc)}</div></div>
+              <span class="cat-order"></span></label>`;
+      document.getElementById('cat-products').innerHTML = cat.products.map(card).join('');
+      document.getElementById('cat-components').innerHTML = cat.comps.map(card).join('');
+      updateSelectionBar();
+  }
+
+  function filterCatalog(q) {
+      q = q.trim().toLowerCase();
+      document.querySelectorAll('.cat-card').forEach(c => { c.style.display = !q || c.dataset.name.indexOf(q) !== -1 ? 'flex' : 'none'; });
+  }
+
+  function toggleSelect(key, on) {
+      selection = selection.filter(k => k !== key);
+      if (on) selection.push(key);
+      updateSelectionBar();
+  }
+
+  function updateSelectionBar() {
+      document.querySelectorAll('.cat-card').forEach(c => {
+          let key = c.id.slice(5), idx = selection.indexOf(key);
+          c.classList.toggle('selected', idx !== -1);
+          c.querySelector('input').checked = idx !== -1;
+          c.querySelector('.cat-order').innerText = idx !== -1 ? idx + 1 : '';
+      });
+      let btn = document.getElementById('build-btn');
+      btn.disabled = selection.length === 0;
+      btn.innerText = selection.length ? `Build Proof Package (${selection.length} selected) \u2192` : 'Select at least one item';
+  }
+
+  function clearSelection() { selection = []; updateSelectionBar(); }
+
+  function buildPackage() {
+      if (!selection.length) return;
+      // remove items no longer selected
+      pkgItems.filter(it => selection.indexOf(it.key) === -1).forEach(it => {
+          allParts = allParts.filter(p => p.iid !== it.iid);
+          let el = document.getElementById(`item-${it.iid}`); if (el) el.remove();
+      });
+      pkgItems = pkgItems.filter(it => selection.indexOf(it.key) !== -1);
+      // add new items, keep selection order
+      let holder = document.getElementById('items');
+      let ordered = [];
+      selection.forEach(key => {
+          let it = pkgItems.find(x => x.key === key) || createItem(key);
+          ordered.push(it);
+          holder.appendChild(document.getElementById(`item-${it.iid}`));
+      });
+      pkgItems = ordered;
+      refreshAll();
+      showStep('specs');
+  }
+
+  // =====================================================================
+  //  STEP 2: BUILDER (items -> parts -> fields)
+  // =====================================================================
+  function createItem(key) {
+      let iid = 'i' + (++itemSeq);
+      let kind = key.slice(0, 1) === 'P' ? 'product' : 'component';
+      let ref = key.slice(3);
+      let defs, name;
+      if (kind === 'product') {
+          name = ref;
+          defs = (appData.assemblies[ref] || []).map(d => Object.assign({}, d));
+      } else {
+          let c = appData.components[ref];
+          name = c.name;
+          defs = [{ component: ref, title: c.name, include: 'Required', repeatable: c.repeatable, overrides: '', pageGroup: 1 }];
+      }
+      let it = { iid, key, kind, name, defs };
+      pkgItems.push(it);
+
+      let panel = document.createElement('div');
+      panel.className = 'item-panel';
+      panel.id = `item-${iid}`;
+      panel.innerHTML = `<div class="item-header" onclick="toggleItem('${iid}')">
+                            <span class="item-name">${esc(name)}</span>
+                            <span><span class="item-pages" id="ipages-${iid}"></span><span class="item-caret" id="icaret-${iid}">\u25BE</span></span>
+                         </div>
+                         <div class="item-body" id="ibody-${iid}"></div>`;
+      document.getElementById('items').appendChild(panel);
+      let body = panel.querySelector('.item-body');
+      let ddBox = document.createElement('div');
+      ddBox.className = 'item-drawings'; ddBox.id = `idraw-${iid}`; ddBox.style.display = 'none';
+      defs.forEach((d, di) => {
+          let group = document.createElement('div');
+          group.id = `mgroup-${iid}-${di}`;
+          body.appendChild(group);
+          if (!appData.components[d.component]) { group.innerHTML = `<div class="part-card" style="color:#c1272d;">Unknown Component_ID: ${esc(d.component)}</div>`; return; }
+          addPart(it, di);
+          if (d.repeatable) {
+              let btn = document.createElement('button');
+              btn.type = 'button'; btn.className = 'swatch-btn add-part-btn'; btn.id = `madd-${iid}-${di}`;
+              btn.innerHTML = `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
+              btn.onclick = function () { addPart(it, di); refreshAll(); };
+              group.appendChild(btn);
+          }
+      });
+      body.appendChild(ddBox);
+      return it;
+  }
+
+  function toggleItem(iid) {
+      let b = document.getElementById(`ibody-${iid}`), c = document.getElementById(`icaret-${iid}`);
+      let open = b.style.display !== 'none';
+      b.style.display = open ? 'none' : 'block';
+      c.innerText = open ? '\u25B8' : '\u25BE';
+  }
+
+  function addPart(it, di) {
+      let d = it.defs[di];
+      let comp = appData.components[d.component];
+      let num = allParts.filter(p => p.iid === it.iid && p.di === di).length + 1;
+      let uid = 'p' + (++partSeq);
+      let optional = d.include !== 'Required';
+      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, include: d.include,
+                   enabled: d.include !== 'Optional-Off', overrides: parseOverrides(d.overrides), num };
+      allParts.push(part);
+
+      let zones = [];
+      comp.fields.forEach(f => { if (zones.indexOf(f.zone) === -1) zones.push(f.zone); });
+      let html = `<div class="part-header">
+                    <span class="part-title">${esc(part.title)}${num > 1 ? ' ' + num : ''}</span>
+                    <span>
+                      ${optional && num === 1 ? `<label class="part-toggle"><input type="checkbox" id="pinc-${uid}" ${part.enabled ? 'checked' : ''} onchange="togglePart('${uid}')"> Include</label>` : ''}
+                      ${num > 1 ? `<span class="part-remove" onclick="removePart('${uid}')">[x] Remove</span>` : ''}
+                    </span>
+                  </div>
+                  <div class="part-body" id="pbody-${uid}" style="display:${part.enabled ? 'block' : 'none'};">`;
+      zones.forEach(z => {
+          html += `<div class="zone-group"><div class="zone-row">`;
+          comp.fields.forEach((f, fi) => { if (f.zone === z) html += renderField(part, f, fi); });
+          html += `</div></div>`;
+      });
+      html += `</div>`;
+      let card = document.createElement('div');
+      card.className = 'part-card';
+      card.id = `part-${uid}`;
+      card.innerHTML = html;
+      let group = document.getElementById(`mgroup-${it.iid}-${di}`);
+      let addBtn = document.getElementById(`madd-${it.iid}-${di}`);
+      if (addBtn) group.insertBefore(card, addBtn); else group.appendChild(card);
+  }
+
+  function togglePart(uid) {
+      let p = allParts.find(x => x.uid === uid); if (!p) return;
+      p.enabled = document.getElementById(`pinc-${uid}`).checked;
+      document.getElementById(`pbody-${uid}`).style.display = p.enabled ? 'block' : 'none';
+      refreshAll();
+  }
+
+  function removePart(uid) {
+      let el = document.getElementById(`part-${uid}`); if (el) el.remove();
+      allParts = allParts.filter(p => p.uid !== uid);
+      refreshAll();
+  }
+
+  // ---------- FIELD RENDERING ----------
+  function swatchBtn(fid, onclick, presetName, presetHex) {
+      let bg = presetHex ? cssBg(presetHex) : '#fff';
+      return `<button type="button" class="swatch-btn" id="mbtn-${fid}" onclick="${onclick}">
+                <span class="btn-text" id="mtxt-${fid}">${esc(presetName || 'Select Swatch')}</span>
+                <span id="mcol-${fid}" class="btn-color-indicator" style="background:${bg};"></span>
+              </button>
+              <input type="hidden" id="mpv-${fid}" value="${esc(presetName || '')}">
+              <input type="hidden" id="mhex-${fid}" value="${esc(presetHex || '')}">`;
+  }
+
+  function paintBlock(fid) {
+      return `<select id="mb-${fid}" style="margin-bottom:5px;" onchange="paintBrandChanged('${fid}')">
+                <option value="SW">Sherwin Williams</option><option value="PMS">PMS</option><option value="CUSTOM">Custom Input...</option>
+              </select>
+              ${swatchBtn(fid, `openPaintModal('${fid}')`, '', '')}
+              <input type="text" id="mcust-${fid}" placeholder="Type custom color..." style="display:none; margin-top:5px;" oninput="refreshAll()">`;
+  }
+
+  function renderField(part, f, fi) {
+      let fid = `${part.uid}_${fi}`;
+      let up = f.variable.toUpperCase();
+      let def = part.overrides[up] !== undefined ? part.overrides[up] : (f.def == null ? '' : String(f.def));
+      let opts = splitOpts(f.options);
+      let wide = (f.type === 'dims' && opts.length > 2) || f.type === 'paint' || up === 'TEXT';
+      let html = (wide ? `<div class="flex-break"></div>` : '') +
+                 `<div class="form-group${wide ? ' wide-field' : ''}" id="mg-${fid}"${f.notes ? ` title="${esc(f.notes)}"` : ''}><label>${esc(f.variable)}${f.required ? ' *' : ''}</label>`;
+      switch (f.type) {
+          case 'number':
+              html += `<input type="number" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`; break;
+          case 'autoqty':
+              html += `<input type="number" id="mf-${fid}" value="${esc(def)}" readonly style="background:#f0f0f0;" title="Counted from TEXT">`; break;
+          case 'fullcolor':
+              html += `<div class="fullcolor-chip">Full Color Digital</div><input type="hidden" id="mf-${fid}" value="Full Color Digital">`; break;
+          case 'select': case 'color':
+              if (def && opts.indexOf(def) === -1) opts.unshift(def);
+              html += `<select id="mf-${fid}" onchange="refreshAll()">`;
+              opts.forEach(o => html += `<option value="${esc(o)}" ${o === def ? 'selected' : ''}>${esc(o)}</option>`);
+              html += `<option value="CUSTOM">-- Custom Input --</option></select>
+                       <input type="text" id="mc-${fid}" placeholder="Custom value" style="display:none; margin-top:5px;" oninput="refreshAll()">`;
+              break;
+          case 'dims': {
+              let labels = opts.length ? opts : ['W', 'H'];
+              let vals = String(def).split('|');
+              html += `<div class="dims-row">`;
+              labels.forEach((lab, k) => html += `<div class="dim-box"><span>${esc(lab)}</span><input type="text" id="md-${fid}-${k}" value="${esc((vals[k] || '').replace(/"/g, ''))}" oninput="refreshAll()"></div>`);
+              html += `</div>`;
+              break;
+          }
+          case 'paint':
+              html += `<div style="width:100%;">${paintBlock(fid)}</div>`; break;
+          case 'finish':
+              if (def && opts.indexOf(def) === -1) opts.unshift(def);
+              html += `<select id="mf-${fid}" onchange="refreshAll()">`;
+              opts.forEach(o => html += `<option value="${esc(o)}" ${o === def ? 'selected' : ''}>${esc(o)}</option>`);
+              html += `<option value="${CUSTOM_PAINT}">${CUSTOM_PAINT}</option></select>
+                       <div id="mpaint-${fid}" style="display:none; margin-top:5px;">${paintBlock(fid)}</div>`;
+              break;
+          case 'vinyl': {
+              let series = opts.length ? opts : ['751RA'];
+              let defSeries = series.indexOf(def) !== -1 ? def : series[0];
+              html += `<select id="mser-${fid}" style="margin-bottom:5px;" onchange="clearSwatch('${fid}')">`;
+              series.forEach(s => html += `<option value="${esc(s)}" ${s === defSeries ? 'selected' : ''}>Oracal ${esc(s)}</option>`);
+              html += `</select>` + swatchBtn(fid, `openVinylModal('${fid}')`, '', '');
+              break;
+          }
+          case 'db': {
+              let hit = getModDb(f.options).find(c => c.name === def);
+              html += swatchBtn(fid, `openDbModal('${fid}', '${esc(f.options)}', '${esc(f.variable)}')`, hit ? hit.name : '', hit ? hit.hex : '');
+              break;
+          }
+          case 'rowmark':
+              html += swatchBtn(fid, `openRowmarkModal('${fid}', ${fi})`, '', ''); break;
+          case 'pictogram':
+              html += swatchBtn(fid, `openPictoModal('${fid}')`, '', ''); break;
+          default:
+              html += `<input type="text" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`;
+      }
+      return html + `</div>`;
+  }
+
+  function paintBrandChanged(fid) {
+      let brand = document.getElementById(`mb-${fid}`).value;
+      document.getElementById(`mbtn-${fid}`).style.display = brand === 'CUSTOM' ? 'none' : 'flex';
+      document.getElementById(`mcust-${fid}`).style.display = brand === 'CUSTOM' ? 'block' : 'none';
+      clearSwatch(fid);
+  }
+
+  function clearSwatch(fid) {
+      document.getElementById(`mpv-${fid}`).value = '';
+      document.getElementById(`mhex-${fid}`).value = '';
+      document.getElementById(`mtxt-${fid}`).innerText = 'Select Swatch';
+      let col = document.getElementById(`mcol-${fid}`); col.innerHTML = ''; col.style.background = '#fff';
+      refreshAll();
+  }
+
+  // ---------- SWATCH MODALS ----------
+  function showSwatchModal(title, items, fid) {
+      modalItems = items; modalTarget = fid;
+      document.getElementById('modal-title').innerText = title;
+      let grid = items.length ? '' : '<p style="padding:20px;">No colors found. Check the color tab in the Google Sheet.</p>';
+      items.forEach((it, i) => {
+          let inner = it.svg ? pictoSvgHtml(it.svg, '#000') : '';
+          let style = it.svg ? 'background:#fff;' : `background:${cssBg(it.hex)};`;
+          grid += `<div class="swatch-card" onclick="pickSwatch(${i})">
+                     <div class="swatch-card-color" style="${style}">${inner}</div>
+                     <div class="swatch-card-label">${esc(it.label)}${it.sub ? `<br><span style="font-weight:normal;color:#888;">${esc(it.sub)}</span>` : ''}</div>
+                   </div>`;
+      });
+      document.getElementById('swatch-grid').innerHTML = grid;
+      document.getElementById('swatch-modal').style.display = 'flex';
+  }
+  function closeModal() { document.getElementById('swatch-modal').style.display = 'none'; }
+
+  function pickSwatch(i) {
+      let it = modalItems[i], fid = modalTarget; if (!it || !fid) return;
+      document.getElementById(`mpv-${fid}`).value = it.value || it.label;
+      document.getElementById(`mhex-${fid}`).value = it.hex || '';
+      document.getElementById(`mtxt-${fid}`).innerText = it.label;
+      let col = document.getElementById(`mcol-${fid}`);
+      if (it.svg) { col.style.background = '#fff'; col.innerHTML = pictoSvgHtml(it.svg, '#000'); }
+      else { col.innerHTML = ''; col.style.background = cssBg(it.hex); }
+      closeModal();
+      refreshAll();
+  }
+
+  function openDbModal(fid, key, title) { showSwatchModal(`Select ${title}`, getModDb(key).map(c => ({ label: c.name, hex: c.hex })), fid); }
+
+  function openRowmarkModal(fid, fi) {
+      let part = allParts.find(p => p.uid === fid.split('_')[0]);
+      let allowed = splitOpts(appData.components[part.comp].fields[fi].options);
+      let items = (appData.colors_rowmark || []).filter(c => !allowed.length || allowed.indexOf(c.series) !== -1)
+          .map(c => ({ label: c.name, hex: c.hex, sub: c.series, value: `Rowmark ${c.name}` }));
+      showSwatchModal(`Rowmark Colors (${allowed.join(' / ') || 'All'})`, items, fid);
+  }
+
+  function openVinylModal(fid) {
+      let series = document.getElementById(`mser-${fid}`).value;
+      let items = (appData.colors_oracal || []).filter(c => String(c.series).replace(/\.0$/, '').trim() === series).map(c => {
+          let code = String(c.code).replace(/\.0$/, '').padStart(3, '0');
+          return { label: `${code} - ${c.name}`, hex: c.hex, value: `Oracal ${series} ${code} ${c.name}` };
+      });
+      showSwatchModal(`Oracal ${series} Colors`, items, fid);
+  }
+
+  function openPaintModal(fid) {
+      let brand = document.getElementById(`mb-${fid}`).value;
+      let db = brand === 'SW' ? appData.colors_sw : appData.colors_pms;
+      let items = (db || []).map(c => {
+          let code = String(c.code || '');
+          let label = (brand === 'SW' && /^SW\d/i.test(code)) ? `${code.replace(/^SW/i, 'SW ')} ${c.name}` : c.name;
+          let value = brand === 'SW' ? (label.toUpperCase().indexOf('SW') === 0 ? label : `SW ${label}`) : label;
+          return { label, hex: c.hex, value };
+      });
+      showSwatchModal(brand === 'SW' ? 'Sherwin-Williams Colors' : 'PMS Colors', items, fid);
+  }
+
+  function openPictoModal(fid) {
+      showSwatchModal('ADA Pictograms', (appData.pictograms || []).map(p => ({ label: p.name, value: p.code, svg: p, sub: p.category })), fid);
+  }
+
+  function pictoSvgHtml(p, fill) {
+      return `<svg viewBox="${esc(p.viewBox)}" style="width:100%;height:100%;" preserveAspectRatio="xMidYMid meet"><path d="${esc(p.path)}" fill="${fill}"/></svg>`;
+  }
+
+  // ---------- RULES ----------
+  function getRaw(part, varName) {
+      if (String(varName).trim().toUpperCase() === 'COMPONENT') return part.comp;   // Match_Rule: COMPONENT=ID|ID
+      let fields = appData.components[part.comp].fields;
+      let fi = fields.findIndex(f => f.variable.toUpperCase() === varName.toUpperCase());
+      if (fi === -1) return '';
+      if (visibleOnly) { let g = document.getElementById(`mg-${part.uid}_${fi}`); if (g && g.style.display === 'none') return ''; }
+      let f = fields[fi], fid = `${part.uid}_${fi}`;
+      if (f.type === 'vinyl') { let s = document.getElementById(`mser-${fid}`); return s ? s.value : ''; }
+      if (f.type === 'dims') {
+          let out = [], k = 0, el;
+          while ((el = document.getElementById(`md-${fid}-${k}`))) { out.push(el.value); k++; }
+          return out.join('|');
+      }
+      let el = document.getElementById(`mf-${fid}`) || document.getElementById(`mpv-${fid}`);
+      return el ? String(el.value) : '';
+  }
+
+  function evalShowIf(part, expr) {
+      if (!expr) return true;
+      return String(expr).split('&').every(cond => {
+          let m = cond.trim().match(/^(.+?)(!=|~=|=)(.*)$/);
+          if (!m) return true;
+          let raw = getRaw(part, m[1].trim());
+          let vals = m[3].split('|').map(s => s.trim());
+          if (m[2] === '=') return vals.indexOf(raw) !== -1;
+          if (m[2] === '!=') return vals.indexOf(raw) === -1;
+          return vals.some(v => raw.indexOf(v) !== -1);
+      });
+  }
+
+  function refreshAll() {
+      allParts.forEach(part => {
+          let fields = appData.components[part.comp].fields;
+          fields.forEach((f, fi) => {
+              if (f.type !== 'autoqty') return;
+              let t = getRaw(part, 'TEXT');
+              let el = document.getElementById(`mf-${part.uid}_${fi}`);
+              if (el && t !== '') el.value = t.replace(/\s/g, '').length;
+          });
+          fields.forEach((f, fi) => {
+              let fid = `${part.uid}_${fi}`;
+              let g = document.getElementById(`mg-${fid}`);
+              if (g) g.style.display = evalShowIf(part, f.showIf) ? 'flex' : 'none';
+              let mf = document.getElementById(`mf-${fid}`), mc = document.getElementById(`mc-${fid}`), mp = document.getElementById(`mpaint-${fid}`);
+              if (mc && mf) mc.style.display = mf.value === 'CUSTOM' ? 'block' : 'none';
+              if (mp && mf) mp.style.display = mf.value === CUSTOM_PAINT ? 'block' : 'none';
+          });
+      });
+      schedulePreview();
+  }
+
+  // ---------- VALUES FOR THE PROOF ----------
+  function getDisplay(part, f, fi) {
+      let fid = `${part.uid}_${fi}`;
+      let byId = id => document.getElementById(id);
+      let r = { val: '', hex: '', svg: null, warn: false, warnLabel: 'MISSING', gradient: false };
+      let paintValue = () => {
+          if (byId(`mb-${fid}`).value === 'CUSTOM') {
+              let c = byId(`mcust-${fid}`).value.trim();
+              if (c) r.val = `Custom: ${c}`; else if (f.required) { r.val = 'Type Custom Color'; r.warn = true; }
+          } else {
+              r.val = byId(`mpv-${fid}`).value; r.hex = byId(`mhex-${fid}`).value;
+              if (!r.val && f.required) { r.val = 'Select Swatch'; r.warn = true; }
+          }
+      };
+      switch (f.type) {
+          case 'dims': {
+              let labels = splitOpts(f.options); if (!labels.length) labels = ['W', 'H'];
+              let parts = [];
+              labels.forEach((lab, k) => { let v = (byId(`md-${fid}-${k}`).value || '').replace(/"/g, '').trim(); if (v) parts.push(`${v}"${lab}`); });
+              r.val = parts.join(' x ');
+              if (f.required && parts.length < labels.length) { r.val = r.val || 'Enter Dimensions'; r.warn = true; }
+              break;
+          }
+          case 'paint': paintValue(); break;
+          case 'finish': {
+              let v = byId(`mf-${fid}`).value;
+              if (v === CUSTOM_PAINT) paintValue();
+              else if (v === 'CUSTOM') r.val = byId(`mc-${fid}`).value.trim();
+              else { r.val = v; r.hex = colorHex(v); }
+              break;
+          }
+          case 'color': {
+              let v = byId(`mf-${fid}`).value;
+              if (v === 'CUSTOM') r.val = byId(`mc-${fid}`).value.trim(); else { r.val = v; r.hex = colorHex(v); }
+              break;
+          }
+          case 'fullcolor': r.val = 'Full Color Digital'; r.gradient = true; break;
+          case 'vinyl': case 'db': case 'rowmark':
+              r.val = byId(`mpv-${fid}`).value; r.hex = byId(`mhex-${fid}`).value;
+              if (!r.val && f.required) { r.val = 'Select Swatch'; r.warn = true; }
+              break;
+          case 'pictogram': {
+              let p = (appData.pictograms || []).find(x => x.code === byId(`mpv-${fid}`).value);
+              if (p) { r.val = p.name; r.svg = p; }
+              break;
+          }
+          case 'select': {
+              let v = byId(`mf-${fid}`).value;
+              r.val = v === 'CUSTOM' ? byId(`mc-${fid}`).value.trim() : v;
+              break;
+          }
+          default: r.val = String(byId(`mf-${fid}`).value).trim();
+      }
+      if (r.val === '' && f.required) { r.val = 'Enter ' + f.variable; r.warn = true; }
+      return r;
+  }
+
+  function luminance(hex) {
+      let h = cssBg(hex).replace('#', '');
+      if (h.length !== 6) return null;
+      let c = [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+
+  function collectPartItems(part) {
+      let comp = appData.components[part.comp];
+      let items = [];
+      comp.fields.forEach((f, fi) => {
+          let g = document.getElementById(`mg-${part.uid}_${fi}`);
+          if (g && g.style.display === 'none') return;
+          let d = getDisplay(part, f, fi);
+          if (!d.warn && (d.val === '' || d.val.toUpperCase() === 'N/A')) return;
+          if (!d.warn && splitOpts(f.hideValues).indexOf(d.val) !== -1) return;
+          items.push(Object.assign({ zone: f.zone, label: f.label, variable: f.variable.toUpperCase(), type: f.type, opts: f.options }, d));
+      });
+      let q = items.find(i => i.type === 'autoqty');
+      if (q) {
+          let h = items.find(i => i.variable === String(q.opts).toUpperCase());
+          if (h && !h.warn) { q.val = `${q.val} @ ${h.val.replace(/"/g, '')}"`; q.label = 'QTY / HEIGHT'; items = items.filter(i => i !== h); }
+      }
+      items.forEach(i => { if (i.variable === 'TEXT' && !i.warn) i.val = `"${i.val}"`; });
+      if (part.comp === 'ADA_SIGN') {
+          let bg = items.find(i => i.variable === 'BACKGROUND COLOR'), fg = items.find(i => i.variable === 'TACTILE COLOR');
+          if (bg && fg && bg.hex && fg.hex) {
+              let L1 = luminance(bg.hex), L2 = luminance(fg.hex);
+              if (L1 !== null && L2 !== null && (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05) < 3) { fg.warn = true; fg.warnLabel = 'LOW CONTRAST'; }
+          }
+          let pic = items.find(i => i.type === 'pictogram');
+          if (pic && pic.svg) { pic.picBg = bg && bg.hex ? normHex(bg.hex) : '#FFFFFF'; pic.picFill = fg && fg.hex ? normHex(fg.hex) : '#000000'; }
+      }
+      return items;
+  }
+
+  // =====================================================================
+  //  DETAIL DRAWINGS  (Detail_Drawings tab: shown bottom-right when a page's specs match)
+  // =====================================================================
+  const DD = { T: 140, CAP: 15, G: 8, MAX: 6 };
+
+  // Drop any drawing whose markup is not valid SVG, so one bad cell can't break a proof export
+  function validDrawings(list) {
+      let ns = 'http:' + '/' + '/www.w3.org/2000/svg';
+      return list.filter(d => {
+          let doc = new DOMParser().parseFromString(`<svg xmlns="${ns}">${String(d.svg).replace(/\{[^{}]*\}/g, 'X')}</svg>`, 'image/svg+xml');
+          if (doc.getElementsByTagName('parsererror').length) { console.warn('Detail drawing skipped (invalid SVG_Markup):', d.id); return false; }
+          return true;
+      }).sort((a, b) => a.order - b.order);
+  }
+
+  // Match_Rule = Show_If syntax, with OR between alternatives. Blank = always.
+  let visibleOnly = false;   // Match_Rule only looks at fields that are showing (hidden fields keep stale defaults)
+  function matchRule(part, rule) {
+      if (!String(rule || '').trim()) return true;
+      visibleOnly = true;
+      try { return String(rule).split(/\s+OR\s+/).some(r => evalShowIf(part, r)); } finally { visibleOnly = false; }
+  }
+
+  function drawingsForPart(part) {
+      if (String(TEMPLATE.Detail_Drawings || 'On').toUpperCase() === 'OFF') return [];
+      return (appData.drawings || []).filter(d => (!d.components.length || d.components.indexOf(part.comp) !== -1) && matchRule(part, d.rule));
+  }
+
+  function pageDrawings(it, blocks) {
+      let all = [];
+      blocks.forEach(b => drawingsForPart(b.part).forEach(d => { if (!all.some(m => m.d.id === d.id)) all.push({ d, part: b.part }); }));
+      all.sort((a, b) => a.d.order - b.d.order);
+      let shown = all.filter(m => !excludedDrawings[`${it.iid}|${m.d.id}`]).slice(0, DD.MAX);
+      return { all, shown };
+  }
+
+  function renderItemDrawings(it, matched) {
+      let box = document.getElementById(`idraw-${it.iid}`);
+      if (!box) return;
+      let html = matched.length ? `<div class="dd-head">Detail drawings on this proof</div>` + matched.map(m => {
+          let key = `${it.iid}|${m.d.id}`;
+          return `<label class="dd-chip"><input type="checkbox" ${excludedDrawings[key] ? '' : 'checked'} ` +
+                 `onchange="toggleDrawing('${it.iid}', '${esc(m.d.id)}', this.checked)"> ${esc(m.d.title)}</label>`;
+      }).join('') : '';
+      if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
+      box.style.display = matched.length ? 'block' : 'none';
+  }
+
+  function toggleDrawing(iid, id, on) {
+      if (on) delete excludedDrawings[`${iid}|${id}`]; else excludedDrawings[`${iid}|${id}`] = true;
+      schedulePreview();
+  }
+
+  // {VARIABLE} -> that field's current value; {VARIABLE|text} -> text when the field is blank
+  function fillDrawing(svg, part) {
+      let fields = appData.components[part.comp].fields;
+      return String(svg).replace(/\{([^{}]+)\}/g, (all, inner) => {
+          let bar = inner.indexOf('|'), name = (bar === -1 ? inner : inner.slice(0, bar)).trim(), fb = bar === -1 ? '' : inner.slice(bar + 1);
+          let fi = fields.findIndex(f => f.variable.toUpperCase() === name.toUpperCase()), v = '';
+          if (fi !== -1) {
+              let g = document.getElementById(`mg-${part.uid}_${fi}`);
+              if (!g || g.style.display !== 'none') { let d = getDisplay(part, fields[fi], fi); if (!d.warn) v = String(d.val || '').toUpperCase(); }
+          }
+          return escX(v || fb);
+      });
+  }
+
+  function detailColumns(n) { return n > 3 ? 2 : (n ? 1 : 0); }
+
+  function drawDetails(list) {
+      const AB = PG.AB, ncol = detailColumns(list.length);
+      if (!ncol) return '';
+      let cols = ncol === 1 ? [list] : [list.slice(0, 3), list.slice(3)];
+      let right = AB.x + AB.w - 12, bottom = AB.y + AB.h - 18, tallest = 0;
+      let o = `<g id="Detail_Drawings">`;
+      cols.forEach((col, c) => {
+          let x = right - (ncol - c) * DD.T - (ncol - 1 - c) * DD.G;
+          let h = col.length * (DD.T + DD.CAP) + (col.length - 1) * DD.G, y = bottom - h;
+          tallest = Math.max(tallest, h);
+          col.forEach(m => {
+              let k = (DD.T - 8) / 100, title = String(m.d.title).toUpperCase(), ts = 7.2;
+              while (tw(title, ts, true) > DD.T - 8 && ts > 5) ts -= 0.2;
+              o += `<g id="Detail_${slug(m.d.id)}">` + R(x, y, DD.T, DD.T + DD.CAP, '#FFFFFF', '#BCBEC0', 0.8) +
+                   `<g transform="translate(${(x + 4).toFixed(2)},${(y + 4).toFixed(2)}) scale(${k.toFixed(4)})">${fillDrawing(m.d.svg, m.part)}</g>` +
+                   R(x, y + DD.T, DD.T, DD.CAP, INK) + T(x + DD.T / 2, y + DD.T + 10.3, title, ts, { anchor: 'middle', bold: true, fill: '#FFFFFF' }) + `</g>`;
+              y += DD.T + DD.CAP + DD.G;
+          });
+      });
+      o += T(right, bottom - tallest - 5, 'DETAILS \u00B7 NOT TO SCALE', 6, { anchor: 'end', bold: true, fill: '#888888', ls: 0.6 });
+      return o + `</g>`;
+  }
+
+  // =====================================================================
+  //  PAGINATION
+  // =====================================================================
+  function paginateBlocks(blocks) {
+      let groups = [];
+      blocks.forEach(b => { let g = groups.find(x => x.key === b.pageGroup); if (!g) { g = { key: b.pageGroup, items: [] }; groups.push(g); } g.items.push(b); });
+      groups.sort((x, y) => x.key - y.key);
+      let pages = [];
+      groups.forEach(g => {
+          for (let i = 0; i < g.items.length; i += 2) {
+              let chunk = g.items.slice(i, i + 2), last = pages[pages.length - 1];
+              if (i === 0 && chunk.length === 1 && last && last.length === 1 && last.singletonTail) { last.push(chunk[0]); last.singletonTail = false; }
+              else pages.push(chunk);
+          }
+          let tail = pages[pages.length - 1];
+          if (tail && tail.length === 1) tail.singletonTail = true;
+      });
+      return pages;
+  }
+
+  function packagePages() {
+      let pages = [];
+      pkgItems.forEach(it => {
+          let blocks = [];
+          allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => {
+              let items = collectPartItems(part);
+              let zones = [];
+              appData.components[part.comp].fields.forEach(f => { if (zones.indexOf(f.zone) === -1) zones.push(f.zone); });
+              let cols = zones.map(z => items.filter(i => i.zone === z)).filter(c => c.length);
+              if (!cols.length) return;
+              let siblings = allParts.filter(p => p.iid === it.iid && p.di === part.di && p.enabled).length;
+              blocks.push({ part, title: siblings > 1 ? `${part.title} ${part.num}` : part.title, cols,
+                            rows: Math.max.apply(null, cols.map(c => c.length)),
+                            pageGroup: Number(it.defs[part.di].pageGroup) || (part.di + 1) });
+          });
+          let ip = paginateBlocks(blocks);
+          if (!ip.length) ip = [[]];
+          let matched = [];
+          ip.forEach((pb, n) => {
+              let dr = pageDrawings(it, pb);
+              dr.all.forEach(m => { if (!matched.some(x => x.d.id === m.d.id)) matched.push(m); });
+              pages.push({ item: it, blocks: pb, n: n + 1, total: ip.length, drawings: dr.shown });
+          });
+          renderItemDrawings(it, matched);
+          let tag = document.getElementById(`ipages-${it.iid}`);
+          if (tag) tag.innerText = `${ip.length} page${ip.length > 1 ? 's' : ''}`;
+      });
+      return pages;
+  }
+
+  // =====================================================================
+  //  SVG PROOF SHEET  (1 unit = 0.01 in; page = 1100 x 850 = 11" x 8.5")
+  // =====================================================================
+  const PG = { W: 1100, H: 850, AB: { x: 37.4, y: 37.4, w: 874.6, h: 712.3 }, SB: { x0: 924, x1: 1074 } };
+  const LINE = '#B1B1B3', INK = '#231F20', RED_BOX = '#BA3337', TAG_BG = '#FFF200', TAG_TX = '#D60000';
+  let measureCtx = null;
+  function tw(text, size, bold) {
+      if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+      measureCtx.font = `${bold ? 'bold ' : ''}${size}px Arial`;
+      return measureCtx.measureText(String(text)).width;
+  }
+  function wrapText(text, size, bold, maxW) {
+      let words = String(text).split(/\s+/).filter(Boolean), lines = [], cur = '';
+      words.forEach(w => {
+          let t = cur ? cur + ' ' + w : w;
+          if (tw(t, size, bold) <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; }
+      });
+      if (cur) lines.push(cur);
+      return lines.length ? lines : [''];
+  }
+  function wrapPath(path, size, maxW) {   // breaks file paths after \ or /
+      let parts = String(path).match(/[^\\\/]*[\\\/]?/g).filter(Boolean), lines = [], cur = '';
+      parts.forEach(p => { if (tw(cur + p, size, false) <= maxW || !cur) cur += p; else { lines.push(cur); cur = p; } });
+      if (cur) lines.push(cur);
+      return lines;
+  }
+  function T(x, y, text, size, opts) {
+      opts = opts || {};
+      return `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-family="Arial" font-size="${size.toFixed(2)}"` +
+             (opts.bold ? ` font-weight="bold"` : '') + ` fill="${opts.fill || INK}"` +
+             (opts.anchor ? ` text-anchor="${opts.anchor}"` : '') + (opts.ls ? ` letter-spacing="${opts.ls}"` : '') +
+             (opts.italic ? ` font-style="italic"` : '') + `>${escX(text)}</text>`;
+  }
+  function R(x, y, w, h, fill, stroke, sw, extra) {
+      return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="${fill || 'none'}"` +
+             (stroke ? ` stroke="${stroke}" stroke-width="${sw || 1}"` : '') + (extra || '') + `/>`;
+  }
+  function L(x1, y1, x2, y2, stroke, sw) { return `<line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" stroke="${stroke || LINE}" stroke-width="${sw || 0.8}"/>`; }
+  function IMG(x, y, w, h, href, par) {
+      return `<image x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="${par || 'xMidYMid meet'}" xlink:href="${href}"/>`;
+  }
+  function missingTag(xRight, y, text, size) {   // yellow MISSING tag, right-aligned at xRight
+      let w = tw(text, size, true) + 6;
+      return R(xRight - w, y - size * 0.95, w, size * 1.3, TAG_BG, '#D6A100', 0.5, ' stroke-dasharray="1.5,1"') +
+             T(xRight - 3, y, text, size, { bold: true, fill: TAG_TX, anchor: 'end' });
+  }
+
+  // ----- spec table layout -----
+  function measureCell(item, s) {
+      let P = { lab: 7.2 * s, val: 11 * s, padX: 8 * s, padY: 7.5 * s, gap: 5 * s, lineH: 13.5 * s };
+      let label = item.label.toUpperCase() + ':';
+      let lw = tw(label, P.lab, true);
+      let hasSw = item.gradient || item.svg || (item.hex && (!item.warn || item.warnLabel === 'LOW CONTRAST'));
+      let swW = hasSw ? (item.svg ? 24 * s : 34 * s) + 8 * s : 0;
+      let text = item.warn ? `${item.warnLabel}: ${item.val}` : item.val;
+      let maxVal = Math.max(90 * s, 290 * s - lw - P.gap - swW - 2 * P.padX);
+      let lines = wrapText(text, P.val, true, maxVal);
+      let vw = Math.max.apply(null, lines.map(l => tw(l, P.val, true)));
+      return { item, P, label, lw, swW, lines, vw,
+               w: 2 * P.padX + lw + P.gap + vw + swW + (item.warn ? 6 * s : 0),
+               h: Math.max(item.svg ? 30 * s : 0, 2 * P.padY + (lines.length - 1) * P.lineH + P.val) };
+  }
+
+  function layoutTable(page, s) {
+      let maxCols = 1;
+      page.blocks.forEach(b => { if (b.cols.length > maxCols) maxCols = b.cols.length; });
+      let colW = new Array(maxCols).fill(110 * s);
+      let skipHead = page.blocks.length === 1 && page.blocks[0].title.toUpperCase() === page.item.name.toUpperCase();
+      let rows = [];
+      page.blocks.forEach(b => {
+          if (!skipHead) rows.push({ head: b.title, h: 17 * s });
+          for (let r = 0; r < b.rows; r++) {
+              let cells = [], h = 29 * s;
+              for (let c = 0; c < maxCols; c++) {
+                  let it = b.cols[c] ? b.cols[c][r] : null;
+                  let m = it ? measureCell(it, s) : null;
+                  if (m) { colW[c] = Math.max(colW[c], m.w); h = Math.max(h, m.h); }
+                  cells.push(m);
+              }
+              rows.push({ cells, h });
+          }
+      });
+      return { s, colW, rows, w: colW.reduce((a, b) => a + b, 0), h: rows.reduce((a, r) => a + r.h, 0) };
+  }
+
+  function fitTable(page) {
+      let ncol = detailColumns((page.drawings || []).length);
+      const maxW = PG.AB.w - 52 - (ncol ? ncol * (DD.T + DD.G) + 14 : 0), maxH = PG.AB.h - 30 - 30 - 26 - 60;   // keeps room above for artwork
+      let lay;
+      for (let s = 1; s >= 0.5; s -= 0.06) { lay = layoutTable(page, s); if (lay.w <= maxW && lay.h <= maxH) return lay; }
+      return lay;
+  }
+
+  function drawCell(m, x, y, w, h) {
+      let it = m.item, P = m.P, out = R(x, y, w, h, '#FFFFFF', '#BCBEC0', 1.4 * (P.val / 11));
+      let base = y + P.padY + P.val * 0.82;
+      if (m.lines.length === 1) base = y + h / 2 + P.val * 0.35;
+      out += T(x + P.padX, base, m.label, P.lab, { bold: true, fill: '#777777' });
+      let vx = x + P.padX + m.lw + P.gap;
+      if (it.warn) {
+          let ww = Math.max.apply(null, m.lines.map(l => tw(l, P.val, true))) + 6 * (P.val / 11);
+          out += R(vx - 2, base - P.val * 0.95, ww, (m.lines.length - 1) * P.lineH + P.val * 1.3, TAG_BG, '#D6A100', 0.8, ' stroke-dasharray="2,1.5"');
+      }
+      m.lines.forEach((l, i) => out += T(vx + (it.warn ? 1 : 0), base + i * P.lineH, l, P.val, { bold: true, fill: it.warn ? TAG_TX : '#000000' }));
+      if (m.swW) {
+          let sx = x + w - P.padX - (m.swW - 8 * (P.val / 11));
+          if (it.svg) {
+              let sz = 22 * (P.val / 11), sy = y + (h - sz) / 2, vb = String(it.svg.viewBox || '0 0 216 216').split(/\s+/).map(Number);
+              let k = sz / Math.max(vb[2], vb[3]);
+              out += R(sx, sy, sz, sz, it.picBg || '#FFFFFF', '#555555', 0.8) +
+                     `<g transform="translate(${(sx + (sz - vb[2] * k) / 2).toFixed(2)},${(sy + (sz - vb[3] * k) / 2).toFixed(2)}) scale(${k.toFixed(4)})"><path d="${esc(it.svg.path)}" fill="${it.picFill || '#000000'}"/></g>`;
+          } else {
+              let sw = 34 * (P.val / 11), sh = 14 * (P.val / 11), sy = y + (h - sh) / 2;
+              let fill = it.gradient ? 'url(#fullcolor)' : (normHex(it.hex) === 'transparent' ? '#FFFFFF' : normHex(it.hex));
+              out += R(sx, sy, sw, sh, fill, '#555555', 0.9);
+              if (normHex(it.hex) === 'transparent') out += L(sx, sy + sh, sx + sw, sy, '#999999', 0.6);
+          }
+      }
+      return out;
+  }
+
+  function drawTable(page, lay, x, bottom) {
+      let top = bottom - lay.h, s = lay.s, out = '', y = top;
+      // product badge sits on top of the table
+      let badge = page.item.name.toUpperCase(), bs = 12 * Math.max(s, 0.8), bw = tw(badge, bs, true) + 20;
+      out += `<g id="Product_Badge">` + R(x, top - bs * 1.9, bw, bs * 1.9, INK) + T(x + 10, top - bs * 0.55, badge, bs, { bold: true, fill: '#FFFFFF' }) + `</g>`;
+      out += `<g id="Spec_Table">`;
+      lay.rows.forEach(row => {
+          if (row.head) {
+              out += R(x, y, lay.w, row.h, INK) + T(x + 8 * s, y + row.h * 0.68, row.head.toUpperCase(), 8 * s, { bold: true, fill: '#FFFFFF', ls: 1.2 * s });
+          } else {
+              let cx = x;
+              row.cells.forEach((m, c) => {
+                  out += m ? drawCell(m, cx, y, lay.colW[c], row.h) : R(cx, y, lay.colW[c], row.h, '#F1F2F2', '#BCBEC0', 1.4 * s);
+                  cx += lay.colW[c];
+              });
+          }
+          y += row.h;
+      });
+      return out + `</g>`;
+  }
+
+  // ----- customer info (right column) -----
+  function getCustomerInfo() {
+      let v = id => (document.getElementById(id) ? document.getElementById(id).value.trim() : '');
+      let orig = v('cf-orig');
+      if (/^\d{4}-\d{2}-\d{2}$/.test(orig)) { let [y, m, d] = orig.split('-'); orig = `${m}/${d}/${y}`; }
+      return { name: v('cf-name'), location: v('cf-location'), sales: v('cf-sales'), inv: v('cf-inv'), ticket: v('cf-ticket'),
+               designer: v('cf-designer'), orig: orig, rev: v('cf-rev') || todayStr(), path: v('cf-path'), notes: v('cf-notes') };
+  }
+
+  function drawSidebar(info, pkgN, pkgTotal) {
+      const x0 = PG.SB.x0, x1 = PG.SB.x1, lx = 927.5, rx = 1071, cx = (x0 + x1) / 2;
+      let o = `<g id="Proof_Info">`;
+      [37.4, 77, 149, 212, 261, 376, 651, 762].forEach(y => o += L(x0, y, x1, y));
+      o += T(cx, 52, TEMPLATE.Title || 'DESIGN PROOF', 10.5, { anchor: 'middle', fill: '#333333' });
+      o += T(cx, 67.5, `Page ${pkgN} / ${pkgTotal}`, 11, { anchor: 'middle', bold: true });
+      // customer / project name box
+      o += R(x0, 84, x1 - x0, 58, RED_BOX);
+      if (info.name) {
+          let size = 12.5, lines = wrapText(info.name, size, true, 138);
+          while (lines.length > 2 && size > 8) { size -= 0.5; lines = wrapText(info.name, size, true, 138); }
+          lines = lines.slice(0, 3);
+          let lh = size * 1.15, y0 = 113 - (lines.length - 1) * lh / 2 + size * 0.35;
+          lines.forEach((l, i) => o += T(cx, y0 + i * lh, l, size, { anchor: 'middle', bold: true, fill: '#FFFFFF' }));
+      } else {
+          o += missingTag(cx + 52, 116, 'MISSING: CUSTOMER / PROJECT', 7.5);
+      }
+      // installation location (3 lines)
+      o += T(lx, 163, 'Installation Location:', 9.5);
+      [176, 189, 201].forEach(y => o += L(929, y, rx, y, '#CCCCCC', 0.5));
+      if (info.location) wrapText(info.location, 7.5, false, 138).slice(0, 3).forEach((l, i) => o += T(rx, [174, 187, 199][i], l, 7.5, { anchor: 'end', fill: '#555555' }));
+      else o += missingTag(rx, 174, 'MISSING', 7);
+      // salesperson / inv / ticket
+      let row = (label, val, y, size) => {
+          let w = tw(label, size, false);
+          let s = T(lx, y, label, size) + L(lx + w + 3, y + 1.5, rx, y + 1.5, '#CCCCCC', 0.5);
+          return s + (val ? T(rx, y, val, size * 0.88, { anchor: 'end', fill: '#444444' }) : missingTag(rx, y, 'MISSING', 7));
+      };
+      o += row('Salesperson', info.sales, 226, 9.5) + row('Inv/Est #', info.inv, 238.5, 9.5) + row('Ticket No.', info.ticket, 251, 9.5);
+      o += row('Designer', info.designer, 274.5, 8.8) + row('Original Date', info.orig, 287, 8.8) + row('Revision Date', info.rev, 299.5, 8.8);
+      o += T(lx, 312, 'File Location:', 8.8);
+      [323.5, 336, 348.5, 361].forEach(y => o += L(929, y, rx, y, '#CCCCCC', 0.5));
+      if (info.path) wrapPath(info.path, 7.3, 140).slice(0, 4).forEach((l, i) => o += T(930, [321.5, 334, 346.5, 359][i], l, 7.3, { fill: '#555555' }));
+      else o += missingTag(rx, 321.5, 'MISSING', 7);
+      // description / project notes
+      o += T(lx, 391, 'Description:', 9);
+      o += L(lx + tw('Description:', 9, false) + 3, 392.5, rx, 392.5, '#CCCCCC', 0.5);
+      let noteLines = info.notes ? info.notes.split(/\n/).reduce((a, p) => a.concat(wrapText(p, 7.5, false, 140)), []) : [];
+      for (let i = 0; i < 19; i++) {
+          let y = 405 + i * 12.3;
+          o += L(929, y, rx, y, '#CCCCCC', 0.5);
+          if (noteLines[i]) o += T(930, y - 2.2, noteLines[i], 7.5, { fill: '#444444' });
+      }
+      o += `</g>`;
+      // ETL block
+      o += `<g id="ETL">` + IMG(929, 658, 36.5, 48, PROOF_ASSETS.etl);
+      let etl = TEMPLATE.ETL_Text || '', y = 664.5, words = etl.split(/\s+/), cur = '', lines = [];
+      words.forEach(w => {
+          let maxW = (y + lines.length * 7.35) < 708 ? 97 : 142;
+          let t = cur ? cur + ' ' + w : w;
+          if (tw(t, 5.9, false) <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; }
+      });
+      if (cur) lines.push(cur);
+      lines.forEach((l, i) => { let ly = y + i * 7.35; o += T(ly < 708 ? 974 : 929, ly, l, 5.9, { fill: '#222222' }); });
+      o += `</g>`;
+      o += `<g id="Logo">` + IMG(x0, 771, x1 - x0, 44.7, PROOF_ASSETS.logo) + `</g>`;
+      return o;
+  }
+
+  function drawFooter() {
+      let o = `<g id="Approval_Footer">` + R(PG.AB.x, 762, PG.AB.w, 50.5, '#EDEDED', LINE, 0.8);
+      let lab = TEMPLATE.Approval_Label || 'Customer Approval Signature', dl = TEMPLATE.Date_Label || 'Date';
+      o += T(43, 801, lab, 10.5, { bold: true, fill: '#222222' }) + L(43 + tw(lab, 10.5, true) + 3, 802.5, 490, 802.5, '#888888', 0.6);
+      o += T(497, 801, dl, 10.5, { bold: true, fill: '#222222' }) + L(497 + tw(dl, 10.5, true) + 3, 802.5, 696, 802.5, '#888888', 0.6);
+      wrapText(TEMPLATE.Legal_Text || '', 5.8, false, 198).forEach((l, i) => o += T(709, 771.5 + i * 7.3, l, 5.8, { fill: '#222222' }));
+      o += T(709, 803, (TEMPLATE.Copyright_Text || '').replace('{YEAR}', new Date().getFullYear()), 5.8, { fill: '#222222' });
+      return o + `</g>`;
+  }
+
+  function buildSheetSVG(page, pkgN, pkgTotal, info) {
+      const AB = PG.AB;
+      // Header and namespace URLs are assembled from pieces: Apps Script mangles a literal "<" + "?" tag and
+      // cuts off any line where two slashes appear inside a string (it mistakes them for a comment).
+      const XML_HEAD = '<' + '?xml version="1.0" encoding="UTF-8"?' + '>\n';
+      let o = XML_HEAD + '<svg xmlns="http:' + '/' + '/www.w3.org/2000/svg" xmlns:xlink="http:' + '/' + '/www.w3.org/1999/xlink" ' +
+              `width="11in" height="8.5in" viewBox="0 0 ${PG.W} ${PG.H}">` +
+              `<defs><linearGradient id="fullcolor" x1="0" y1="0" x2="1" y2="0">` +
+              ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#8b00ff'].map((c, i) => `<stop offset="${(i / 6).toFixed(3)}" stop-color="${c}"/>`).join('') +
+              `</linearGradient><clipPath id="abclip"><rect x="${AB.x}" y="${AB.y}" width="${AB.w}" height="${AB.h}"/></clipPath></defs>` +
+              R(0, 0, PG.W, PG.H, '#FFFFFF');
+      o += `<g id="Artboard">` + R(AB.x, AB.y, AB.w, AB.h, '#FFFFFF');
+      if (String(TEMPLATE.Watermark || 'On').toUpperCase() !== 'OFF') {
+          // Vector watermark: faint tiled text (no image data, stays editable in Illustrator / CorelDRAW)
+          let wm = `<g id="Watermark" clip-path="url(#abclip)"><g transform="rotate(-30 ${AB.x + AB.w / 2} ${AB.y + AB.h / 2})" fill="#000000" fill-opacity="0.022">`;
+          for (let r = -4, row = 0; r <= 12; r++, row++)
+              for (let c = -3; c <= 6; c++)
+                  wm += `<text x="${(AB.x + c * 230 + (row % 2) * 115).toFixed(1)}" y="${(AB.y + r * 70).toFixed(1)}" font-family="Arial" font-size="34" font-weight="bold">SIGN STORE</text>`;
+          o += wm + `</g></g>`;
+      }
+      if (page.blocks.length) {
+          let lay = fitTable(page);
+          o += drawTable(page, lay, AB.x + 26, AB.y + AB.h - 30);
+      }
+      o += drawDetails(page.drawings || []);
+      o += T(AB.x + AB.w - 10, AB.y + AB.h - 9, `${page.item.name.toUpperCase()} \u00B7 PAGE ${page.n}/${page.total}`, 6.5, { anchor: 'end', bold: true, fill: '#C1272D' });
+      o += R(AB.x, AB.y, AB.w, AB.h, 'none', LINE, 0.8) + `</g>`;
+      o += drawSidebar(info, pkgN, pkgTotal) + drawFooter();
+      return o + `</svg>`;
+  }
+
+  // =====================================================================
+  //  DESIGN HELP CENTER  (Design_Guide tab -> plain text for this package)
+  // =====================================================================
+  let helpText = '';
+
+  // {VARIABLE} / {VARIABLE|fallback} in a rule -> the part's current value (plain text)
+  function fillPlain(text, part) {
+      return String(text).replace(/\{([^{}]+)\}/g, (all, inner) => {
+          let bar = inner.indexOf('|'), name = (bar === -1 ? inner : inner.slice(0, bar)).trim(), fb = bar === -1 ? '' : inner.slice(bar + 1);
+          if (!part) return fb;
+          let fields = appData.components[part.comp].fields, fi = fields.findIndex(f => f.variable.toUpperCase() === name.toUpperCase()), v = '';
+          if (fi !== -1) { let d = getDisplay(part, fields[fi], fi); if (!d.warn) v = String(d.val || ''); }
+          return v || fb;
+      });
+  }
+
+  // Wraps to a total line width: first line starts with `first`, later lines with `cont`
+  function wrapLine(text, width, first, cont) {
+      let out = [], line = first;
+      String(text).trim().split(/\s+/).forEach(w => {
+          let start = out.length ? cont : first;
+          if (line.length > start.length && (line + ' ' + w).length > width) { out.push(line); line = cont + w; }
+          else line = line.length > start.length ? line + ' ' + w : line + w;
+      });
+      out.push(line);
+      return out.join('\n');
+  }
+
+  function helpRulesForPackage() {
+      let parts = allParts.filter(p => p.enabled), out = [];
+      (appData.guide || []).slice().sort((a, b) => a.order - b.order).forEach(g => {
+          if (!g.components.length && !String(g.rule || '').trim()) { out.push({ g, parts: [], always: true }); return; }
+          let hits = parts.filter(p => (!g.components.length || g.components.indexOf(p.comp) !== -1) && matchRule(p, g.rule));
+          if (hits.length) out.push({ g, parts: hits, always: false });
+      });
+      return out;
+  }
+
+  function buildHelpText() {
+      const W = 96, IND = '      ', BAR = '-'.repeat(W);
+      let rules = helpRulesForPackage(), info = getCustomerInfo();
+      let pages = packagePages(), counts = {};
+      pages.forEach(p => counts[p.item.iid] = (counts[p.item.iid] || 0) + 1);
+      let pkg = pkgItems.map(it => `${it.name} (${counts[it.iid] || 0} page${counts[it.iid] === 1 ? '' : 's'})`).join(' + ');
+      let t = 'DESIGN HELP CENTER - PROOF PACKAGE\n' + '='.repeat(W) + '\n';
+      t += wrapLine(pkg, W, 'Package:  ', '          ') + '\n';
+      if (info.name) t += 'Customer: ' + info.name + '\n';
+      t += 'Date:     ' + todayStr() + '\n';
+      t += `Rules:    ${rules.length} standards apply to this package (${rules.filter(r => !r.always).length} of them because of its specs)\n\n`;
+      t += 'BASIS   [SignOS] from our SignOS equipment and material data\n        [Industry] sign industry standard\n        [House] Sign Store design department standard\n';
+      t += 'Menu paths are CorelDRAW 2020 and newer; older versions use similar names.\n';
+      let sec = null, si = 0, ri = 0;
+      rules.forEach(r => {
+          let g = r.g;
+          if (g.section !== sec) { sec = g.section; si++; ri = 0; t += `\n${BAR}\n${si}. ${sec}\n${BAR}\n`; }
+          ri++;
+          let num = `${si}.${ri}`, pad = ' '.repeat(Math.max(1, 6 - num.length));
+          t += '\n' + wrapLine(fillPlain(g.text, r.parts[0]), W, num + pad, IND) + '\n';
+          if (g.why) t += wrapLine(g.why, W, IND + 'WHY: ', IND + '     ') + '\n';
+          if (g.how) t += wrapLine(g.how, W, IND + 'COREL: ', IND + '       ') + '\n';
+          let tags = [];
+          if (g.basis) tags.push('[' + g.basis + ']');
+          if (!r.always) {
+              let names = [];
+              r.parts.forEach(p => { let it = pkgItems.find(x => x.iid === p.iid); if (it && names.indexOf(it.name) === -1) names.push(it.name); });
+              tags.push('Applies to: ' + names.join(', '));
+          }
+          if (tags.length) t += wrapLine(tags.join('   '), W, IND, IND) + '\n';
+      });
+      if (!rules.length) t += '\nNo rules found. Check the Design_Guide tab in the Google Sheet.\n';
+      t += '\n' + BAR + '\nEdit these standards in the Design_Guide tab of the Google Sheet.\n';
+      return t;
+  }
+
+  function openHelp() {
+      try { helpText = buildHelpText(); } catch (e) { console.error(e); helpText = 'Could not build the help text: ' + e.message; }
+      document.getElementById('help-text').textContent = helpText;
+      document.getElementById('help-text').scrollTop = 0;
+      document.getElementById('help-modal').style.display = 'flex';
+  }
+  function closeHelp() { document.getElementById('help-modal').style.display = 'none'; }
+
+  function copyHelp() {
+      let btn = document.getElementById('help-copy');
+      let done = () => { btn.innerText = 'Copied'; setTimeout(() => btn.innerText = 'Copy', 1500); };
+      let fallback = () => {
+          let r = document.createRange(); r.selectNodeContents(document.getElementById('help-text'));
+          let sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+          try { document.execCommand('copy'); done(); } catch (e) { btn.innerText = 'Press Ctrl+C'; }
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(helpText).then(done, fallback); else fallback();
+  }
+
+  function downloadHelp() {
+      let info = getCustomerInfo();
+      saveBlob(new Blob([helpText.replace(/\n/g, '\r\n')], { type: 'text/plain' }), `${slug(info.name || 'proof_package')}_design_help.txt`);
+  }
+
+  function printHelp() {
+      let f = document.createElement('iframe');
+      f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+      document.body.appendChild(f);
+      let d = f.contentWindow.document;
+      d.open(); d.write('<pre style="font:10.5pt Consolas,monospace;white-space:pre-wrap;">' + esc(helpText) + '</pre>'); d.close();
+      setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { downloadHelp(); } setTimeout(() => f.remove(), 2000); }, 100);
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHelp(); });
+
+  // =====================================================================
+  //  PREVIEW
+  // =====================================================================
+  function schedulePreview() { clearTimeout(renderTimer); renderTimer = setTimeout(renderPreview, 60); }
+
+  function renderPreview() {
+      if (step === 'select') return;
+      try {
+          let pages = packagePages(), info = getCustomerInfo();
+          let html = pages.map((p, i) => `<div class="sheet">${buildSheetSVG(p, i + 1, pages.length, info).replace(/^<\?xml[^>]*>\s*/, '')}</div>`).join('');
+          document.getElementById('sheets').innerHTML = html || '<div style="color:#aaa;padding:40px;">Nothing to preview yet.</div>';
+          document.getElementById('page-count').innerText = `${pages.length} page${pages.length === 1 ? '' : 's'}`;
+          updateCustomerTags(info);
+      } catch (e) { console.error('Preview error:', e); }
+  }
+
+  function updateCustomerTags(info) {
+      let req = { 'cf-name': info.name, 'cf-location': info.location, 'cf-sales': info.sales, 'cf-inv': info.inv, 'cf-ticket': info.ticket,
+                  'cf-designer': info.designer, 'cf-orig': info.orig, 'cf-path': info.path };
+      Object.keys(req).forEach(id => { let g = document.getElementById(id); if (g) g.parentElement.classList.toggle('missing', !req[id]); });
+  }
+
+  // =====================================================================
+  //  EXPORT: zip of SVG (editable) + PNG (300 ppi) per page
+  // =====================================================================
+  function svgToPngBlob(svg) {
+      return new Promise((resolve, reject) => {
+          let img = new Image();
+          let url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+          img.onload = () => {
+              let c = document.createElement('canvas'); c.width = 3300; c.height = 2550;
+              let ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+              ctx.drawImage(img, 0, 0, c.width, c.height);
+              URL.revokeObjectURL(url);
+              c.toBlob(b => b ? resolve(b) : reject(new Error('PNG failed')), 'image/png');
+          };
+          img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not render SVG')); };
+          img.src = url;
+      });
+  }
+
+  function saveBlob(blob, name) {
+      let a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  async function generatePackage() {
+      let info = getCustomerInfo();
+      let missing = ['name', 'location', 'sales', 'inv', 'ticket', 'designer', 'orig', 'path'].filter(k => !info[k]);
+      if (missing.length && !confirm(`${missing.length} customer field(s) are empty and will print as yellow MISSING tags.\nGenerate anyway?`)) return;
+      let btn = document.getElementById('generate-btn'), label = btn.innerHTML;
+      let pages = packagePages();
+      let base = slug(info.name || 'proof');
+      let zip = (typeof JSZip !== 'undefined') ? new JSZip() : null;
+      try {
+          for (let i = 0; i < pages.length; i++) {
+              btn.innerHTML = `Generating page ${i + 1} of ${pages.length}...`;
+              let p = pages[i];
+              let name = `p${String(i + 1).padStart(2, '0')}_${slug(p.item.name)}_specs_${p.n}`;
+              let svg = buildSheetSVG(p, i + 1, pages.length, info);
+              let png = await svgToPngBlob(svg);
+              if (zip) { zip.file(`${name}.svg`, svg); zip.file(`${name}.png`, png); }
+              else { saveBlob(new Blob([svg], { type: 'image/svg+xml' }), `${name}.svg`); await new Promise(r => setTimeout(r, 400));
+                     saveBlob(png, `${name}.png`); await new Promise(r => setTimeout(r, 400)); }
+          }
+          if (zip) {
+              btn.innerHTML = 'Zipping...';
+              saveBlob(await zip.generateAsync({ type: 'blob' }), `${base}_proof_package.zip`);
+          }
+      } catch (e) {
+          alert('Export failed: ' + e.message);
+      } finally {
+          btn.innerHTML = label;
+      }
+  }
+</script>
