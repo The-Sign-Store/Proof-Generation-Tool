@@ -1,0 +1,401 @@
+DESIGN HELP CENTER - PROOF PACKAGE
+================================================================================================
+Package:  Pole Sign (3 pages) + Banner (1 page) + Cut Vinyl Decal (1 page)
+Date:     10/08/2026
+Rules:    54 standards apply to this package (31 of them because of its specs)
+
+BASIS   [SignOS] from our SignOS equipment and material data
+        [Industry] sign industry standard
+        [House] Sign Store design department standard
+Menu paths are CorelDRAW 2020 and newer; older versions use similar names.
+
+------------------------------------------------------------------------------------------------
+1. EVERY PROOF
+------------------------------------------------------------------------------------------------
+
+1.1   Start every proof from the Proof Generator export. Artwork goes inside the art board only;
+      never cover the spec table, detail drawings, sidebar or approval footer.
+      WHY: The spec table is the work order production builds from. If it is hidden or edited by
+           hand, the proof and the work order stop matching.
+      COREL: File > Import (Ctrl+I) the page SVG at 100%. Put it on layer PROOF TEMPLATE and
+             lock it. Change spec text in the Generator and re-export; do not retype it in
+             CorelDRAW.
+      [House]
+
+1.2   Draw to scale and dimension every item: overall width x height, plus depth for anything
+      3D. Under 10 ft use inches (96"); 10 ft and over use feet-inches (12'-6").
+      WHY: Customers approve size from the proof. Production and install check their work
+           against these numbers.
+      COREL: Toolbox > Dimension tool > Parallel Dimension. Property bar: Units = in, Precision
+             = 0.00, Show units on. Dimension text Arial 8 pt minimum.
+      [House]
+
+1.3   Every color on the art has a callout that matches the spec table exactly: vinyl = brand +
+      number + name (Oracal 751-031 Red), paint = SW or PMS number, print = Full Color Digital.
+      Never 'red' or 'match logo'.
+      WHY: Production orders and mixes from the callout, not from the screen color.
+      COREL: Use the hex from the Generator swatch: select object > Edit Fill (Shift+F11) >
+             Uniform > type the hex in the Hex box.
+      [House]
+
+1.4   Clear every yellow MISSING tag before a proof goes to the customer. A proof with MISSING
+      tags goes back to the salesperson only, with the missing fields listed on the FreshDesk
+      ticket.
+      WHY: Gaps from intake are caught at the proof, not on the shop floor.
+      [House]
+
+1.5   When the install location is known, show the sign in context: site photo mockup, scaled
+      from a known size (standard door = 80" tall, 3 courses of modular brick = 8"). Label it
+      'Placement approximate - verify on site'.
+      WHY: Customers judge size and color in context, and install sees where the sign goes
+           before the truck leaves.
+      COREL: Import the photo to layer MOCKUP. Draw a line over the door height, read its
+             length, then scale the photo with Object > Transform > Scale (Alt+F9) so the line
+             equals 80". Lock the layer.
+      [House]
+
+1.6   Use the customer's brand fonts or our approved library (Arimo, Liberation Sans,
+      Montserrat, Open Sans). Write the font names in the Description box so reorders match.
+      WHY: Approved fonts are installed on every station and in SignOS (REF_Fonts), so files
+           open the same everywhere.
+      [SignOS]
+
+1.7   Plan readable copy at 1" of capital letter height for every 10 ft of viewing distance. If
+      the main copy is under 1" per 25 ft, flag it in the proof notes.
+      WHY: This is the common sign industry legibility guideline. Undersized copy is the most
+           common complaint after install.
+      [Industry]
+
+1.8   File name: <Ticket#>_<Customer>_<Product>_R<rev>.cdr, saved in the folder shown under File
+      Location. Every revision is Save As with the next number (R0, R1, R2). Never overwrite an
+      approved file.
+      WHY: Anyone can find the file that matches the signed proof.
+      COREL: File > Save As (Ctrl+Shift+S). Export the proof PDF with the same base name.
+      [House]
+
+1.9   Nothing goes to production without a signed proof (signature + date) or the customer's
+      written approval attached to the FreshDesk ticket.
+      WHY: Approval is the handoff point between design and production.
+      [House]
+
+1.10  Double sided: proof both sides, or note 'Side 2 identical'. Check that side 2 reads
+      correctly (no mirrored logos) and that both faces line up when built back to back.
+      WHY: Back-to-back faces are a common reprint because the second side was flipped.
+      [House] Applies to: Pole Sign
+
+------------------------------------------------------------------------------------------------
+2. PROOF COLOR STANDARDS (how materials look on proofs)
+------------------------------------------------------------------------------------------------
+
+2.1   Clear glass / storefront windows: solid baby blue #CFE6F3 (R207 G230 B243), full fill, no
+      transparency. Add two thin white diagonal glare lines at 60% opacity.
+      WHY: Gives every proof the same look for glass, so vinyl applied to glass is easy to read.
+      COREL: Edit Fill > Hex CFE6F3. Glare: 2 pt white lines; Transparency tool > Uniform 40.
+      [House]
+
+2.2   Tinted glass: blue-grey #9DAFBB (R157 G175 B187). Mirrored / reflective glass: #7D8C96
+      with the same white glare lines.
+      [House]
+
+2.3   Frosted / etched glass vinyl (Oracal 8510, GF 790): #EEF3F6 over the glass blue with a
+      hairline #B0BEC5 edge. Label it FROSTED VINYL.
+      WHY: Frosted film is nearly white on screen; the edge line keeps the shape readable.
+      [SignOS]
+
+2.4   Clear acrylic / clear polycarbonate: #E3F2F9 with a 1 pt #7FB3CC edge. Clear vinyl (Oracal
+      3640): show only the printed art, with a dashed hairline at the film edge.
+      [House]
+
+2.5   White material on a white page (white ACM, PVC, Coroplast, poly faces): fill white with a
+      0.5 pt #B1B1B3 keyline on the PROOF only so the edge shows. Never put that keyline in
+      production art.
+      WHY: Without it a white panel disappears on the proof; with it in production it would
+           print or cut.
+      [House]
+
+2.6   Metals: brushed aluminum = linear gradient #E6E8EA to #A7ADB2; mill aluminum = #C3C7CA
+      flat; stainless = #D0D4D8. Painted finishes use the Finish_Colors / SW / PMS hex from the
+      Generator.
+      COREL: Interactive Fill tool (G) > Linear gradient; set the two node colors by hex.
+      [House]
+
+2.7   Lit signs: the daytime view is the default proof. Add a night view: background #1C2230,
+      lit faces at full color with a soft outer glow; halo lit = #FFF3B0 glow on the wall behind
+      the letters.
+      WHY: Shows the customer what they are paying for after dark and catches dark faces that
+           will not glow.
+      COREL: Duplicate the art to a second page. Effects > Drop Shadow tool, preset Glow; color
+             = face color, opacity 60, feather 20.
+      [House] Applies to: Pole Sign
+
+2.8   Surroundings with no site photo: wall #EDEDED, brick #A0524A, stucco #E8E1D3, concrete /
+      grade #D3D3D3, soil #EFE6D6, sky #E6F2FA, grass #7BAA5A. Keep surroundings lighter and
+      duller than the sign.
+      WHY: Same palette as the detail drawings, so every proof reads the same way.
+      [House]
+
+------------------------------------------------------------------------------------------------
+3. COREL FILE SETUP AND PRODUCTION HANDOFF
+------------------------------------------------------------------------------------------------
+
+3.1   Standard layers, top to bottom: NOTES (non-printing), PRODUCTION (non-printing on the
+      proof page), ART, MOCKUP (locked), PROOF TEMPLATE (locked).
+      WHY: Anyone opening the file knows what prints, what is reference, and what is a
+           production line.
+      COREL: Window > Dockers > Objects. New Layer; click the printer icon to make it
+             non-printing, the lock icon to lock it.
+      [House]
+
+3.2   Production art is built 1:1 at real size on its own page, one page per machine, named
+      PRINT, CUT or ROUTE.
+      WHY: Each operator opens one page that matches their machine, with nothing to scale or
+           delete.
+      COREL: Layout > Insert Page, then right-click the page tab > Rename Page. Set the page
+             size to the part size + 2".
+      [House]
+
+3.3   Before converting text to curves, copy the live text to a hidden non-printing layer named
+      EDITABLE TEXT. Production pages carry curves only.
+      WHY: Curves cannot change font on the shop computers; the hidden copy keeps future
+           revisions quick.
+      COREL: Ctrl+C the text, select the EDITABLE TEXT layer, Edit > Paste in Place. Hide the
+             layer (eye icon).
+      [House]
+
+3.4   Handoff in the job folder \PRODUCTION: approved proof PDF + one file per machine:
+      _PRINT.pdf (HP Latex), _CUT (Graphtec), _ROUTE.dxf (MultiCAM). Same base name as the
+      proof.
+      WHY: Matches our equipment list in SignOS (Master_Machines_Fleet) so every file has an
+           owner.
+      [SignOS]
+
+3.5   Print art is built in CMYK. Brand matches are named spot colors with the PMS / SW number.
+      Large black areas = rich black C60 M40 Y40 K100; text under 1" and thin lines = 100 K
+      only.
+      WHY: Rich black prints deep on large areas; small black text in 4 colors blurs from
+           registration.
+      [Industry]
+
+3.6   Production line colors, hairline weight: RED = CNC cut outside (profile); BLUE = CNC cut
+      inside (holes, counters); GREEN = CNC pocket / v-carve / drill points; MAGENTA spot
+      'CutContour' = print-and-cut path; BLACK = plotter (vinyl) cut. One purpose per color.
+      WHY: CNC and cutter operators set up toolpaths by color instead of guessing.
+      COREL: Outline Pen (F12) > Width = Hairline. Set the outline color by right-clicking a
+             palette swatch.
+      [House]
+
+3.7   Before export, preflight: no MISSING tags, all text on production pages converted to
+      curves, no hidden objects off the page, images linked or embedded at size.
+      COREL: File > Document Properties shows fonts and images. Edit > Select All > Text finds
+             stray text (then Ctrl+Q).
+      [House]
+
+------------------------------------------------------------------------------------------------
+4. CUT VINYL (Graphtec 64 plotter)
+------------------------------------------------------------------------------------------------
+
+4.1   Convert ALL text to curves and give every cut shape a hairline BLACK outline. The fill may
+      stay for the visual; the plotter follows the outline.
+      WHY: Live text changes font on another computer, and the cutter only reads outlines.
+      COREL: Edit > Select All > Text, then Ctrl+Q (Object > Convert to Curves). Select all cut
+             art > F12 Outline Pen: Width Hairline, Color Black (or right-click the black
+             swatch).
+      [House] Applies to: Pole Sign, Cut Vinyl Decal
+
+4.2   Weld overlapping letters and shapes (scripts, outlined text, tight kerning) so each piece
+      is one clean closed path. No lines crossing inside a letter.
+      WHY: Overlaps make the blade cut through the letter and the shop weeds it out by mistake.
+      COREL: Ctrl+Q, Ungroup All, select the pieces, Object > Shaping > Weld. Check in View >
+             Wireframe: any line inside a letter will be cut.
+      [House] Applies to: Pole Sign, Cut Vinyl Decal
+
+4.3   Minimum sizes: letters 1/2" cap height and lines / details 1/16" wide. Anything smaller is
+      printed instead. Thin scripts or serifs under 1/8" = mark WEEDING Complex on the spec.
+      WHY: Small cut detail lifts and tears when weeded; SignOS prices complex weeding
+           separately.
+      [Industry] Applies to: Pole Sign, Cut Vinyl Decal
+
+4.4   One layer per vinyl color, named with the exact callout (e.g. 751-031 RED). Each color
+      layer gets the same 2 registration marks (1/4" crosses) outside the art.
+      WHY: Each color is cut and weeded on its own; the marks line the colors up at application.
+      COREL: Objects docker > New Layer > rename. Draw one + mark, copy it to every color layer
+             with Edit > Paste in Place.
+      [House] Applies to: Pole Sign, Cut Vinyl Decal
+
+4.5   Layered colors overlap 1/16" (trap). Never butt two colors edge to edge.
+      WHY: Butted vinyl opens a gap as it shrinks; the overlap hides it.
+      COREL: Contour tool > Outside, 0.0625", 1 step. Ctrl+K to break the contour apart and use
+             it as the bottom color shape.
+      [House] Applies to: Pole Sign, Cut Vinyl Decal
+
+4.6   Add a hairline weed box 1/4" outside each separate graphic.
+      WHY: The shop weeds and masks each piece cleanly (SignOS TASK_WEED_VINYL /
+           TASK_MASK_VINYL).
+      COREL: Rectangle tool around the piece; Property bar size = piece size + 0.5".
+      [SignOS] Applies to: Pole Sign, Cut Vinyl Decal
+
+4.7   Every cut path is closed and node-reduced. No open paths, no duplicate stacked objects.
+      WHY: Open paths do not cut out; stacked duplicates cut twice and shred the vinyl.
+      COREL: Shape tool (F10) > Ctrl+A selects all nodes > Reduce Nodes. Object > Join Curves
+             closes gaps. Edit > Find and Replace finds duplicates.
+      [House] Applies to: Pole Sign, Cut Vinyl Decal
+
+4.8   Graphics applied to the inside of glass but read from outside are mirrored on the CUT
+      page, and the page is named CUT - MIRRORED 2ND SURFACE.
+      COREL: Select the art > Property bar > Mirror Horizontally.
+      [House] Applies to: Pole Sign, Cut Vinyl Decal
+
+4.9   Keep each cut job inside the roll width in use, minus a 1" margin each side. Letters
+      taller than the roll are split with a 1/2" overlap at a straight edge, never through a
+      counter.
+      WHY: The plotter tracks best with margins, and seams on straight edges disappear when
+           applied.
+      [SignOS] Applies to: Pole Sign, Cut Vinyl Decal
+
+4.10  Lit faces get translucent vinyl only (Oracal 8500 / 8800). Opaque vinyl (651 / 751 / 951)
+      goes on a lit face only when it is meant to block light (outlines, blockout).
+      WHY: Opaque vinyl shows as dark blotches at night.
+      [SignOS] Applies to: Pole Sign
+
+4.11  The vinyl series on the proof matches the spec: 651 intermediate (flat, short to mid
+      term); 751 / 951 cast (long term, curves, rivets); 631 matte (indoor walls); 8500 / 8800
+      translucent (lit faces).
+      WHY: Series choice is a durability promise to the customer (SignOS Master_Mat_Vinyl_Cut).
+      [SignOS] Applies to: Pole Sign, Cut Vinyl Decal
+
+------------------------------------------------------------------------------------------------
+5. DIGITAL PRINT (HP Latex 300 roll / HP Latex R1000 flatbed)
+------------------------------------------------------------------------------------------------
+
+5.1   Raster images at 150 ppi at final print size (100 ppi is fine for banners and signs read
+      from 15 ft+; 300 ppi for decals and anything read up close). Rebuild low-res logos as
+      vectors.
+      WHY: Low resolution is the top cause of reprints in large format.
+      COREL: Select the image; the status bar shows its ppi at the current size. Bitmaps >
+             Resample shows the effective resolution.
+      [Industry] Applies to: Banner
+
+5.2   Bleed: direct print to rigid (R1000 flatbed) 1/8" past trim; printed vinyl that is mounted
+      then trimmed 1/2". Safe zone: keep text and logos 1/2" inside trim (1" on anything over 4
+      ft).
+      WHY: Trimming drifts slightly; bleed stops white edges and the safe zone keeps copy from
+           being cut.
+      COREL: Put a trim rectangle on the PRODUCTION layer. Extend backgrounds past it. Contour
+             tool > Inside 0.5" for a non-printing safe line.
+      [Industry] Applies to: Banner
+
+5.3   Maximum print width is 64" (HP R1000 and HP 300 media limit). Larger graphics are tiled in
+      panels up to 60" wide with a 1/2" overlap. Seams fall on solid color, never through faces
+      or small text, and the seam is shown on the proof.
+      WHY: 64" is the printer limit in SignOS (MACH_HP_R1000 BED_WIDTH, Printer_Max_Roll_Width).
+      COREL: Draw panel rectangles 60" wide with 0.5" overlap; Object > PowerClip > Place Inside
+             Frame to clip a copy of the art into each.
+      [SignOS] Applies to: Banner
+
+5.4   Laminate printed vinyl per the spec (see spec table). Cast print (3M IJ180) gets cast
+      laminate (3M 8518 / 8519 / 8520); calendered gets Arlon 3210 or Oraguard 210. Note gloss /
+      luster / matte on the proof.
+      WHY: Laminate pairs are matched in SignOS so they shrink together.
+      [SignOS] Applies to: Banner
+
+5.5   Export print files with File > Publish to PDF, preset PDF/X-4, 'Export all text as curves'
+      on, images embedded, bleed included. Name it _PRINT.pdf.
+      WHY: One consistent print format for the RIP; no missing fonts.
+      COREL: Publish to PDF > Settings: General = PDF/X-4; Objects = Export all text as curves;
+             Prepress = Bleed limit 0.5".
+      [Industry] Applies to: Banner
+
+5.6   Brand-critical colors: the PMS / SW number goes on the proof and as the spot color name in
+      the file. Print a color swatch strip for approval on first orders.
+      WHY: Screens and printers differ; the strip shows the customer the real print color before
+           the full run.
+      [House] Applies to: Banner
+
+------------------------------------------------------------------------------------------------
+6. RIGID PANELS AND CNC (MultiCAM 5x10)
+------------------------------------------------------------------------------------------------
+
+6.1   Plan art on stock sheet sizes: Coroplast 48x96, ACM 48x96 / 48x120 / 60x120, PVC 48x96,
+      acrylic 48x96, polycarbonate 52x120. Anything larger needs a seam; show the seam on the
+      proof. Nest small signs to the sheet.
+      WHY: Sheet sizes come from SignOS INV_Sheets; a design that fits the sheet avoids a seam
+           and saves material.
+      [SignOS] Applies to: Pole Sign
+
+------------------------------------------------------------------------------------------------
+7. BANNERS
+------------------------------------------------------------------------------------------------
+
+7.1   Add a 1" hem on every hemmed side and bleed the background through the hem. Keep text and
+      logos 2" inside the finished edge. The proof shows the FINISHED size.
+      WHY: SignOS hem allowance is 1" (Allow_Hem_Inch); copy too close to the edge gets folded
+           or punched.
+      [SignOS] Applies to: Banner
+
+7.2   Grommets: Corners & Every 18"~24". Mark each grommet as a 1/2" circle on the PRODUCTION
+      layer and keep art 1" clear around them.
+      WHY: The shop punches where marked, and nothing important lands under a grommet.
+      COREL: Draw one 0.5" circle; Edit > Step and Repeat (Ctrl+Shift+D) with the spacing as the
+             offset.
+      [House] Applies to: Banner
+
+7.3   Media: 13 oz standard (single sided), 18 oz blockout (double sided: each side its own
+      PRINT page, check orientation), 8 oz mesh for fences and wind (no text under 2" on mesh).
+      Banners wider than 64" in both directions need a seam; show it on the proof.
+      WHY: 64" is the roll limit in SignOS; mesh holes break up small text.
+      [SignOS] Applies to: Banner
+
+------------------------------------------------------------------------------------------------
+8. CHANNEL LETTERS AND HALO LETTERS
+------------------------------------------------------------------------------------------------
+
+8.1   Lit signs: note the power supply location (remote, in raceway, or in cabinet), the primary
+      electrical by others or by us, and where the ETL label goes.
+      WHY: Electricians and inspectors look for this; ETL listing is on our proof template.
+      [House] Applies to: Pole Sign
+
+------------------------------------------------------------------------------------------------
+9. CABINETS AND FACES
+------------------------------------------------------------------------------------------------
+
+9.1   Copy safe area: the retainer covers 2" of the face on every side. Keep copy at least the
+      retainer size + 1" inside the cabinet edge, and show the visible face area on the proof.
+      WHY: Copy designed to the cabinet edge disappears under the retainer.
+      [House] Applies to: Pole Sign
+
+9.2   Face stock: 3/16" polycarbonate sheets are 52" x 120". Faces larger than that need a split
+      bar, a pan face or a flex face; show the split on the proof.
+      WHY: From SignOS INV_Sheets (SHT_POL_316_52X120).
+      [SignOS] Applies to: Pole Sign
+
+9.3   Lit faces: light copy on a dark background needs a blockout or day/night print (it costs
+      more press time); dark copy on a light face is the default.
+      WHY: Dark backgrounds glow unevenly unless they are blocked out.
+      [House] Applies to: Pole Sign
+
+9.4   Cabinets: show depth on the proof, the side / return color, and the mounting (Pole Mount).
+      Double sided cabinets: proof both faces.
+      WHY: Depth and side color are part of what the customer sees from the street.
+      [House] Applies to: Pole Sign
+
+------------------------------------------------------------------------------------------------
+10. POLES, MONUMENTS AND STRUCTURE
+------------------------------------------------------------------------------------------------
+
+10.1  Elevation drawing: grade line, overall height above grade, clearance to the sign bottom,
+      cabinet size, pole size and quantity, and embed depth (36"). Heights in feet-inches.
+      WHY: This is the drawing the permit office and the install crew both use.
+      [House] Applies to: Pole Sign
+
+10.2  Clearance to verify with local code: plan at least 8'-0" from grade to sign bottom over
+      walkways and 14'-6" over drive lanes. Add 'Verify clearances and setbacks with Permitting'
+      to the notes.
+      WHY: Common code minimums; local codes vary, so Permitting confirms.
+      [Industry] Applies to: Pole Sign
+
+10.3  Any proof with a footer or ground anchor includes the note 'Call 811 before digging'.
+      WHY: Utility locates are required before digging in the US.
+      [Industry] Applies to: Pole Sign
+
+------------------------------------------------------------------------------------------------
+Edit these standards in the Design_Guide tab of the Google Sheet.

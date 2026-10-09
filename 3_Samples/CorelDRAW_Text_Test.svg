@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="11in" height="8.5in" viewBox="0 0 1100 850">
+<rect width="1100" height="850" fill="#FFFFFF"/>
+<text x="60" y="80" font-family="Arial" font-size="26" font-weight="bold" fill="#231F20">CorelDRAW SVG text test</text>
+<text x="60" y="110" font-family="Arial" font-size="13" fill="#555555">Lines 1-4 should read exactly as on the right. Line 5 is the old method (expected to show codes).</text>
+<text x="60" y="170" font-family="Arial" font-size="14" font-weight="bold" fill="#C1272D">1. Inch marks (new method)</text>
+<text x="420" y="170" font-family="Arial" font-size="18" font-weight="bold" fill="#000000">36" EMBED  |  4" Square, 3/16" Wall</text>
+<text x="60" y="230" font-family="Arial" font-size="14" font-weight="bold" fill="#C1272D">2. Ampersand (new method, CDATA)</text>
+<text x="420" y="230" font-family="Arial" font-size="18" font-weight="bold" fill="#000000"><![CDATA[TRIM CAP & RETURN  |  USA & Canada]]></text>
+<text x="60" y="290" font-family="Arial" font-size="14" font-weight="bold" fill="#C1272D">3. Degree sign (UTF-8)</text>
+<text x="420" y="290" font-family="Arial" font-size="18" font-weight="bold" fill="#000000">90° CORNERS</text>
+<text x="60" y="350" font-family="Arial" font-size="14" font-weight="bold" fill="#C1272D">4. Accented letters (UTF-8)</text>
+<text x="420" y="350" font-family="Arial" font-size="18" font-weight="bold" fill="#000000">Café Niño</text>
+<text x="60" y="410" font-family="Arial" font-size="14" font-weight="bold" fill="#C1272D">5. OLD method, for comparison</text>
+<text x="420" y="410" font-family="Arial" font-size="18" font-weight="bold" fill="#000000">36&quot; EMBED  |  TRIM CAP &amp; RETURN  |  DETAILS &#183; NOT TO SCALE</text>
+</svg>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base target="_top">
+  <?!= include('Stylesheet'); ?>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="brand">Sign Proof Generator</div>
+    <div class="stepper">
+      <span class="step active" id="stepper-select" onclick="goSelect()">1 &nbsp;Select</span>
+      <span class="step-sep">&rsaquo;</span>
+      <span class="step" id="stepper-specs" onclick="if(pkgItems.length) goSpecs()">2 &nbsp;Specs</span>
+      <span class="step-sep">&rsaquo;</span>
+      <span class="step" id="stepper-customer" onclick="if(pkgItems.length) goCustomer()">3 &nbsp;Customer Info</span>
+    </div>
+    <div class="topbar-right" id="page-count"></div>
+  </div>
+
+  <div id="loading">Loading Database from Google Sheets...</div>
+
+  <!-- STEP 1: DASHBOARD -->
+  <div id="step-select" class="screen" style="display:none;">
+    <div class="dash">
+      <div class="dash-head">
+        <div>
+          <h1>Build a Proof Package</h1>
+          <p>Check every product and component this job needs. Each one gets its own proof page(s); the order you check them is the page order.</p>
+        </div>
+        <input type="text" id="cat-search" placeholder="Search products & components..." oninput="filterCatalog(this.value)">
+      </div>
+      <h3>Products</h3>
+      <div class="cat-grid" id="cat-products"></div>
+      <h3>Components</h3>
+      <div class="cat-grid" id="cat-components"></div>
+    </div>
+    <div class="dash-footer">
+      <span class="link-btn" onclick="clearSelection()">Clear selection</span>
+      <button class="primary-btn" id="build-btn" onclick="buildPackage()" disabled>Select at least one item</button>
+    </div>
+  </div>
+
+  <!-- STEPS 2 + 3: SIDEBAR + PROOF PREVIEW -->
+  <div id="step-build" class="screen" style="display:none;">
+    <div id="sidebar">
+
+      <!-- STEP 2: SPECS -->
+      <div id="builder-panel">
+        <div class="side-head">
+          <h2>Proof Specs
+            <button type="button" class="help-btn" onclick="openHelp()" title="Design Help Center: standards and CorelDRAW how-to's for this package">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="none" stroke="currentColor" stroke-width="2"/>
+                <path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="12" cy="17.6" r="1.3" fill="currentColor"/></svg>
+              <span>Design Help</span>
+            </button>
+          </h2>
+          <span class="link-btn" onclick="goSelect()">&larr; Edit Selection</span>
+        </div>
+        <div id="items"></div>
+        <button class="primary-btn full" onclick="goCustomer()">Next: Add Customer Info &rarr;</button>
+      </div>
+
+      <!-- STEP 3: CUSTOMER INFO -->
+      <div id="customer-panel" style="display:none;">
+        <div class="side-head">
+          <h2>Customer Info</h2>
+          <span class="link-btn" onclick="goSpecs()">&larr; Back to Specs</span>
+        </div>
+        <div class="cf-note">Fields left blank print as yellow <b>MISSING</b> tags so they can be filled in later.</div>
+        <div class="cf-group"><label>Customer Name *</label><input type="text" id="cf-name" oninput="schedulePreview()">
+          <label class="cf-check"><input type="checkbox" id="cf-has-sub" onchange="toggleSubCustomer()"> Sub-customer</label>
+        </div>
+        <div class="cf-group" id="cf-sub-group" style="display:none;"><label>Sub-Customer Name *</label>
+          <input type="text" id="cf-sub" placeholder="e.g. tenant, location or division" oninput="schedulePreview()"></div>
+        <div class="cf-group"><label>Project Name *</label><input type="text" id="cf-project" placeholder="e.g. Main Entry Monument + Wayfinding" oninput="schedulePreview()"></div>
+        <div class="cf-group"><label>Installation Location *</label><input type="text" id="cf-location" placeholder="Site name, street, city" oninput="schedulePreview()"></div>
+        <div class="cf-row">
+          <div class="cf-group"><label>Sales Person *</label><input type="text" id="cf-sales" oninput="schedulePreview()"></div>
+          <div class="cf-group"><label>Designer Initials *</label><input type="text" id="cf-designer" maxlength="6" oninput="schedulePreview()"></div>
+        </div>
+        <div class="cf-row">
+          <div class="cf-group"><label>Invoice / Estimate # *</label><input type="text" id="cf-inv" oninput="schedulePreview()"></div>
+          <div class="cf-group"><label>Ticket # *</label><input type="text" id="cf-ticket" oninput="schedulePreview()"></div>
+        </div>
+        <div class="cf-row">
+          <div class="cf-group"><label>Original Request Date *</label><input type="date" id="cf-orig" onchange="schedulePreview()"></div>
+          <div class="cf-group"><label>Revision Date (today)</label><input type="text" id="cf-rev" readonly></div>
+        </div>
+        <div class="cf-group"><label>File Location *</label>
+          <input type="text" id="cf-path" placeholder="P:\PROOF SHEETS\..." oninput="schedulePreview()">
+          <div class="cf-help">In Windows File Explorer, open the job folder, click the address bar, copy (Ctrl+C) and paste here.</div>
+        </div>
+        <div class="cf-group optional"><label>Project Notes (optional)</label><textarea id="cf-notes" rows="5" oninput="schedulePreview()"></textarea></div>
+        <button class="primary-btn full" id="generate-btn" onclick="generatePackage()">&#128229; Generate Proof Package</button>
+        <div class="cf-help" style="text-align:center;">Downloads one .zip: cover page + every proof page as an editable SVG (Illustrator / CorelDRAW) and a 300 ppi PNG, plus the QA checklist (pages + .csv).</div>
+      </div>
+    </div>
+
+    <div id="preview-area"><div id="sheets"></div></div>
+  </div>
+
+  <!-- DESIGN HELP CENTER (plain text, filtered to this package) -->
+  <div id="help-modal" onclick="if (event.target === this) closeHelp()">
+    <div class="modal-content help-content">
+      <div class="modal-header">
+        <h3>Design Help Center</h3>
+        <span>
+          <button type="button" class="help-action" onclick="copyHelp()" id="help-copy">Copy</button>
+          <button type="button" class="help-action" onclick="downloadHelp()">Download .txt</button>
+          <button type="button" class="help-action" onclick="printHelp()">Print</button>
+          <span class="close-btn" onclick="closeHelp()">&times;</span>
+        </span>
+      </div>
+      <pre id="help-text"></pre>
+    </div>
+  </div>
+
+  <!-- SWATCH PICKER -->
+  <div id="swatch-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">Select Color</h3>
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+      </div>
+      <div id="swatch-grid"></div>
+    </div>
+  </div>
+
+  <!-- STARTUP WATCHDOG: tiny on purpose, so it still runs if Assets or JavaScript fails to load -->
+  <script>
+    (function () {
+      function show(msg) {
+        var el = document.getElementById('loading');
+        if (el) el.innerHTML = '<span style="color:#c1272d;">Could not start the Proof Generator:</span><br>' +
+          '<span style="font-weight:normal;font-size:14px;">' + msg + '</span>';
+      }
+      window.addEventListener('error', function (e) {
+        if (window.__DATA_ARRIVED) return; // the app reports its own errors once it is running
+        show('Script error: ' + (e.message || 'unknown') + (e.lineno ? ' (line ' + e.lineno + ')' : '') +
+             (window.__JS_LOADED ? '' : '<br><br>This usually means <b>Assets</b> or <b>JavaScript</b> was cut off when pasted into Apps Script. ' +
+             'Assets must end with <code>PROOF_ASSETS.loaded = true;</code> then <code>&lt;/script&gt;</code>.'));
+      });
+      setTimeout(function () {
+        if (window.__DATA_ARRIVED) return;
+        if (!window.PROOF_ASSETS || !window.PROOF_ASSETS.loaded)
+          show('The <b>Assets</b> file did not load. In Apps Script, open Assets.html and check that it is complete: ' +
+               'the last two lines must be <code>PROOF_ASSETS.loaded = true;</code> and <code>&lt;/script&gt;</code>. Re-paste it if not.');
+        else if (!window.__JS_LOADED)
+          show('The <b>JavaScript</b> file did not load. In Apps Script, check that a file named exactly <b>JavaScript</b> exists ' +
+               'and that it starts with <code>&lt;script&gt;</code> and ends with <code>&lt;/script&gt;</code>.');
+        else
+          show('Files loaded, but the Google Sheet has not answered after 20 seconds. In Apps Script, open <b>Executions</b> ' +
+               '(left menu) and look for a failed <b>getAppData</b> run.');
+      }, 20000);
+    })();
+  </script>
+  <?!= include('Assets'); ?>
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
