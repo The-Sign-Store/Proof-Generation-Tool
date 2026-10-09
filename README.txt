@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.2  (October 8, 2026)
+SIGN PROOF GENERATOR  v1.3  (October 8, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -28,7 +28,12 @@ WHAT IS IN THIS PACKAGE
    Sample_Proof_Package_Export.zip          what "Generate Proof Package" downloads
    Sample_Cover_Page.png                    page 1 of every package
    Sample_QA_Checklist_p1.png               first QA checklist page
+   Sample_QA_Checklist_Final_Checks.png     last QA page: red Final Checks box
    Sample_Page_*.png                        single exported pages
+   Sample_Page_With_Artwork_Image.png       a page with a placed screenshot
+   CorelDRAW_Text_Test.svg                  open in CorelDRAW to check that
+                                            inch marks, & and degree signs
+                                            import as plain text
    Detail_Drawings_Reference.png            all 26 detail drawings
    Sample_Design_Help_*.txt                 Help Center text for one package
 
@@ -105,7 +110,7 @@ Detail_Drawings      26 construction drawings + the spec rule that shows each
 Design_Guide         91 design standards for the Help Center pop-up
 Proof_Template       fixed text on every page; switches (On / Off) for
                      Watermark, Detail_Drawings, Cover_Page, QA_Checklist;
-                     Watermark_Opacity = percent gray (default 10)
+                     Watermark_Opacity = percent gray (default 2)
 Color tabs           Oracal, SW, PMS, ACM, Acrylic, PVC, Coro, Coil, TrimCap,
                      LED, Finish_Colors, Rowmark_Colors
 ADA_Pictograms       from SignOS REF_Pictograms
@@ -113,7 +118,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.2)
+WHAT THE APP DOES (v1.3)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 17 products and 10 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -133,13 +138,34 @@ Export  One zip:
           QA_Checklist/             for the QA manager, not the customer:
                                     qa01_checklist.svg/.png ... (8.5 x 11)
                                     and qa_checklist.csv (Excel / Sheets)
-        SVG text is Arial and editable; drawings and watermark are vector.
+        SVG text is Arial and editable; drawings are vector; the watermark
+        is a flat image on its own layer.
         Proof_Template switches: Cover_Page, Cover_Title, QA_Checklist,
         QA_Final_Checks (checks separated by |).
 
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.3  (2026-10-08)
+  Added
+    - Artwork images on proof pages: use the + Add image bar above any page,
+      drop a file on it, or select the page and paste a screenshot (Ctrl+V).
+      - Images fit the open art board space and can be dragged, sized with −
+        / + / Fit, or removed with ×.
+      - They are embedded in the SVG (on an Artwork layer) and in the PNG.
+  Changed
+    - Cover page: the customer approval block was removed, leaving only the
+      legal and copyright line.
+    - Watermark: lightened, and changed to a solid tint because CorelDRAW
+      ignores SVG opacity.
+    - Detail drawings: the halo glow is now solid, with no transparency.
+  Fixed
+    - SVG text showed entity codes such as &quot; in CorelDRAW. Text is now
+      written as plain UTF-8: inch marks are kept as-is, and lines containing
+      & or < are wrapped in CDATA.
+    - Uploading several artwork files at once no longer drops images, caused
+      by a timing issue between the uploads.
+
 v1.2  (2026-10-08)
   Added
     - Cover page (page 1): Sign Store logo, customer name, project name,

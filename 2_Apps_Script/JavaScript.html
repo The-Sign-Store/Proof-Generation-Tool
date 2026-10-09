@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.2  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.3  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -980,6 +980,30 @@
       return o + `</g>`;
   }
 
+  // Watermark: ONE flat image exactly the size of the art board (tiles already cropped at its edges).
+  // Light gray baked in (Proof_Template Watermark_Opacity = percent of black, default 2), no transparency,
+  // no live text, no clipping, so Illustrator, CorelDRAW, the preview and the PNG all look the same.
+  let wmCache = { key: '', url: '' };
+  function watermarkImage() {
+      const AB = PG.AB, PPU = 1.5;   // 1.5 px per unit = 150 ppi
+      let pct = Math.min(100, Math.max(1, parseFloat(TEMPLATE.Watermark_Opacity) || 2));
+      if (wmCache.key === String(pct)) return wmCache.url;
+      let c = document.createElement('canvas');
+      c.width = Math.round(AB.w * PPU); c.height = Math.round(AB.h * PPU);
+      let ctx = c.getContext('2d'), g = Math.round(255 * (1 - pct / 100));
+      ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.save();
+      ctx.translate(c.width / 2, c.height / 2); ctx.rotate(-30 * Math.PI / 180); ctx.scale(PPU, PPU);
+      ctx.fillStyle = `rgb(${g},${g},${g})`; ctx.font = 'bold 34px Arial'; ctx.textBaseline = 'alphabetic';
+      let reach = Math.hypot(AB.w, AB.h) / 2 + 240;   // enough rows / columns to cover every corner after rotating
+      for (let y = -reach, row = 0; y <= reach; y += 70, row++)
+          for (let x = -reach - (row % 2) * 115; x <= reach; x += 230)
+              ctx.fillText('SIGN STORE', x, y);
+      ctx.restore();
+      wmCache = { key: String(pct), url: c.toDataURL('image/jpeg', 0.85) };   // flat gray on white: JPEG is ~4x smaller than PNG
+      return wmCache.url;
+  }
+
   function buildSheetSVG(page, pkgN, pkgTotal, info) {
       const AB = PG.AB;
       // Header and namespace URLs are assembled from pieces: Apps Script mangles a literal "<" + "?" tag and
@@ -992,26 +1016,8 @@
               `</linearGradient><clipPath id="abclip"><rect x="${AB.x}" y="${AB.y}" width="${AB.w}" height="${AB.h}"/></clipPath></defs>` +
               R(0, 0, PG.W, PG.H, '#FFFFFF');
       o += `<g id="Artboard">` + R(AB.x, AB.y, AB.w, AB.h, '#FFFFFF');
-      if (String(TEMPLATE.Watermark || 'On').toUpperCase() !== 'OFF') {
-          // Vector watermark: tiled text in a SOLID light gray (no transparency: CorelDRAW ignores
-          // fill-opacity and would print it black). Proof_Template Watermark_Opacity = percent of black (default 10).
-          let pct = Math.min(100, Math.max(1, parseFloat(TEMPLATE.Watermark_Opacity) || 10));
-          let g = Math.round(255 * (1 - pct / 100)).toString(16).padStart(2, '0'), wmFill = '#' + g + g + g;
-          // keep only tiles that sit fully inside the art board, so nothing spills out if the clip is ignored
-          let cxA = AB.x + AB.w / 2, cyA = AB.y + AB.h / 2, rad = -30 * Math.PI / 180, cs = Math.cos(rad), sn = Math.sin(rad);
-          let tw0 = tw('SIGN STORE', 34, true), inside = (px, py) => {
-              let X = cxA + (px - cxA) * cs - (py - cyA) * sn, Y = cyA + (px - cxA) * sn + (py - cyA) * cs;
-              return X > AB.x + 4 && X < AB.x + AB.w - 4 && Y > AB.y + 4 && Y < AB.y + AB.h - 4;
-          };
-          let wm = `<g id="Watermark" clip-path="url(#abclip)"><g transform="rotate(-30 ${cxA} ${cyA})" fill="${wmFill}">`;
-          for (let r = -4, row = 0; r <= 12; r++, row++)
-              for (let c = -3; c <= 6; c++) {
-                  let x = AB.x + c * 230 + (row % 2) * 115, y = AB.y + r * 70;
-                  if (![[x, y - 26], [x + tw0, y - 26], [x, y + 4], [x + tw0, y + 4]].every(([a, b]) => inside(a, b))) continue;
-                  wm += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-family="Arial" font-size="34" font-weight="bold">SIGN STORE</text>`;
-              }
-          o += wm + `</g></g>`;
-      }
+      if (String(TEMPLATE.Watermark || 'On').toUpperCase() !== 'OFF')
+          o += `<g id="Watermark">` + IMG(AB.x, AB.y, AB.w, AB.h, watermarkImage(), 'none') + `</g>`;
       let lay = page.blocks.length ? fitTable(page) : null;
       o += drawArt(page, artRegion(page, lay));          // screenshots / artwork (under the table)
       if (lay) o += drawTable(page, lay, AB.x + 26, AB.y + AB.h - 30);
@@ -1222,33 +1228,66 @@
       return o + `</svg>`;
   }
 
-  function contentsTable(pages, x, top, w, bottom) {
-      let ranges = itemPageRanges(pages, coverOn() ? 1 : 0);
-      let rowsOf = s => pkgItems.map((it, k) => {
-          let inc = itemSections(it).join(', ');
-          let lines = wrapText(inc || '-', 9.5 * s, false, 520 * s > 520 ? 520 : 520);
-          let nameLines = wrapText(it.name, 10.5 * s, true, 250);
-          let h = Math.max(lines.length, nameLines.length) * 12.5 * s + 12 * s;
-          return { k, it, lines, nameLines, h };
+  // Package contents: one bold row per product / component, then its sections as indented sub-rows
+  function contentsRows(pages) {
+      let off = coverOn() ? 1 : 0, ranges = itemPageRanges(pages, off), rows = [];
+      pkgItems.forEach((it, k) => {
+          rows.push({ main: true, k, it, num: String(k + 1), text: it.name, pages: rangeText(ranges[it.iid]) });
+          let subs = [];
+          pages.forEach((p, i) => {
+              if (p.item.iid !== it.iid) return;
+              p.blocks.forEach(bk => { let s = subs.find(x => x.text === bk.title); if (s) { if (s.last !== i + 1 + off) s.pg.push(i + 1 + off); s.last = i + 1 + off; } else subs.push({ text: bk.title, pg: [i + 1 + off], last: i + 1 + off }); });
+          });
+          // a single section named like the product adds nothing: skip it
+          let norm = t => String(t).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().replace(/S$/, '');
+          if (subs.length === 1 && norm(subs[0].text) === norm(it.name)) subs = [];
+          subs.forEach((sb, j) => rows.push({ main: false, k, it, num: `${k + 1}.${j + 1}`, text: sb.text,
+              pages: sb.pg.length > 1 ? `${sb.pg[0]} - ${sb.pg[sb.pg.length - 1]}` : String(sb.pg[0]) }));
       });
-      let s = 1, rows = rowsOf(s), headH = 20;
-      while (s > 0.62 && headH + 18 + rows.reduce((a, r) => a + r.h, 0) > bottom - top) { s -= 0.06; rows = rowsOf(s); }
-      let cx = [x, x + 36, x + 300, x + w - 110], o = `<g id="Package_Contents">`;
-      o += T(x, top - 8, 'PACKAGE CONTENTS', 10, { bold: true, ls: 1.5 });
-      o += R(x, top, w, headH, INK);
-      [['#', 0], ['PRODUCT / COMPONENT', 1], ['INCLUDES', 2], ['PROOF PAGES', 3]].forEach(([t, i]) => o += T(cx[i] + 8, top + 13.5, t, 8, { bold: true, fill: '#FFFFFF', ls: 1 }));
-      let y = top + headH, shown = 0;
-      for (let r of rows) {
-          if (y + r.h > bottom - 16) break;
-          o += R(x, y, w, r.h, r.k % 2 ? '#F6F7F8' : '#FFFFFF', '#D5D7DA', 0.6);
-          let base = y + 6 * s + 10 * s;
-          o += T(cx[0] + 8, base, String(r.k + 1), 10.5 * s, { bold: true });
-          r.nameLines.forEach((l, i) => o += T(cx[1] + 8, base + i * 12.5 * s, l, 10.5 * s, { bold: true }));
-          r.lines.forEach((l, i) => o += T(cx[2] + 8, base + i * 12.5 * s, l, 9.5 * s, { fill: '#333333' }));
-          o += T(cx[3] + 8, base, rangeText(ranges[r.it.iid]), 10.5 * s, { bold: true });
-          y += r.h; shown++;
+      return rows;
+  }
+
+  function contentsTable(pages, x, top, w, bottom) {
+      let rows = contentsRows(pages), headH = 20, avail = bottom - top - headH - 4;
+      let hOf = (r, s) => (r.main ? 22 : 16.5) * s;
+      let colH = (list, s) => list.reduce((a, r) => a + hOf(r, s), 0);
+      // split into two columns at an item boundary when one column is too tall
+      let split = list => { let half = colH(list, 1) / 2, acc = 0, cut = list.length;
+          for (let i = 0; i < list.length; i++) { if (list[i].main && i > 0 && acc >= half) { cut = i; break; } acc += hOf(list[i], 1); }
+          return [list.slice(0, cut), list.slice(cut)]; };
+      let cols = [rows], s = 1;
+      while (s > 0.72 && colH(rows, s) > avail) s -= 0.04;
+      if (colH(rows, s) > avail) {
+          cols = split(rows); s = 1;
+          while (s > 0.62 && Math.max(colH(cols[0], s), colH(cols[1], s)) > avail) s -= 0.04;
       }
-      if (shown < rows.length) o += T(x + 8, y + 12, `+ ${rows.length - shown} more item(s): see the QA checklist for the full list.`, 8.5, { fill: TAG_TX, bold: true });
+      let gap = cols.length > 1 ? 24 : 0, cw = (w - gap) / cols.length, o = `<g id="Package_Contents">`, cut = 0;
+      o += T(x, top - 8, 'PACKAGE CONTENTS', 10, { bold: true, ls: 1.5 });
+      cols.forEach((col, ci) => {
+          let cx = x + ci * (cw + gap), px = cx + cw - 12, y = top + headH;
+          o += R(cx, top, cw, headH, INK) +
+               T(cx + 10, top + 13.5, '#', 8, { bold: true, fill: '#FFFFFF' }) +
+               T(cx + 44, top + 13.5, 'PRODUCT / COMPONENT  \u00B7  INCLUDES', 8, { bold: true, fill: '#FFFFFF', ls: 1 }) +
+               T(px, top + 13.5, 'PROOF PAGES', 8, { anchor: 'end', bold: true, fill: '#FFFFFF', ls: 1 });
+          col.forEach(r => {
+              let h = hOf(r, s);
+              if (y + h > bottom) { cut++; return; }
+              if (r.main) {
+                  o += R(cx, y, cw, h, '#EDEEEF', '#D5D7DA', 0.6) +
+                       T(cx + 10, y + h * 0.66, r.num, 11 * s, { bold: true }) +
+                       T(cx + 44, y + h * 0.66, r.text, 11 * s, { bold: true }) +
+                       T(px, y + h * 0.66, r.pages, 11 * s, { anchor: 'end', bold: true });
+              } else {
+                  o += R(cx, y, cw, h, '#FFFFFF') + L(cx + 44, y + h, cx + cw, y + h, '#E3E4E6', 0.5) +
+                       L(cx + 54, y, cx + 54, y + h * 0.5, '#B8BABD', 0.6) + L(cx + 54, y + h * 0.5, cx + 62, y + h * 0.5, '#B8BABD', 0.6) +
+                       T(cx + 68, y + h * 0.68, `${r.num}  ${r.text}`, 9.5 * s, { fill: '#333333' }) +
+                       T(px, y + h * 0.68, r.pages, 9.5 * s, { anchor: 'end', fill: '#555555' });
+              }
+              y += h;
+          });
+          o += L(cx, top + headH, cx, y, '#D5D7DA', 0.6) + L(cx + cw, top + headH, cx + cw, y, '#D5D7DA', 0.6) + L(cx, y, cx + cw, y, '#D5D7DA', 0.6);
+      });
+      if (cut) o += T(x + 8, bottom + 12, `+ ${cut} more line(s): see the QA checklist for the full list.`, 8.5, { fill: TAG_TX, bold: true });
       return o + `</g>`;
   }
 
@@ -1293,9 +1332,10 @@
           }
           rows.push({ t: 'gap', h: 10, item });
       });
-      rows.push({ t: 'sec', text: 'FINAL CHECKS', h: 18 });
-      qaFinalChecks().forEach(c => rows.push({ t: 'check', lines: [c], h: 18 }));
-      rows.push({ t: 'signoff', h: 92 });
+      // final checks + QA sign-off: one red-outlined section, kept whole, at the bottom of the last page
+      let finals = qaFinalChecks();
+      const NOTE_LINES = 10, NOTE_GAP = 21;
+      rows.push({ t: 'final', checks: finals, h: 30 + finals.length * 19 + 54 + NOTE_LINES * NOTE_GAP });
 
       // paginate
       let pagesOut = [], cur = [], y = TOP1, first = true;
@@ -1307,6 +1347,11 @@
               if (r.item && r.t !== 'item') { cur.push({ t: 'item', item: r.item, h: 24, cont: true, y }); y += 24; }
           }
           if (r.t === 'gap' && !cur.length) return;
+          if (r.t === 'final') {
+              if (y + 14 + r.h > BOTTOM && cur.length) { pagesOut.push(cur); cur = []; y = TOPN; }
+              cur.push(Object.assign({}, r, { y: BOTTOM - r.h }));   // anchored to the bottom of the page
+              return;
+          }
           cur.push(Object.assign({}, r, { y })); y += r.h;
       });
       if (cur.length) pagesOut.push(cur);
@@ -1338,16 +1383,17 @@
               let y = r.y;
               if (r.t === 'item') {
                   o += R(X, y + 2, XR - X, r.h - 4, INK) +
-                       T(X + 8, y + 16, `${r.item.n}. ${r.item.name.toUpperCase()}${r.cont ? '  (CONTINUED)' : ''}`, 10.5, { bold: true, fill: '#FFFFFF' }) +
+                       (r.cont ? '' : R(X + 8, y + 6.5, 11, 11, '#FFFFFF', '#FFFFFF', 0.8)) +
+                       T(X + (r.cont ? 8 : 27), y + 16, `${r.item.n}. ${r.item.name.toUpperCase()}${r.cont ? '  (CONTINUED)' : ''}`, 10.5, { bold: true, fill: '#FFFFFF' }) +
                        T(XR - 8, y + 16, `Proof page${r.item.range && r.item.range[0] !== r.item.range[1] ? 's' : ''} ${rangeText(r.item.range)}`, 8.5, { anchor: 'end', fill: '#FFFFFF' });
               } else if (r.t === 'sec') {
                   o += R(X, y + 3, XR - X, r.h - 4, '#E6E7E8') + T(X + 8, y + 14, String(r.text).toUpperCase(), 8, { bold: true, ls: 1 }) +
                        T(XR - 30, y + 14, 'OK / INIT.', 6.5, { anchor: 'middle', fill: '#777777', bold: true });
               } else if (r.t === 'spec' || r.t === 'check') {
-                  o += R(X + 8, y + 5, 9, 9, '#FFFFFF', '#555555', 0.9);
+                  if (!r.item) o += R(X + 8, y + 5, 9, 9, '#FFFFFF', '#555555', 0.9);   // final checks only
                   if (r.t === 'spec') {
                       let it = r.it, warn = it.warn;
-                      o += T(LBL_X, y + 13, it.label.toUpperCase(), 7.5, { bold: true, fill: '#777777' });
+                      o += T(X + 10, y + 13, it.label.toUpperCase(), 7.5, { bold: true, fill: '#777777' });
                       if (warn) {
                           let ww = Math.max.apply(null, r.lines.map(l => tw(l, 9.5, true))) + 6;
                           o += R(VAL_X - 2, y + 4, ww, (r.lines.length - 1) * 12 + 12, TAG_BG, '#D6A100', 0.6, ' stroke-dasharray="1.5,1"');
@@ -1359,10 +1405,32 @@
                                    return `<g transform="translate(${SW_X + 1},${y + 4}) scale(${k.toFixed(4)})"><path d="${esc(it.svg.path)}" fill="${it.picFill || '#000000'}"/></g>`; })();
                       else if (it.hex && !warn) o += R(SW_X, y + 5, 30, 10, normHex(it.hex) === 'transparent' ? '#FFFFFF' : normHex(it.hex), '#555555', 0.6);
                   } else {
-                      r.lines.forEach((l, i) => o += T(LBL_X, y + 13 + i * 11.5, l, 9, { fill: '#222222', bold: i === 0 && !r.item }));
+                      r.lines.forEach((l, i) => o += T(r.item ? X + 10 : LBL_X, y + 13 + i * 11.5, l, 9, { fill: '#222222', bold: i === 0 && !r.item }));
                   }
                   o += L(INIT_X, y + r.h - 4, XR - 4, y + r.h - 4, '#999999', 0.6) + L(X, y + r.h, XR, y + r.h, '#EEEEEE', 0.5);
-              } else if (r.t === 'signoff') {
+              } else if (r.t === 'final') {
+                  const RED = '#C1272D';
+                  o += `<g id="QA_Final_Checks">` + R(X, y, XR - X, r.h, '#FFFFFF', RED, 2.2) + R(X, y, XR - X, 22, RED) +
+                       T(X + 10, y + 15, 'FINAL CHECKS', 10, { bold: true, fill: '#FFFFFF', ls: 1.2 }) +
+                       T(XR - 30, y + 15, 'OK / INIT.', 6.5, { anchor: 'middle', bold: true, fill: '#FFFFFF' });
+                  let cy = y + 28;
+                  r.checks.forEach(c => {
+                      o += R(X + 10, cy + 4, 10, 10, '#FFFFFF', '#555555', 0.9) + T(X + 28, cy + 13, c, 9, { bold: true, fill: '#222222' }) +
+                           L(INIT_X, cy + 15, XR - 8, cy + 15, '#999999', 0.6);
+                      cy += 19;
+                  });
+                  let sy = cy + 6;
+                  o += L(X + 10, sy, XR - 10, sy, '#E3B5B7', 0.8);
+                  sy += 4;
+                  o += T(X + 10, sy + 20, 'QA MANAGER', 9, { bold: true }) + L(X + 90, sy + 21, X + 330, sy + 21, '#555555', 0.6) +
+                       T(X + 345, sy + 20, 'DATE', 9, { bold: true }) + L(X + 380, sy + 21, X + 480, sy + 21, '#555555', 0.6) +
+                       R(X + 505, sy + 11, 10, 10, '#FFFFFF', '#555555', 0.9) + T(X + 521, sy + 20, 'PASS', 9, { bold: true }) +
+                       R(X + 570, sy + 11, 10, 10, '#FFFFFF', '#555555', 0.9) + T(X + 586, sy + 20, 'FAIL - see notes', 9, { bold: true }) +
+                       T(X + 10, sy + 46, 'NOTES', 9, { bold: true });
+                  for (let k = 0; k < NOTE_LINES; k++)    // 10 writing lines; the first starts after the label
+                      o += L(k ? X + 10 : X + 55, sy + 47 + k * NOTE_GAP, XR - 10, sy + 47 + k * NOTE_GAP, '#555555', 0.6);
+                  o += `</g>`;
+              } else if (r.t === 'signoff-unused') {
                   let sy = y + 10;
                   o += R(X, sy, XR - X, 76, '#FAFAFA', INK, 0.9) +
                        T(X + 10, sy + 20, 'QA MANAGER', 9, { bold: true }) + L(X + 90, sy + 21, X + 330, sy + 21, '#555555', 0.6) +
