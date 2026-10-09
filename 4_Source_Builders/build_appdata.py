@@ -141,7 +141,12 @@ TEMPLATE = [
  ("Approval_Label", "Customer Approval Signature"),
  ("Date_Label", "Date"),
  ("Watermark", "On"),
+ ("Watermark_Opacity", "10"),
  ("Detail_Drawings", "On"),
+ ("Cover_Page", "On"),
+ ("Cover_Title", "DESIGN PROOF PACKAGE"),
+ ("QA_Checklist", "On"),
+ ("QA_Final_Checks", "Finished work matches the signed proof (every page)|Overall dimensions verified against the proof|Colors match the callouts (vinyl / paint / print)|Mounting hardware, patterns and templates included|Lit signs: ETL label applied and power supply tested|Clean, protected and labeled for install / pickup"),
 ]
 TEMPLATE = [(k, v.encode().decode("unicode_escape") if "\\u" in v else v) for k, v in TEMPLATE]
 sheet("Proof_Template", ["Key", "Value"], TEMPLATE, [20, 140])
@@ -176,7 +181,7 @@ for r in range(2, dg.max_row + 1):
 
 # ---------- 9. README ----------
 readme = [
- ("VERSION 1.1 (PROOF PACKAGES)", ""),
+ ("VERSION 1.2 (PROOF PACKAGES)", ""),
  ("Flow", "1) Select any mix of products and components on the dashboard  2) Fill in specs  3) Add customer info  4) Generate Proof Package (zip of editable SVG + PNG per page)."),
  ("All products migrated", "The 10 original products are now components too (ACM_PANEL, CORO_SIGN, BANNER ...), each with a one-line Product_Assembly row. Product_Schema is kept for reference only; the current app does not read it."),
  ("Proof_Template", "Fixed text printed on every proof page (title, ETL text, legal text, copyright). {YEAR} becomes the current year."),
@@ -235,6 +240,10 @@ readme = [
  ("Components / Match_Rule", "Same as Detail_Drawings: Components limits the rule to those Component_IDs (blank = any); Match_Rule uses Show_If syntax with OR. COMPONENT=ID|ID tests the component itself. Both blank = the rule applies to every package."),
  ("Standard / Why / How", "Standard = the rule. Why = the reason (shown to new designers). CorelDRAW_How_To = the steps. {VARIABLE} in Standard prints the spec value, e.g. {RETAINER SIZE}."),
  ("Basis", "SignOS = from our SignOS equipment / material data. Industry = sign industry standard. House = our design department standard."),
+ ("", ""),
+ ("COVER PAGE + QA CHECKLIST", ""),
+ ("Cover page", "Page 1 of every package: logo, customer, project, installation location, project info and the list of every product / component with the sections it includes and its proof pages. Proof_Template: Cover_Page On/Off, Cover_Title."),
+ ("QA checklist", "Exported in the zip's QA_Checklist folder (not for the customer): portrait 8.5 x 11 pages listing every spec of every section with a checkbox and initials line, detail drawings to build to, final checks and the QA Manager sign-off, plus qa_checklist.csv for Excel / Sheets. Proof_Template: QA_Checklist On/Off, QA_Final_Checks (separate checks with |)."),
 ]
 rm = sheet("README", ["Item", "Description"], readme, [26, 130], index=0)
 for r in range(2, rm.max_row + 1):

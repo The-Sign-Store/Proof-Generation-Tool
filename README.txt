@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.1  (October 8, 2026)
+SIGN PROOF GENERATOR  v1.2  (October 8, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -20,9 +20,14 @@ WHAT IS IN THIS PACKAGE
    JavaScript.html    the app (builder, proof sheets, drawings, help center)
    Assets.html        logo + ETL artwork (image data, split into short lines)
    appsscript.json    project manifest (time zone, V8 runtime, no libraries)
+   ProofPages_CorelDRAW_Macro.bas   CorelDRAW macros (not for Apps Script):
+                      AddProofPages, BuildFromPackage. In CorelDRAW: Alt+F11 >
+                      GlobalMacros > File > Import File.
 
 3_Samples/
    Sample_Proof_Package_Export.zip          what "Generate Proof Package" downloads
+   Sample_Cover_Page.png                    page 1 of every package
+   Sample_QA_Checklist_p1.png               first QA checklist page
    Sample_Page_*.png                        single exported pages
    Detail_Drawings_Reference.png            all 26 detail drawings
    Sample_Design_Help_*.txt                 Help Center text for one package
@@ -98,8 +103,9 @@ Component_Registry   the 23 components
 Component_Schema     every field: type, options, defaults, Show_If, Required
 Detail_Drawings      26 construction drawings + the spec rule that shows each
 Design_Guide         91 design standards for the Help Center pop-up
-Proof_Template       fixed text on every page; Watermark and Detail_Drawings
-                     switches (On / Off)
+Proof_Template       fixed text on every page; switches (On / Off) for
+                     Watermark, Detail_Drawings, Cover_Page, QA_Checklist;
+                     Watermark_Opacity = percent gray (default 10)
 Color tabs           Oracal, SW, PMS, ACM, Acrylic, PVC, Coro, Coil, TrimCap,
                      LED, Finish_Colors, Rowmark_Colors
 ADA_Pictograms       from SignOS REF_Pictograms
@@ -107,7 +113,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.1)
+WHAT THE APP DOES (v1.2)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 17 products and 10 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -115,13 +121,42 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           per product). Live values fill in (embed depth, return, trim cap).
         - Design Help (? button): plain-text standards + CorelDRAW how-to's
           for this package only. Copy / Download .txt / Print.
-Step 3  Customer info: blanks print as yellow MISSING tags.
-Export  One zip: p01_<product>_specs_1.svg + .png per page. SVG text is Arial
-        and editable; drawings and watermark are vector.
+        - Artwork: + Add image / drop / Ctrl+V screenshots onto any proof
+          page; drag to move, - / + to size. Kept until the page is closed.
+Step 3  Customer info (customer and project are separate fields): blanks
+        print as yellow MISSING tags.
+Export  One zip:
+          p01_cover.svg/.png        cover: logo, customer, project, info and
+                                    the list of every product / component
+                                    (no approval block on the cover)
+          p02_<product>_specs_1 ... one SVG + 300 ppi PNG per proof page
+          QA_Checklist/             for the QA manager, not the customer:
+                                    qa01_checklist.svg/.png ... (8.5 x 11)
+                                    and qa_checklist.csv (Excel / Sheets)
+        SVG text is Arial and editable; drawings and watermark are vector.
+        Proof_Template switches: Cover_Page, Cover_Title, QA_Checklist,
+        QA_Final_Checks (checks separated by |).
 
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.2  (2026-10-08)
+  Added
+    - Cover page (page 1): Sign Store logo, customer name, project name,
+      project info and a full list of products and components with their page
+      numbers.
+    - QA checklist:
+      - Exported in its own QA_Checklist/ folder, with every spec and its
+        checkbox and initials, the detail drawings, final checks and QA
+        Manager sign-off.
+      - Also exported as a .csv for Excel and Sheets.
+      - Can be switched on or off with Proof_Template › QA_Checklist.
+    - A separate Project Name field, also shown under the customer in the red
+      sidebar box.
+    - An × button that clears a chosen ADA pictogram.
+    - First CorelDRAW page macros: AddProofPages adds blank pages up to a
+      total, and BuildFromPackage builds a document with one page per SVG.
+
 v1.1  (2026-10-08)
   Added
     - Proof packages:

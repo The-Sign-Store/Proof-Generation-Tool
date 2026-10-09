@@ -258,7 +258,7 @@ add("LTR_FRONT_LIT", "Letter Construction", "FRONT LIT SECTION", "CHANNEL_LETTER
 add("LTR_HALO_LIT", "Letter Construction", "HALO LIT SECTION", "HALO_LETTERS", "LETTER TYPE=Reverse Lit (Halo)",
     "Section: solid face, LEDs shine back through a clear back to wash the wall with light.",
     wall(3, 12) +
-    path("M 12 12 L 24 22 L 24 78 L 12 88 Z", GLOW, None, 0, ' fill-opacity="0.9"') +
+    path("M 12 12 L 24 22 L 24 78 L 12 88 Z", GLOW, None, 0) +
     "".join(stud(5, 24, y, 1.2) + rect(12, y - 3, 12, 6, ALUM, HW, 0.8, ' rx="1"') for y in (30, 70)) +
     rect(24, 18, 2.4, 64, ACR, ACR_S, 0.6) +
     rect(26.4, 16.5, 22, 2.6, ALUM, INK, 0.6) + rect(26.4, 80.9, 22, 2.6, ALUM, INK, 0.6) +
@@ -386,7 +386,7 @@ add("PNL_SQUARE", "Panel Finishing", "SQUARE CUT", "SIGN_PANEL,ACM_PANEL,PVC_PAN
     "Straight-cut rectangle, square corners.",
     rect(14, 24, 72, 50) + _corner(14, 24, 1, 1) + _corner(86, 24, -1, 1) + _corner(14, 74, 1, -1) + _corner(86, 74, -1, -1) +
     text(50, 47, "STRAIGHT CUT", LBL, "middle", True) + text(50, 54, "EDGES", LBL, "middle", True) +
-    call(84, 26, 86, 14, "90&#176; CORNERS", HW, "end", True) +
+    call(84, 26, 86, 14, "90\u00b0 CORNERS", HW, "end", True) +
     hdim(14, 86, 84, "W", above=False) + vdim(91, 24, 74, ["H"]))
 
 add("PNL_ROUTED", "Panel Finishing", "ROUTED SHAPE", "SIGN_PANEL,ACM_PANEL,PVC_PANEL,CORO_SIGN,ACRYLIC_PANEL",
