@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.4  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.5  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -1712,20 +1712,39 @@
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
 
+  // File names: "Ticket - Customer - Project" (same as the CorelDRAW macro), Windows-safe
+  function exportBase(info) {
+      let clean = v => String(v == null ? '' : v).replace(/[\\\/:*?"<>|\t\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
+      let b = [info.ticket, info.name, info.project].map(clean).filter(x => x).join(' - ') || 'Proof Package';
+      // keep it short enough for Windows paths (the name repeats in the zip's folder and in each file inside it)
+      if (b.length > 80) { b = b.slice(0, 80); let cut = b.lastIndexOf(' '); if (cut > 40) b = b.slice(0, cut); b = b.replace(/[^A-Za-z0-9)\]]+$/, ''); }
+      return b;
+  }
+
+  // package_info.txt: plain key=value lines read by the CorelDRAW ImportProofPackage macro
+  function packageInfoText(info, total, pageNames) {
+      let clean = v => String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim();
+      return [['Ticket', info.ticket], ['Customer', info.name], ['Project', info.project], ['Invoice', info.inv],
+              ['Salesperson', info.sales], ['Designer', info.designer], ['Location', info.location],
+              ['OriginalDate', info.orig], ['RevisionDate', info.rev], ['FileLocation', info.path], ['Pages', total],
+              ['FileBase', exportBase(info)]].concat(pageNames || [])
+          .map(([k, v]) => k + '=' + clean(v)).join('\r\n') + '\r\n';
+  }
+
   async function generatePackage() {
       let info = getCustomerInfo();
       let missing = ['name', 'project', 'location', 'sales', 'inv', 'ticket', 'designer', 'orig', 'path'].filter(k => !info[k]);
       if (missing.length && !confirm(`${missing.length} customer field(s) are empty and will print as yellow MISSING tags.\nGenerate anyway?`)) return;
       let btn = document.getElementById('generate-btn'), label = btn.innerHTML;
       let pages = packagePages();
-      let base = slug(info.name || 'proof');
+      let base = exportBase(info), pageNames = [];
       let zip = (typeof JSZip !== 'undefined') ? new JSZip() : null;
       // Ask where to save BEFORE generating (the browser only allows the Save As window right after the click).
       // Chrome / Edge only; inside the Apps Script frame it is often blocked, then the normal download is used.
       let fileHandle = null;
       if (zip && window.showSaveFilePicker) {
           try {
-              fileHandle = await window.showSaveFilePicker({ suggestedName: `${base}_proof_package.zip`,
+              fileHandle = await window.showSaveFilePicker({ suggestedName: `${base}.zip`,
                   types: [{ description: 'Proof package (.zip)', accept: { 'application/zip': ['.zip'] } }] });
           } catch (e) {
               if (e && e.name === 'AbortError') return;   // user pressed Cancel
@@ -1736,11 +1755,20 @@
       // every file in order: cover, proof pages, then the QA checklist.
       // Zip layout:  SVG/  PNG/  QA_Checklist/SVG/  QA_Checklist/PNG/  QA_Checklist/qa_checklist.csv
       let jobs = [];
-      if (off) jobs.push({ dir: '', file: 'p01_cover', svg: () => buildCoverSVG(pages, info, total) });
-      pages.forEach((p, i) => jobs.push({ dir: '', file: `p${String(i + 1 + off).padStart(2, '0')}_${slug(p.item.name)}_specs_${p.n}`,
-                                          svg: () => buildSheetSVG(p, i + 1 + off, total, info) }));
-      if (qaOn() && pages.length) buildQAPages(pages, info, total).forEach((svg, i) =>
-          jobs.push({ dir: 'QA_Checklist/', file: `qa${String(i + 1).padStart(2, '0')}_checklist`, svg: () => svg, pw: 2550, ph: 3300 }));
+      // names: "<Ticket - Customer - Project> - p01" ... and "- qa01" ... (pageNames go to package_info.txt for CorelDRAW)
+      let pad = n => String(n).padStart(2, '0');
+      if (off) { jobs.push({ dir: '', file: `${base} - p01`, svg: () => buildCoverSVG(pages, info, total) }); pageNames.push(['Page01', 'COVER']); }
+      pages.forEach((p, i) => {
+          jobs.push({ dir: '', file: `${base} - p${pad(i + 1 + off)}`, svg: () => buildSheetSVG(p, i + 1 + off, total, info) });
+          pageNames.push([`Page${pad(i + 1 + off)}`, `${p.item.name.toUpperCase()} ${p.n}/${p.total}`]);
+      });
+      if (qaOn() && pages.length) {
+          let qa = buildQAPages(pages, info, total);
+          qa.forEach((svg, i) => {
+              jobs.push({ dir: 'QA_Checklist/', file: `${base} - qa${pad(i + 1)}`, svg: () => svg, pw: 2550, ph: 3300 });
+              pageNames.push([`QA${pad(i + 1)}`, `QA CHECKLIST ${i + 1}/${qa.length}`]);
+          });
+      }
       let save = async (name, blob) => {
           if (zip) zip.file(name, blob);
           else { saveBlob(blob, name.split('/').pop()); await new Promise(r => setTimeout(r, 400)); }
@@ -1753,12 +1781,14 @@
               await save(`${j.dir}SVG/${j.file}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
               await save(`${j.dir}PNG/${j.file}.png`, png);
           }
-          if (qaOn() && pages.length) await save('QA_Checklist/qa_checklist.csv', new Blob([buildQACsv(pages, info)], { type: 'text/csv' }));
+          if (qaOn() && pages.length) await save(`QA_Checklist/${base} - QA checklist.csv`, new Blob([buildQACsv(pages, info)], { type: 'text/csv' }));
+          // job details for the CorelDRAW macro (names the .cdr: Ticket - Customer - Project)
+          await save('package_info.txt', new Blob([packageInfoText(info, total, pageNames)], { type: 'text/plain' }));
           if (zip) {
               btn.innerHTML = 'Zipping...';
               let blob = await zip.generateAsync({ type: 'blob' });
               if (fileHandle) { let w = await fileHandle.createWritable(); await w.write(blob); await w.close(); toast('Saved ' + fileHandle.name); }
-              else saveBlob(blob, `${base}_proof_package.zip`);
+              else saveBlob(blob, `${base}.zip`);
           }
       } catch (e) {
           alert('Export failed: ' + e.message);

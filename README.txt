@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.4  (October 8, 2026)
+SIGN PROOF GENERATOR  v1.5  (October 8, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -20,10 +20,8 @@ WHAT IS IN THIS PACKAGE
    JavaScript.html    the app (builder, proof sheets, drawings, help center)
    Assets.html        logo + ETL artwork (image data, split into short lines)
    appsscript.json    project manifest (time zone, V8 runtime, no libraries)
-   ProofPages_CorelDRAW_Macro.bas   CorelDRAW macros (not for Apps Script):
-                      AddProofPages, BuildFromPackage (pick the unzipped
-                      package or its SVG folder). In CorelDRAW: Alt+F11 >
-                      GlobalMacros > File > Import File.
+   ProofPages_CorelDRAW_Macro.bas   CorelDRAW macros (not for Apps Script).
+                      See CORELDRAW below.
 
 3_Samples/
    Sample_Proof_Package_Export.zip          what "Generate Proof Package" downloads
@@ -101,6 +99,45 @@ Two Apps Script quirks the code already works around; avoid them in edits:
     address (Apps Script reads it as a comment and cuts the line).
 
 
+CORELDRAW: PROOF TEMPLATE + IMPORT MACRO
+-----------------------------------------------------------------------------
+One-time setup
+1. Macro: CorelDRAW > Alt+F11 (Tools > Scripts > Script Editor) > click
+   GlobalMacros > File > Import File > ProofPages_CorelDRAW_Macro.bas >
+   Ctrl+S. Optional toolbar button: Tools > Options > Customization >
+   Commands > Macros, drag ImportProofPackage onto a toolbar.
+2. Template: File > New, Letter 8.5 x 11 (either orientation), one page.
+   Add your standard layers (NOTES, PRODUCTION, ART, MOCKUP, PROOF
+   TEMPLATE) and color settings if you like. File > Save As Template
+   (name it e.g. "Sign Store Proof Package"). It then appears under
+   File > New from Template > My Templates.
+
+Every job
+1. Unzip the proof package from the Proof Generator.
+2. File > New from Template > Sign Store Proof Package.
+3. Run ImportProofPackage (Tools > Scripts > Run Script, or the button).
+   An Explorer-style Open window starts in Downloads: double-click into
+   the unzipped package folder (or its SVG folder) and click Open while
+   the name box says "Use this folder" (or click any file in it, Open).
+   - One page per SVG in order (p01 cover, p02 ...). The template's blank
+     page is used first; pages are added as needed.
+   - Each sheet is scaled to fill its page and centered; the page turns
+     landscape (proof pages) or portrait (QA pages) to match. Pages are
+     named from the files (COVER, POLE SIGN SPECS 1 ...).
+   - Asks whether to add the QA checklist pages at the end.
+   - One Edit > Undo removes the whole import.
+4. It then offers to save the file as
+       Ticket# - Customer - Project.cdr
+   (e.g. 47391 - Macon Housing Authority - Central City Apartments.cdr)
+   in the job folder from the proof's File Location (or the unzipped
+   package folder). Edit the name / folder in the box, or Cancel to save
+   later. The values come from package_info.txt in the zip; anything
+   missing is asked for.
+Other macros: BuildFromPackage (same import into a new document),
+AddProofPages (add blank pages up to a total).
+If SVG import shows an options window, click OK; the sheets are exact size.
+
+
 THE GOOGLE SHEET (tab names and headers are read by the code; do not rename)
 -----------------------------------------------------------------------------
 README               full reference for every tab and column
@@ -121,7 +158,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.4)
+WHAT THE APP DOES (v1.5)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 17 products and 10 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -139,13 +176,18 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
         Apps Script the browser usually blocks that window, so the zip goes
         to Downloads. Chrome > Settings > Downloads > "Ask where to save each
         file before downloading" makes every download ask):
-          SVG/  PNG/                p01_cover = cover: logo, customer, project,
+          File names: "Ticket - Customer - Project - p01" (shortened to 80
+          characters if needed), e.g.
+            47391 - Macon Housing Authority - Central City Apartments - p01.svg
+          SVG/  PNG/                p01 = cover (logo, customer, project,
                                     project info, package contents, project
-                                    notes, company contact info
-                                    p02_<product>_specs_1 ... one per proof
-                                    page (SVG editable, PNG 300 ppi)
-          QA_Checklist/SVG/ + PNG/  for the QA manager, not the customer
-          QA_Checklist/qa_checklist.csv   (Excel / Sheets)
+                                    notes, company contact info), p02 ... =
+                                    proof pages (SVG editable, PNG 300 ppi)
+          QA_Checklist/SVG/ + PNG/  "... - qa01" ... for the QA manager
+          QA_Checklist/"... - QA checklist.csv"   (Excel / Sheets)
+          package_info.txt          ticket, customer, project, file location,
+                                    page names (read by the CorelDRAW macro)
+          The zip itself is "Ticket - Customer - Project.zip".
         Every yellow MISSING tag in an SVG is its own group with an empty
         text box underneath in the matching style: delete the tag, type.
         SVG text is Arial and editable; drawings are vector; the watermark
@@ -156,6 +198,44 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.5  (2026-10-08)
+  Added
+    - Cover page:
+      - A project notes summary box, filled from a new Project Notes field.
+      - A company contact line (name, address, phone, website, email). It
+        comes from the Company_ keys on the Proof_Template tab, and blank
+        keys are skipped.
+    - Page selection for pasting can now be cleared. You can click the page
+      bar again, press Esc or click the background to deselect the
+      gold-outlined page.
+    - Choose where to save: Chrome and Edge open a save dialog for the zip
+      when the browser allows it. It falls back to a normal download inside
+      the Apps Script frame.
+    - MISSING tags in SVGs: each tag is its own group, with an empty text box
+      underneath in the matching style. Delete the tag and type, with no need
+      to edit the label.
+    - New export file names: Ticket - Customer - Project - p01.svg (QA: -
+      qa01), and the zip is named Ticket - Customer - Project.zip.
+    - package_info.txt in the zip holds the ticket, customer, project, file
+      location and page names.
+    - CorelDRAW macro module (ProofPages_CorelDRAW_Macro.bas):
+      - ImportProofPackage creates one page per SVG in the open 8.5 × 11
+        template. Each sheet is scaled to fill and the orientation is
+        matched.
+      - Pages are named from the files, and the QA pages are optional.
+      - One Undo reverses the whole import.
+      - The file is saved automatically as Ticket# - Customer - Project.cdr,
+        in the job folder taken from the proof's File Location.
+      - BuildFromPackage and AddProofPages from v1.2 are kept in the same
+        module.
+  Changed
+    - Export folders: SVGs and PNGs are in separate SVG/ and PNG/ folders,
+      and QA_Checklist/ has its own SVG/ and PNG/ subfolders.
+  Fixed
+    - CorelDRAW macro: fixed the "Can't assign to read-only property" compile
+      error. The macro no longer sets doc.Title, and version-specific members
+      are late-bound so it works across CorelDRAW versions.
+
 v1.4  (2026-10-08)
   Changed
     - Cover contents list: each product is a bold row, with its sections as
