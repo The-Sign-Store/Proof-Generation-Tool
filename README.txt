@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.6  (October 8, 2026)
+SIGN PROOF GENERATOR  v1.7  (October 8, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -158,10 +158,13 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.6)
+WHAT THE APP DOES (v1.7)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 17 products and 10 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
+        - Section names (red titles, e.g. "Acrylic 2") are editable: click
+          and type "Front Menu". The name prints on the proof, cover and
+          QA checklist. Clear it to go back to the default name.
         - Detail drawings print bottom-right when specs match (uncheck any
           per product). Live values fill in (embed depth, return, trim cap).
         - Design Help (? button): plain-text standards + CorelDRAW how-to's
@@ -204,6 +207,23 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.7  (2026-10-08)
+  Added
+    - Editable section names: the red section title on each part card in the
+      proof builder (e.g. "Acrylic 2") is now a plain-text field. Type a
+      specific name such as "Front Menu" or "Side Menu".
+    - Renamed sections carry through to the proof sheet section heading, the
+      cover page's package contents sub-rows, the QA checklist pages and the
+      QA .csv.
+    - Clearing the field and pressing Enter (or clicking away) returns the
+      section to its default name.
+  Changed
+    - Section numbering: a single section keeps its plain name ("Acrylic").
+      Once + Add Another is used, sections are numbered ("Acrylic 1",
+      "Acrylic 2", "Acrylic 3"). Sections that haven't been renamed renumber
+      automatically when one is removed (Acrylic 3 becomes Acrylic 2), while
+      renamed sections keep their names.
+
 v1.6  (2026-10-08)
   Added
     - QA checklist print PDF: all QA pages are combined into one multi-page

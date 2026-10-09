@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.6  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.7  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -256,14 +256,18 @@
       let num = allParts.filter(p => p.iid === it.iid && p.di === di).length + 1;
       let uid = 'p' + (++partSeq);
       let optional = d.include !== 'Required';
-      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, include: d.include,
+      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', include: d.include,
                    enabled: d.include !== 'Optional-Off', overrides: parseOverrides(d.overrides), num };
       allParts.push(part);
 
       let zones = [];
       comp.fields.forEach(f => { if (zones.indexOf(f.zone) === -1) zones.push(f.zone); });
       let html = `<div class="part-header">
-                    <span class="part-title">${esc(part.title)}${num > 1 ? ' ' + num : ''}</span>
+                    <input type="text" class="part-title-input" id="ptitle-${uid}" maxlength="40" spellcheck="false"
+                           title="Section name on the proof - click to rename (e.g. Front Menu)"
+                           value="${esc(partDefault(part))}" placeholder="${esc(partDefault(part))}"
+                           oninput="renamePart('${uid}', this.value)" onblur="renameDone('${uid}')"
+                           onkeydown="if (event.key === 'Enter') this.blur()">
                     <span>
                       ${optional && num === 1 ? `<label class="part-toggle"><input type="checkbox" id="pinc-${uid}" ${part.enabled ? 'checked' : ''} onchange="togglePart('${uid}')"> Include</label>` : ''}
                       ${num > 1 ? `<span class="part-remove" onclick="removePart('${uid}')">[x] Remove</span>` : ''}
@@ -283,6 +287,31 @@
       let group = document.getElementById(`mgroup-${it.iid}-${di}`);
       let addBtn = document.getElementById(`madd-${it.iid}-${di}`);
       if (addBtn) group.insertBefore(card, addBtn); else group.appendChild(card);
+  }
+
+  // ---------- section names: default "Acrylic" / "Acrylic 1", "Acrylic 2" ..., editable by the user ----------
+  function partDefault(part) {
+      let sib = allParts.filter(p => p.iid === part.iid && p.di === part.di);
+      return sib.length > 1 ? `${part.title} ${sib.indexOf(part) + 1}` : part.title;
+  }
+  function partLabel(part) { return (part.custom || '').trim() || partDefault(part); }
+  function renamePart(uid, v) {
+      let p = allParts.find(x => x.uid === uid); if (!p) return;
+      v = String(v || '').trim();
+      p.custom = v && v !== partDefault(p) ? v : '';
+      schedulePreview();
+  }
+  function renameDone(uid) {
+      let p = allParts.find(x => x.uid === uid), el = document.getElementById(`ptitle-${uid}`);
+      if (p && el) el.value = partLabel(p);
+  }
+  function syncPartTitles() {
+      allParts.forEach(p => {
+          let el = document.getElementById(`ptitle-${p.uid}`); if (!el) return;
+          let d = partDefault(p);
+          el.placeholder = d;
+          if (!p.custom && document.activeElement !== el) el.value = d;
+      });
   }
 
   function togglePart(uid) {
@@ -517,6 +546,7 @@
               if (mp && mf) mp.style.display = mf.value === CUSTOM_PAINT ? 'block' : 'none';
           });
       });
+      syncPartTitles();
       schedulePreview();
   }
 
@@ -735,8 +765,7 @@
               appData.components[part.comp].fields.forEach(f => { if (zones.indexOf(f.zone) === -1) zones.push(f.zone); });
               let cols = zones.map(z => items.filter(i => i.zone === z)).filter(c => c.length);
               if (!cols.length) return;
-              let siblings = allParts.filter(p => p.iid === it.iid && p.di === part.di && p.enabled).length;
-              blocks.push({ part, title: siblings > 1 ? `${part.title} ${part.num}` : part.title, cols,
+              blocks.push({ part, title: partLabel(part), cols,
                             rows: Math.max.apply(null, cols.map(c => c.length)),
                             pageGroup: Number(it.defs[part.di].pageGroup) || (part.di + 1) });
           });
@@ -1177,7 +1206,7 @@
   // section titles of an item, repeats counted: Faces (x2)
   function itemSections(it) {
       let c = [];
-      allParts.filter(p => p.iid === it.iid && p.enabled).forEach(p => { let x = c.find(k => k.t === p.title); if (x) x.n++; else c.push({ t: p.title, n: 1 }); });
+      allParts.filter(p => p.iid === it.iid && p.enabled).forEach(p => { let t = (p.custom || '').trim() || p.title, x = c.find(k => k.t === t); if (x) x.n++; else c.push({ t, n: 1 }); });
       return c.map(k => k.n > 1 ? `${k.t} (x${k.n})` : k.t);
   }
 
@@ -1343,8 +1372,7 @@
       let ranges = itemPageRanges(pages, offset);
       return pkgItems.map((it, k) => {
           let sections = allParts.filter(p => p.iid === it.iid && p.enabled).map(part => {
-              let sib = allParts.filter(p => p.iid === it.iid && p.di === part.di && p.enabled).length;
-              return { title: sib > 1 ? `${part.title} ${part.num}` : part.title, items: collectPartItems(part) };
+              return { title: partLabel(part), items: collectPartItems(part) };
           }).filter(x => x.items.length);
           let drawings = [];
           pages.filter(p => p.item.iid === it.iid).forEach(p => (p.drawings || []).forEach(m => { if (drawings.indexOf(m.d.title) === -1) drawings.push(m.d.title); }));

@@ -60,6 +60,12 @@
   .part-card { border: 2px solid #ddd; border-radius: 8px; background: #fdfdfd; padding: 12px; margin-bottom: 10px; }
   .part-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 10px; }
   .part-title { font-size: 13px; font-weight: bold; color: #c1272d; text-transform: uppercase; letter-spacing: .5px; }
+  .part-title-input { font-size: 13px; font-weight: bold; color: #c1272d; text-transform: uppercase; letter-spacing: .5px; font-family: inherit;
+                      border: 1px dashed transparent; border-radius: 4px; background: transparent; padding: 3px 6px; margin: 0 8px 0 -7px;
+                      flex: 1; min-width: 0; max-width: 340px; height: auto; box-shadow: none; }
+  .part-title-input:hover { border-color: #ccc; background: #fff; }
+  .part-title-input:focus { outline: none; border: 1px solid #c1272d; background: #fff; }
+  .part-title-input::placeholder { color: #e8a5a7; }
   .part-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #333; cursor: pointer; text-transform: none; margin: 0; }
   .part-toggle input { width: auto; height: auto; margin: 0; }
   .part-remove { color: #c1272d; cursor: pointer; font-size: 11px; font-weight: bold; margin-left: 10px; }
