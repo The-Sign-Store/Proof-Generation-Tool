@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.7  (October 8, 2026)
+SIGN PROOF GENERATOR  v1.8  (October 8, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -31,6 +31,7 @@ WHAT IS IN THIS PACKAGE
    Sample_QA_Checklist_Final_Checks.png     last QA page: red Final Checks box
    Sample_Page_*.png                        single exported pages
    Sample_Page_With_Artwork_Image.png       a page with a placed screenshot
+   Sample_Page_Special_Notes.png            a section with special notes
    CorelDRAW_Text_Test.svg                  open in CorelDRAW to check that
                                             inch marks, & and degree signs
                                             import as plain text
@@ -158,13 +159,16 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.7)
+WHAT THE APP DOES (v1.8)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 17 products and 10 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
         - Section names (red titles, e.g. "Acrylic 2") are editable: click
           and type "Front Menu". The name prints on the proof, cover and
           QA checklist. Clear it to go back to the default name.
+        - Special notes: check "Add Special Notes" at the bottom of any
+          section and type; the notes print in a gold SPECIAL NOTES column
+          beside that section's table on the proof (proof sheets only).
         - Detail drawings print bottom-right when specs match (uncheck any
           per product). Live values fill in (embed depth, return, trim cap).
         - Design Help (? button): plain-text standards + CorelDRAW how-to's
@@ -207,6 +211,28 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.8  (2026-10-08)
+  Added
+    - Special notes per section: every section in the proof builder has an
+      Add Special Notes checkbox and text box. The notes print in a
+      gold-edged SPECIAL NOTES column to the right of that section's table on
+      the proof sheet. This restores the special notes from the original app,
+      now one per section.
+    - Unchecking Add Special Notes hides the notes from the proof but keeps
+      the text, so checking it again brings them back.
+    - Quantities on the cover page: Package Contents rows show the quantity
+      from each section's Quantity field in bold red, e.g. (x2) Main Menu
+      Boards. Single-section items show it on the main row, e.g. (x1) Banner.
+      The tag appears on the cover only.
+  Changed
+    - Cover page: the proof pages column in Package Contents now reads "Page
+      2", or "Pages 3 - 5" for a range.
+    - Sections with a blank quantity show no tag, and sections with the same
+      name have their quantities added together.
+    - Pages with special notes add a notes column to the spec table. Sections
+      without notes on the same page get a plain gray cell, and the table
+      scales to fit.
+
 v1.7  (2026-10-08)
   Added
     - Editable section names: the red section title on each part card in the

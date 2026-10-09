@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.7  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.8  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -256,7 +256,7 @@
       let num = allParts.filter(p => p.iid === it.iid && p.di === di).length + 1;
       let uid = 'p' + (++partSeq);
       let optional = d.include !== 'Required';
-      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', include: d.include,
+      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', include: d.include,
                    enabled: d.include !== 'Optional-Off', overrides: parseOverrides(d.overrides), num };
       allParts.push(part);
 
@@ -279,6 +279,11 @@
           comp.fields.forEach((f, fi) => { if (f.zone === z) html += renderField(part, f, fi); });
           html += `</div></div>`;
       });
+      html += `<div class="part-notes">
+                 <label class="part-toggle"><input type="checkbox" id="pnote-on-${uid}" onchange="togglePartNotes('${uid}')"> Add Special Notes</label>
+                 <textarea id="pnote-${uid}" class="part-notes-text" style="display:none;" rows="3"
+                           placeholder="Installation or production notes for this section..." oninput="setPartNotes('${uid}', this.value)"></textarea>
+               </div>`;
       html += `</div>`;
       let card = document.createElement('div');
       card.className = 'part-card';
@@ -313,6 +318,18 @@
           if (!p.custom && document.activeElement !== el) el.value = d;
       });
   }
+
+  // ---------- special notes per section (printed in a gold column beside that section's table) ----------
+  function togglePartNotes(uid) {
+      let p = allParts.find(x => x.uid === uid); if (!p) return;
+      p.notesOn = document.getElementById(`pnote-on-${uid}`).checked;
+      let t = document.getElementById(`pnote-${uid}`);
+      t.style.display = p.notesOn ? 'block' : 'none';
+      if (p.notesOn) t.focus();
+      schedulePreview();
+  }
+  function setPartNotes(uid, v) { let p = allParts.find(x => x.uid === uid); if (p) { p.notes = String(v || ''); schedulePreview(); } }
+  function partNotes(part) { return part.notesOn ? String(part.notes || '').trim() : ''; }
 
   function togglePart(uid) {
       let p = allParts.find(x => x.uid === uid); if (!p) return;
@@ -765,7 +782,7 @@
               appData.components[part.comp].fields.forEach(f => { if (zones.indexOf(f.zone) === -1) zones.push(f.zone); });
               let cols = zones.map(z => items.filter(i => i.zone === z)).filter(c => c.length);
               if (!cols.length) return;
-              blocks.push({ part, title: partLabel(part), cols,
+              blocks.push({ part, title: partLabel(part), cols, notes: partNotes(part),
                             rows: Math.max.apply(null, cols.map(c => c.length)),
                             pageGroup: Number(it.defs[part.di].pageGroup) || (part.di + 1) });
           });
@@ -860,10 +877,12 @@
       let maxCols = 1;
       page.blocks.forEach(b => { if (b.cols.length > maxCols) maxCols = b.cols.length; });
       let colW = new Array(maxCols).fill(110 * s);
+      let notesW = page.blocks.some(b => b.notes) ? 230 * s : 0, notes = [];
       let skipHead = page.blocks.length === 1 && page.blocks[0].title.toUpperCase() === page.item.name.toUpperCase();
       let rows = [];
       page.blocks.forEach(b => {
           if (!skipHead) rows.push({ head: b.title, h: 17 * s });
+          let start = rows.length;
           for (let r = 0; r < b.rows; r++) {
               let cells = [], h = 29 * s;
               for (let c = 0; c < maxCols; c++) {
@@ -874,8 +893,16 @@
               }
               rows.push({ cells, h });
           }
+          if (!notesW || rows.length === start) return;
+          let N = { lab: 7.2 * s, val: 10 * s, pad: 8 * s, lineH: 12.5 * s }, lines = [];
+          if (b.notes) String(b.notes).split(/\r?\n/).forEach(t => { lines = lines.concat(t.trim() ? wrapText(t, N.val, false, notesW - 2 * N.pad - 6 * s) : ['']); });
+          let need = b.notes ? 2 * N.pad + N.lab + 6 * s + lines.length * N.lineH : 0;
+          let have = rows.slice(start).reduce((a, r) => a + r.h, 0);
+          if (need > have) rows[rows.length - 1].h += need - have;
+          notes.push({ start, end: rows.length, lines, N });
       });
-      return { s, colW, rows, w: colW.reduce((a, b) => a + b, 0), h: rows.reduce((a, r) => a + r.h, 0) };
+      let tableW = colW.reduce((a, b) => a + b, 0);
+      return { s, colW, rows, notes, notesW, tableW, w: tableW + notesW, h: rows.reduce((a, r) => a + r.h, 0) };
   }
 
   function fitTable(page) {
@@ -933,7 +960,22 @@
           }
           y += row.h;
       });
-      return out + `</g>`;
+      out += `</g>`;
+      if (lay.notesW) {
+          let ys = [top]; lay.rows.forEach(r => ys.push(ys[ys.length - 1] + r.h));
+          out += `<g id="Special_Notes">`;
+          lay.notes.forEach(n => {
+              let nx = x + lay.tableW, ny = ys[n.start], nh = ys[n.end] - ny, N = n.N;
+              if (!n.lines.length) { out += R(nx, ny, lay.notesW, nh, '#F1F2F2', '#BCBEC0', 1.4 * s); return; }
+              out += R(nx, ny, lay.notesW, nh, '#FFFDF5', '#BCBEC0', 1.4 * s) + R(nx, ny, 6 * s, nh, '#B8860B');
+              let ty = ny + N.pad + N.lab;
+              out += T(nx + 6 * s + N.pad, ty, 'SPECIAL NOTES:', N.lab, { bold: true, fill: '#B8860B', ls: 0.5 });
+              ty += 6 * s;
+              n.lines.forEach(l => { ty += N.lineH; if (l) out += T(nx + 6 * s + N.pad, ty - 2 * s, l, N.val, { fill: '#000000' }); });
+          });
+          out += `</g>`;
+      }
+      return out;
   }
 
   // ----- customer info (right column) -----
@@ -1305,20 +1347,35 @@
   }
 
   // Package contents: one bold row per product / component, then its sections as indented sub-rows
+  // cover only: quantity tag from the QUANTITY field(s): "(x2) Main Menu Boards"; blank quantity = no tag
+  function qtyTag(parts) {
+      let raw = parts.map(p => getRaw(p, 'QUANTITY').trim()).filter(v => v !== '');
+      if (!raw.length) return '';
+      if (raw.every(v => /^\d+$/.test(v))) return `(x${raw.reduce((a, v) => a + Number(v), 0)})`;
+      return raw.length === 1 ? `(x${raw[0]})` : '';
+  }
+
   function contentsRows(pages) {
       let off = coverOn() ? 1 : 0, ranges = itemPageRanges(pages, off), rows = [];
       pkgItems.forEach((it, k) => {
-          rows.push({ main: true, k, it, num: String(k + 1), text: it.name, pages: rangeText(ranges[it.iid]) });
+          let r = ranges[it.iid];
+          let main = { main: true, k, it, num: String(k + 1), text: it.name, qty: '', pages: !r ? '-' : (r[0] === r[1] ? `Page ${r[0]}` : `Pages ${r[0]} - ${r[1]}`) };
+          rows.push(main);
           let subs = [];
           pages.forEach((p, i) => {
               if (p.item.iid !== it.iid) return;
-              p.blocks.forEach(bk => { let s = subs.find(x => x.text === bk.title); if (s) { if (s.last !== i + 1 + off) s.pg.push(i + 1 + off); s.last = i + 1 + off; } else subs.push({ text: bk.title, pg: [i + 1 + off], last: i + 1 + off }); });
+              p.blocks.forEach(bk => {
+                  let s = subs.find(x => x.text === bk.title);
+                  if (s) { if (s.last !== i + 1 + off) s.pg.push(i + 1 + off); s.last = i + 1 + off; if (s.parts.indexOf(bk.part) === -1) s.parts.push(bk.part); }
+                  else subs.push({ text: bk.title, pg: [i + 1 + off], last: i + 1 + off, parts: [bk.part] });
+              });
           });
           // a single section named like the product adds nothing: skip it
           let norm = t => String(t).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().replace(/S$/, '');
-          if (subs.length === 1 && norm(subs[0].text) === norm(it.name)) subs = [];
-          subs.forEach((sb, j) => rows.push({ main: false, k, it, num: `${k + 1}.${j + 1}`, text: sb.text,
-              pages: sb.pg.length > 1 ? `${sb.pg[0]} - ${sb.pg[sb.pg.length - 1]}` : String(sb.pg[0]) }));
+          // ... and its quantity moves up to the product row
+          if (subs.length === 1 && norm(subs[0].text) === norm(it.name)) { main.qty = qtyTag(subs[0].parts); subs = []; }
+          subs.forEach((sb, j) => rows.push({ main: false, k, it, num: `${k + 1}.${j + 1}`, text: sb.text, qty: qtyTag(sb.parts),
+              pages: sb.pg.length > 1 ? `Pages ${sb.pg[0]} - ${sb.pg[sb.pg.length - 1]}` : `Page ${sb.pg[0]}` }));
       });
       return rows;
   }
@@ -1351,12 +1408,15 @@
               if (r.main) {
                   o += R(cx, y, cw, h, '#EDEEEF', '#D5D7DA', 0.6) +
                        T(cx + 10, y + h * 0.66, r.num, 11 * s, { bold: true }) +
-                       T(cx + 44, y + h * 0.66, r.text, 11 * s, { bold: true }) +
+                       (r.qty ? T(cx + 44, y + h * 0.66, r.qty, 11 * s, { bold: true, fill: '#C1272D' }) : '') +
+                       T(cx + 44 + (r.qty ? tw(r.qty, 11 * s, true) + 4 * s : 0), y + h * 0.66, r.text, 11 * s, { bold: true }) +
                        T(px, y + h * 0.66, r.pages, 11 * s, { anchor: 'end', bold: true });
               } else {
                   o += R(cx, y, cw, h, '#FFFFFF') + L(cx + 44, y + h, cx + cw, y + h, '#E3E4E6', 0.5) +
                        L(cx + 54, y, cx + 54, y + h * 0.5, '#B8BABD', 0.6) + L(cx + 54, y + h * 0.5, cx + 62, y + h * 0.5, '#B8BABD', 0.6) +
-                       T(cx + 68, y + h * 0.68, `${r.num}  ${r.text}`, 9.5 * s, { fill: '#333333' }) +
+                       T(cx + 68, y + h * 0.68, r.num, 9.5 * s, { fill: '#333333' }) +
+                       (r.qty ? T(cx + 68 + tw(r.num, 9.5 * s, false) + 6 * s, y + h * 0.68, r.qty, 9.5 * s, { bold: true, fill: '#C1272D' }) : '') +
+                       T(cx + 68 + tw(r.num, 9.5 * s, false) + 6 * s + (r.qty ? tw(r.qty, 9.5 * s, true) + 3.5 * s : 0), y + h * 0.68, r.text, 9.5 * s, { fill: '#333333' }) +
                        T(px, y + h * 0.68, r.pages, 9.5 * s, { anchor: 'end', fill: '#555555' });
               }
               y += h;

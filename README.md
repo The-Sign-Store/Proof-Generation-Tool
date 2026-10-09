@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v1.7** · The Sign Store Online, Inc. · Design Department
+**Current version: v1.8** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -20,6 +20,7 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 - **Conditional specs:** `Show_If` rules, required fields, and live color and material pickers. The pickers cover Oracal, Sherwin-Williams, PMS, ACM, acrylic, LED, trim cap and ADA pictograms.
 - **26 vector detail drawings:** mounting, letter construction, cabinets, footers/poles and panel finishing. Each drawing is added automatically when its specs match, with live values such as embed depth, return depth and trim cap.
 - **Editable section names:** rename any section, e.g. "Acrylic 2" to "Front Menu". The new name carries through to the proof sheet, cover contents and QA checklist.
+- **Special notes per section:** check **Add Special Notes** on any section and type. The notes print in a gold-edged **SPECIAL NOTES** column beside that section's table on the proof sheet. Unchecking hides them but keeps the text.
 - **Artwork placement:** add a screenshot or JPEG to any proof page with a button, by dropping it, or by pasting with Ctrl+V. You can move and resize it, and it is embedded in the SVG and PNG exports.
 - **Missing info flagged:** blank fields print as yellow **MISSING** tags. In the SVG, each tag has an empty matching text box underneath, ready to type in.
 
@@ -29,7 +30,11 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 - You can copy, download as .txt, or print the guide.
 
 ### Cover page and QA checklist
-- **Cover page:** company logo, customer (plus an optional sub-customer), project, project info and a full contents list. The contents list shows each product with indented component sub-rows. The cover also has project notes and the company contact line.
+- **Cover page:** company logo, customer (plus an optional sub-customer), project, project info, project notes and the company contact line.
+- **Package Contents table** (on the cover):
+  - each product, with its sections as indented sub-rows
+  - quantities in bold red, taken from each section's Quantity field, e.g. **(x2)** Main Menu Boards
+  - page references written as "Page 2", or "Pages 3 - 5" for a range
 - **QA checklist:**
   - every spec, with OK / INIT boxes
   - a checkbox on each product header
@@ -65,7 +70,8 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 1_Google_Sheet/      Sign_Proof_Specifications_App_Data.xlsx  (the database)
 2_Apps_Script/       Code.gs, Index.html, Stylesheet.html, JavaScript.html,
                      Assets.html, appsscript.json, ProofPages_CorelDRAW_Macro.bas
-3_Samples/           sample export zip, cover, proof pages, QA pages and PDF
+3_Samples/           sample export zip, cover, proof pages (incl. special notes),
+                     QA pages and PDF
 4_Source_Builders/   Python scripts that rebuild the workbook (optional)
 README.md            this page: overview + changelog
 README.txt           full setup guide
@@ -92,6 +98,19 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [1.8] – 2026-10-08
+#### Added
+- **Special notes per section:** every section in the proof builder has an **Add Special Notes** checkbox and text box. The notes print in a gold-edged **SPECIAL NOTES** column to the right of that section's table on the proof sheet. This restores the special notes from the original app, now one per section.
+- Unchecking **Add Special Notes** hides the notes from the proof but keeps the text, so checking it again brings them back.
+- **Quantities on the cover page:** Package Contents rows show the quantity from each section's Quantity field in bold red, e.g. `(x2) Main Menu Boards`. Single-section items show it on the main row, e.g. `(x1) Banner`. The tag appears on the cover only.
+
+#### Changed
+- **Cover page:** the proof pages column in Package Contents now reads "Page 2", or "Pages 3 - 5" for a range.
+- Sections with a blank quantity show no tag, and sections with the same name have their quantities added together.
+- Pages with special notes add a notes column to the spec table. Sections without notes on the same page get a plain gray cell, and the table scales to fit.
+
+---
 
 ### [1.7] – 2026-10-08
 #### Added
