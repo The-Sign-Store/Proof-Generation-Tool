@@ -1,0 +1,26 @@
+# Publishes a GitHub Release (with the packet zip) for every commit on main whose
+# message starts with a version, e.g. "v1.9: what changed". Already-released
+# versions are skipped, so this is safe to run any number of times.
+# The Drive sync script copies new releases into the "Sign Generation Tool" folder.
+name: Release versions
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Release every version commit that has no release yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/release_versions.sh
