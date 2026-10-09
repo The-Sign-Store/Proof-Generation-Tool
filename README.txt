@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.3  (October 8, 2026)
+SIGN PROOF GENERATOR  v1.4  (October 8, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -21,7 +21,8 @@ WHAT IS IN THIS PACKAGE
    Assets.html        logo + ETL artwork (image data, split into short lines)
    appsscript.json    project manifest (time zone, V8 runtime, no libraries)
    ProofPages_CorelDRAW_Macro.bas   CorelDRAW macros (not for Apps Script):
-                      AddProofPages, BuildFromPackage. In CorelDRAW: Alt+F11 >
+                      AddProofPages, BuildFromPackage (pick the unzipped
+                      package or its SVG folder). In CorelDRAW: Alt+F11 >
                       GlobalMacros > File > Import File.
 
 3_Samples/
@@ -110,7 +111,9 @@ Detail_Drawings      26 construction drawings + the spec rule that shows each
 Design_Guide         91 design standards for the Help Center pop-up
 Proof_Template       fixed text on every page; switches (On / Off) for
                      Watermark, Detail_Drawings, Cover_Page, QA_Checklist;
-                     Watermark_Opacity = percent gray (default 2)
+                     Watermark_Opacity = percent gray (default 2);
+                     Company_Name / _Address / _Phone / _Website / _Email
+                     for the cover's contact line (blank = not printed)
 Color tabs           Oracal, SW, PMS, ACM, Acrylic, PVC, Coro, Coil, TrimCap,
                      LED, Finish_Colors, Rowmark_Colors
 ADA_Pictograms       from SignOS REF_Pictograms
@@ -118,7 +121,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.3)
+WHAT THE APP DOES (v1.4)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 17 products and 10 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -128,16 +131,23 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           for this package only. Copy / Download .txt / Print.
         - Artwork: + Add image / drop / Ctrl+V screenshots onto any proof
           page; drag to move, - / + to size. Kept until the page is closed.
+          Click a page's bar to select it for Ctrl+V (gold outline); click
+          it again, press Esc or click the background to deselect.
 Step 3  Customer info (customer and project are separate fields): blanks
         print as yellow MISSING tags.
-Export  One zip:
-          p01_cover.svg/.png        cover: logo, customer, project, info and
-                                    the list of every product / component
-                                    (no approval block on the cover)
-          p02_<product>_specs_1 ... one SVG + 300 ppi PNG per proof page
-          QA_Checklist/             for the QA manager, not the customer:
-                                    qa01_checklist.svg/.png ... (8.5 x 11)
-                                    and qa_checklist.csv (Excel / Sheets)
+Export  One zip (Chrome / Edge ask where to save it when they can; inside
+        Apps Script the browser usually blocks that window, so the zip goes
+        to Downloads. Chrome > Settings > Downloads > "Ask where to save each
+        file before downloading" makes every download ask):
+          SVG/  PNG/                p01_cover = cover: logo, customer, project,
+                                    project info, package contents, project
+                                    notes, company contact info
+                                    p02_<product>_specs_1 ... one per proof
+                                    page (SVG editable, PNG 300 ppi)
+          QA_Checklist/SVG/ + PNG/  for the QA manager, not the customer
+          QA_Checklist/qa_checklist.csv   (Excel / Sheets)
+        Every yellow MISSING tag in an SVG is its own group with an empty
+        text box underneath in the matching style: delete the tag, type.
         SVG text is Arial and editable; drawings are vector; the watermark
         is a flat image on its own layer.
         Proof_Template switches: Cover_Page, Cover_Title, QA_Checklist,
@@ -146,6 +156,25 @@ Export  One zip:
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.4  (2026-10-08)
+  Changed
+    - Cover contents list: each product is a bold row, with its sections as
+      indented sub-rows (1.1, 1.2 …) that list their proof pages. Large
+      packages flow into two columns.
+    - Watermark:
+      - Now one flat, non-editable image instead of text.
+      - Covers the whole art board, cropped at the art board edges.
+      - Set to 2% gray through the new Proof_Template › Watermark_Opacity
+        setting.
+      - Has no transparency, so CorelDRAW shows exactly what the preview
+        shows.
+    - QA checklist:
+      - One checkbox beside each product or component title.
+      - An OK / INIT line to the right of every individual spec.
+      - Final Checks and QA Manager sign-off moved into a separate
+        red-outlined section at the bottom of the last page.
+      - Notes area expanded from 2 to 10 lines.
+
 v1.3  (2026-10-08)
   Added
     - Artwork images on proof pages: use the + Add image bar above any page,

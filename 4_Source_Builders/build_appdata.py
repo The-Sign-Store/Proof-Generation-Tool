@@ -145,6 +145,11 @@ TEMPLATE = [
  ("Detail_Drawings", "On"),
  ("Cover_Page", "On"),
  ("Cover_Title", "DESIGN PROOF PACKAGE"),
+ ("Company_Name", "The Sign Store Online, Inc."),
+ ("Company_Address", "1836 Broadway, Macon, GA 31201"),
+ ("Company_Phone", "478-785-0610"),
+ ("Company_Website", "www.signstoremacon.com"),
+ ("Company_Email", ""),
  ("QA_Checklist", "On"),
  ("QA_Final_Checks", "Finished work matches the signed proof (every page)|Overall dimensions verified against the proof|Colors match the callouts (vinyl / paint / print)|Mounting hardware, patterns and templates included|Lit signs: ETL label applied and power supply tested|Clean, protected and labeled for install / pickup"),
 ]
@@ -181,7 +186,7 @@ for r in range(2, dg.max_row + 1):
 
 # ---------- 9. README ----------
 readme = [
- ("VERSION 1.3 (PROOF PACKAGES)", ""),
+ ("VERSION 1.4 (PROOF PACKAGES)", ""),
  ("Flow", "1) Select any mix of products and components on the dashboard  2) Fill in specs  3) Add customer info  4) Generate Proof Package (zip of editable SVG + PNG per page)."),
  ("All products migrated", "The 10 original products are now components too (ACM_PANEL, CORO_SIGN, BANNER ...), each with a one-line Product_Assembly row. Product_Schema is kept for reference only; the current app does not read it."),
  ("Proof_Template", "Fixed text printed on every proof page (title, ETL text, legal text, copyright). {YEAR} becomes the current year."),

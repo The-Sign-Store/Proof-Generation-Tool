@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.3  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.4  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -796,10 +796,19 @@
   function IMG(x, y, w, h, href, par) {
       return `<image x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="${par || 'xMidYMid meet'}" xlink:href="${href}"/>`;
   }
-  function missingTag(xRight, y, text, size) {   // yellow MISSING tag, right-aligned at xRight
+  // Yellow MISSING tag, right-aligned at xRight, in its own group so it can be deleted in Illustrator / CorelDRAW.
+  // field = where / how the real value prints: an EMPTY text box (one non-breaking space) in that exact style is
+  // placed underneath, ready to type into once the tag is deleted.
+  let missN = 0;
+  function valueField(f) {
+      return `<g id="Value_Field_${missN}">` + T(f.x, f.y, '\u00A0', f.size, { anchor: f.anchor, bold: f.bold, fill: f.fill || '#000000' }) + `</g>`;
+  }
+  function missingTag(xRight, y, text, size, field) {
       let w = tw(text, size, true) + 6;
-      return R(xRight - w, y - size * 0.95, w, size * 1.3, TAG_BG, '#D6A100', 0.5, ' stroke-dasharray="1.5,1"') +
-             T(xRight - 3, y, text, size, { bold: true, fill: TAG_TX, anchor: 'end' });
+      missN++;
+      return (field ? valueField(field) : '') + `<g id="MISSING_${missN}">` +
+             R(xRight - w, y - size * 0.95, w, size * 1.3, TAG_BG, '#D6A100', 0.5, ' stroke-dasharray="1.5,1"') +
+             T(xRight - 3, y, text, size, { bold: true, fill: TAG_TX, anchor: 'end' }) + `</g>`;
   }
 
   // ----- spec table layout -----
@@ -855,6 +864,7 @@
       out += T(x + P.padX, base, m.label, P.lab, { bold: true, fill: '#777777' });
       let vx = x + P.padX + m.lw + P.gap;
       if (it.warn) {
+          missN++; out += valueField({ x: vx, y: base, size: P.val, bold: true });
           let ww = Math.max.apply(null, m.lines.map(l => tw(l, P.val, true))) + 6 * (P.val / 11);
           out += R(vx - 2, base - P.val * 0.95, ww, (m.lines.length - 1) * P.lineH + P.val * 1.3, TAG_BG, '#D6A100', 0.8, ' stroke-dasharray="2,1.5"');
       }
@@ -926,25 +936,26 @@
       let lh = size * 1.15, nameH = info.name ? nameLines.length * lh : 12, projH = projLines.length ? 3 + projLines.length * 9 : 0;
       let ny = 113 - (nameH + projH) / 2;
       if (info.name) nameLines.forEach((l, i) => o += T(cx, ny + i * lh + size * 0.85, l, size, { anchor: 'middle', bold: true, fill: '#FFFFFF' }));
-      else o += missingTag(cx + tw('MISSING: CUSTOMER', 7.5, true) / 2 + 3, ny + 9, 'MISSING: CUSTOMER', 7.5);
+      else o += missingTag(cx + tw('MISSING: CUSTOMER', 7.5, true) / 2 + 3, ny + 9, 'MISSING: CUSTOMER', 7.5,
+                           { x: cx, y: ny + 10.6, size: 12.5, anchor: 'middle', bold: true, fill: '#FFFFFF' });
       projLines.forEach((l, i) => o += T(cx, ny + nameH + 3 + i * 9 + 6.8, l, 7.5, { anchor: 'middle', fill: '#FFFFFF' }));
       // installation location (3 lines)
       o += T(lx, 163, 'Installation Location:', 9.5);
       [176, 189, 201].forEach(y => o += L(929, y, rx, y, '#CCCCCC', 0.5));
       if (info.location) wrapText(info.location, 7.5, false, 138).slice(0, 3).forEach((l, i) => o += T(rx, [174, 187, 199][i], l, 7.5, { anchor: 'end', fill: '#555555' }));
-      else o += missingTag(rx, 174, 'MISSING', 7);
+      else o += missingTag(rx, 174, 'MISSING', 7, { x: rx, y: 174, size: 7.5, anchor: 'end', fill: '#555555' });
       // salesperson / inv / ticket
       let row = (label, val, y, size) => {
           let w = tw(label, size, false);
           let s = T(lx, y, label, size) + L(lx + w + 3, y + 1.5, rx, y + 1.5, '#CCCCCC', 0.5);
-          return s + (val ? T(rx, y, val, size * 0.88, { anchor: 'end', fill: '#444444' }) : missingTag(rx, y, 'MISSING', 7));
+          return s + (val ? T(rx, y, val, size * 0.88, { anchor: 'end', fill: '#444444' }) : missingTag(rx, y, 'MISSING', 7, { x: rx, y, size: size * 0.88, anchor: 'end', fill: '#444444' }));
       };
       o += row('Salesperson', info.sales, 226, 9.5) + row('Inv/Est #', info.inv, 238.5, 9.5) + row('Ticket No.', info.ticket, 251, 9.5);
       o += row('Designer', info.designer, 274.5, 8.8) + row('Original Date', info.orig, 287, 8.8) + row('Revision Date', info.rev, 299.5, 8.8);
       o += T(lx, 312, 'File Location:', 8.8);
       [323.5, 336, 348.5, 361].forEach(y => o += L(929, y, rx, y, '#CCCCCC', 0.5));
       if (info.path) wrapPath(info.path, 7.3, 140).slice(0, 4).forEach((l, i) => o += T(930, [321.5, 334, 346.5, 359][i], l, 7.3, { fill: '#555555' }));
-      else o += missingTag(rx, 321.5, 'MISSING', 7);
+      else o += missingTag(rx, 321.5, 'MISSING', 7, { x: 930, y: 321.5, size: 7.3, fill: '#555555' });
       // description / project notes
       o += T(lx, 391, 'Description:', 9);
       o += L(lx + tw('Description:', 9, false) + 3, 392.5, rx, 392.5, '#CCCCCC', 0.5);
@@ -1167,6 +1178,14 @@
       return c.map(k => k.n > 1 ? `${k.t} (x${k.n})` : k.t);
   }
 
+  // company contact info for the cover (Proof_Template Company_* keys; blank = not printed)
+  function company() {
+      let t = k => (TEMPLATE[k] === undefined ? null : String(TEMPLATE[k]).trim());
+      let d = (k, v) => { let x = t(k); return x === null ? v : x; };
+      return { name: d('Company_Name', 'The Sign Store Online, Inc.'), address: d('Company_Address', '1836 Broadway, Macon, GA 31201'),
+               phone: d('Company_Phone', '478-785-0610'), website: d('Company_Website', 'www.signstoremacon.com'), email: d('Company_Email', '') };
+  }
+
   function buildCoverSVG(pages, info, total) {
       const M = 37.4, W = PG.W, X0 = M + 30, XR = W - M - 30;
       let o = svgHead(W, PG.H, 11, 8.5);
@@ -1189,16 +1208,16 @@
           while (ls.length > 2 && sz > 18) { sz -= 2; ls = wrapText(info.name, sz, true, 590); }
           ls.slice(0, 2).forEach((l, i) => o += T(X0, y + i * sz * 1.1, l, sz, { bold: true }));
           y += (Math.min(ls.length, 2) - 1) * sz * 1.1;
-      } else o += missingTag(X0 + tw('MISSING: CUSTOMER NAME', 13, true) + 6, y - 4, 'MISSING: CUSTOMER NAME', 13);
+      } else o += missingTag(X0 + tw('MISSING: CUSTOMER NAME', 13, true) + 6, y - 4, 'MISSING: CUSTOMER NAME', 13, { x: X0, y, size: 30, bold: true });
       y += 30;
       if (info.project) {
           let ps = wrapText(info.project, 18, true, 590).slice(0, 2);
           ps.forEach((l, i) => o += T(X0, y + i * 21, l, 18, { bold: true, fill: RED_BOX }));
           y += (ps.length - 1) * 21;
-      } else o += missingTag(X0 + tw('MISSING: PROJECT NAME', 11, true) + 6, y - 3, 'MISSING: PROJECT NAME', 11);
+      } else o += missingTag(X0 + tw('MISSING: PROJECT NAME', 11, true) + 6, y - 3, 'MISSING: PROJECT NAME', 11, { x: X0, y, size: 18, bold: true, fill: RED_BOX });
       y += 22;
       if (info.location) wrapText(info.location, 11, false, 590).slice(0, 2).forEach((l, i) => o += T(X0, y + i * 14, l, 11, { fill: '#555555' }));
-      else o += missingTag(X0 + tw('MISSING: INSTALLATION LOCATION', 8, true) + 6, y - 2, 'MISSING: INSTALLATION LOCATION', 8);
+      else o += missingTag(X0 + tw('MISSING: INSTALLATION LOCATION', 8, true) + 6, y - 2, 'MISSING: INSTALLATION LOCATION', 8, { x: X0, y, size: 11, fill: '#555555' });
       let custBottom = y + 14;
       o += `</g>`;
       // project info box (right)
@@ -1209,23 +1228,47 @@
       let ry = by + 37;
       rows.forEach(([lab, val]) => {
           o += T(bx + 10, ry, lab, 9.5) + L(bx + 12 + tw(lab, 9.5, false), ry + 1.5, bx + bw - 8, ry + 1.5, '#CCCCCC', 0.5);
-          o += val ? T(bx + bw - 10, ry, val, 9, { anchor: 'end', fill: '#333333', bold: true }) : missingTag(bx + bw - 8, ry, 'MISSING', 7);
+          o += val ? T(bx + bw - 10, ry, val, 9, { anchor: 'end', fill: '#333333', bold: true })
+                   : missingTag(bx + bw - 8, ry, 'MISSING', 7, { x: bx + bw - 10, y: ry, size: 9, anchor: 'end', fill: '#333333', bold: true });
           ry += 17;
       });
       o += T(bx + 10, ry, 'File Location:', 9.5);
       ry += 13;
       if (info.path) wrapPath(info.path, 7.5, bw - 20).slice(0, 3).forEach((l, i) => o += T(bx + 10, ry + i * 10, l, 7.5, { fill: '#555555' }));
-      else o += missingTag(bx + bw - 8, ry, 'MISSING', 7);
+      else o += missingTag(bx + bw - 8, ry, 'MISSING', 7, { x: bx + 10, y: ry, size: 7.5, fill: '#555555' });
       let boxBottom = ry + 26;
       o += R(bx, by, bw, boxBottom - by, 'none', LINE, 0.8) + `</g>`;
-      // contents table
-      let top = Math.max(custBottom, boxBottom) + 26, bottom = M + FH - 46;
-      o += contentsTable(pages, X0, top, XR - X0, bottom);
-      // legal + copyright line at the bottom of the frame (no approval block on the cover)
-      o += `<g id="Cover_Legal">` + L(X0, M + FH - 30, XR, M + FH - 30, '#DDDDDD', 0.6) +
-           T(X0, M + FH - 16, TEMPLATE.Legal_Text || '', 6.5, { fill: '#777777' }) +
+      // contents table (left) + project notes (right, lined up with the project info box)
+      const CONTACT_Y = M + FH - 42;
+      let top = Math.max(custBottom, boxBottom) + 26, bottom = CONTACT_Y - 24;
+      o += contentsTable(pages, X0, top, bx - 24 - X0, bottom);
+      o += notesBox(info.notes, bx, top, bw, bottom);
+      // company contact info + legal / copyright at the bottom of the frame
+      let co = company(), left = [co.name, co.address].filter(Boolean), right = [co.phone, co.website, co.email].filter(Boolean);
+      o += `<g id="Company_Contact">` + L(X0, CONTACT_Y - 13, XR, CONTACT_Y - 13, '#DDDDDD', 0.6);
+      if (left.length) o += T(X0, CONTACT_Y, left[0], 9.5, { bold: true }) + (left[1] ? T(X0 + tw(left[0], 9.5, true) + 10, CONTACT_Y, left[1], 9, { fill: '#555555' }) : '');
+      if (right.length) o += T(XR, CONTACT_Y, right.join('   \u00B7   '), 9.5, { anchor: 'end', bold: true });
+      o += `</g>`;
+      o += `<g id="Cover_Legal">` + T(X0, M + FH - 16, TEMPLATE.Legal_Text || '', 6.5, { fill: '#777777' }) +
            T(XR, M + FH - 6, (TEMPLATE.Copyright_Text || '').replace('{YEAR}', new Date().getFullYear()), 6.5, { anchor: 'end', fill: '#777777' }) + `</g>`;
       return o + `</svg>`;
+  }
+
+  // project notes summary for the cover: same style as the project info box, ruled lines
+  function notesBox(notes, x, top, w, bottom) {
+      let o = `<g id="Project_Notes">` + R(x, top, w, 20, INK) + T(x + 10, top + 13.5, 'PROJECT NOTES', 8.5, { bold: true, fill: '#FFFFFF', ls: 1.2 });
+      let y0 = top + 20, h = bottom - y0, gap = 15, size = 9;
+      o += R(x, top, w, bottom - top, 'none', LINE, 0.8);
+      let wrapAll = sz => notes.split(/\n/).reduce((a, p) => a.concat(wrapText(p, sz, false, w - 20)), []);
+      let n = Math.floor((h - 8) / gap), lines = notes ? wrapAll(size) : [];
+      while (notes && lines.length > n && size > 7) { size -= 0.5; gap = size * 1.65; n = Math.floor((h - 8) / gap); lines = wrapAll(size); }
+      for (let i = 0; i < n; i++) {
+          let ly = y0 + 6 + (i + 1) * gap;
+          o += L(x + 10, ly, x + w - 10, ly, '#E3E4E6', 0.5);
+          if (lines[i] !== undefined) o += T(x + 11, ly - 3.5, i === n - 1 && lines.length > n ? lines[i] + ' ...' : lines[i], size, { fill: '#222222' });
+      }
+      if (!notes) o += T(x + 11, y0 + 6 + gap - 3.5, 'No project notes entered.', size, { fill: '#999999', italic: true });
+      return o + `</g>`;
   }
 
   // Package contents: one bold row per product / component, then its sections as indented sub-rows
@@ -1364,7 +1407,7 @@
                T(XR, 52, 'QUALITY ASSURANCE CHECKLIST', 16, { anchor: 'end', bold: true, ls: 0.8 }) +
                T(XR, 68, `QA page ${pi + 1} / ${n}  \u00B7  proof package of ${proofTotal} page${proofTotal === 1 ? '' : 's'}`, 8.5, { anchor: 'end', fill: '#666666' }) +
                L(X, 84, XR, 84, INK, 1.2);
-          let val = (v, x, yy, label) => v ? T(x, yy, v, 9.5, { bold: true }) : missingTag(x + tw('MISSING', 7, true) + 6, yy, 'MISSING', 7);
+          let val = (v, x, yy, label) => v ? T(x, yy, v, 9.5, { bold: true }) : missingTag(x + tw('MISSING', 7, true) + 6, yy, 'MISSING', 7, { x, y: yy, size: 9.5, bold: true });
           if (pi === 0) {
               let col = [X, 330, 590], r1 = 104, r2 = 128, r3 = 152;
               [[col[0], r1, 'CUSTOMER', info.name], [col[1], r1, 'PROJECT', info.project], [col[2], r1, 'TICKET NO.', info.ticket],
@@ -1395,6 +1438,7 @@
                       let it = r.it, warn = it.warn;
                       o += T(X + 10, y + 13, it.label.toUpperCase(), 7.5, { bold: true, fill: '#777777' });
                       if (warn) {
+                          missN++; o += valueField({ x: VAL_X, y: y + 13.5, size: 9.5, bold: true });
                           let ww = Math.max.apply(null, r.lines.map(l => tw(l, 9.5, true))) + 6;
                           o += R(VAL_X - 2, y + 4, ww, (r.lines.length - 1) * 12 + 12, TAG_BG, '#D6A100', 0.6, ' stroke-dasharray="1.5,1"');
                       }
@@ -1540,8 +1584,10 @@
       inp.onchange = () => addArtFiles(key, inp.files);
       inp.click();
   }
-  function setActiveArt(key) {
-      activeArtKey = key;
+  // toggle = true (clicking a page's bar): a second click deselects it
+  function setActiveArt(key, toggle) {
+      activeArtKey = toggle && activeArtKey === key ? null : key;
+      key = activeArtKey;
       document.querySelectorAll('.sheet-tools').forEach(el => el.classList.toggle('active', el.dataset.key === key));
       document.querySelectorAll('.sheet[data-key]').forEach(el => el.classList.toggle('active', el.dataset.key === key));
   }
@@ -1552,10 +1598,10 @@
   function artToolbar(p, pageNo) {
       let key = artKey(p), arts = pageArt[key] || [];
       let b = (fn, label, title) => `<button type="button" class="st-btn" title="${title}" onclick="event.stopPropagation(); ${fn}">${label}</button>`;
-      return `<div class="sheet-tools${key === activeArtKey ? ' active' : ''}" data-key="${key}" onclick="setActiveArt('${key}')">` +
+      return `<div class="sheet-tools${key === activeArtKey ? ' active' : ''}" data-key="${key}" onclick="setActiveArt('${key}', true)" title="Click to select this page for Ctrl+V; click again to deselect">` +
              `<span class="st-title">Page ${pageNo} &middot; ${esc(p.item.name)} ${p.n}/${p.total}</span>` +
              b(`pickArt('${key}')`, '+ Add image', 'Add JPEG / PNG artwork or screenshots to this page') +
-             (arts.length ? '' : `<span class="st-hint">or drop a file here / click this bar and press Ctrl+V</span>`) +
+             (arts.length ? '' : `<span class="st-hint">${key === activeArtKey ? 'selected: press Ctrl+V to paste here (click the bar again to deselect)' : 'or drop a file here / click this bar and press Ctrl+V'}</span>`) +
              arts.map((a, j) => `<span class="st-img" title="${esc(a.name)}">Image ${j + 1}` +
                  b(`artScale('${key}', ${j}, 0.9)`, '&minus;', 'Smaller') + b(`artScale('${key}', ${j}, 1.1)`, '+', 'Larger') +
                  b(`artFit('${key}', ${j})`, 'Fit', 'Reset size and position') + b(`artRemove('${key}', ${j})`, '&times;', 'Remove this image') + `</span>`).join('') +
@@ -1568,9 +1614,21 @@
       let files = [].slice.call(e.clipboardData.items || []).filter(it => it.kind === 'file' && /^image\//.test(it.type)).map(it => it.getAsFile());
       if (!files.length) return;                       // plain text pastes into fields as usual
       e.preventDefault();
-      let first = document.querySelector('.sheet-tools');
-      addArtFiles(activeArtKey || (first && first.dataset.key), files);
+      if (!activeArtKey) { toast('Click a page\u2019s bar first (it turns gold), then press Ctrl+V to paste the screenshot there.'); return; }
+      addArtFiles(activeArtKey, files);
   });
+  // Esc or a click on the empty preview background deselects the page
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && activeArtKey) setActiveArt(null); });
+  document.addEventListener('click', e => {
+      if (!activeArtKey || !e.target.closest) return;
+      if (e.target.closest('#preview-area') && !e.target.closest('.sheet-tools') && !e.target.closest('.sheet')) setActiveArt(null);
+  });
+  function toast(msg) {
+      let t = document.getElementById('toast');
+      if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+      t.textContent = msg; t.classList.add('show');
+      clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3500);
+  }
   // drop files on a page (or its toolbar)
   document.addEventListener('dragover', e => { if (e.target.closest && e.target.closest('#preview-area')) e.preventDefault(); });
   document.addEventListener('drop', e => {
@@ -1662,14 +1720,27 @@
       let pages = packagePages();
       let base = slug(info.name || 'proof');
       let zip = (typeof JSZip !== 'undefined') ? new JSZip() : null;
+      // Ask where to save BEFORE generating (the browser only allows the Save As window right after the click).
+      // Chrome / Edge only; inside the Apps Script frame it is often blocked, then the normal download is used.
+      let fileHandle = null;
+      if (zip && window.showSaveFilePicker) {
+          try {
+              fileHandle = await window.showSaveFilePicker({ suggestedName: `${base}_proof_package.zip`,
+                  types: [{ description: 'Proof package (.zip)', accept: { 'application/zip': ['.zip'] } }] });
+          } catch (e) {
+              if (e && e.name === 'AbortError') return;   // user pressed Cancel
+              fileHandle = null;                           // blocked here: fall back to a normal download
+          }
+      }
       let off = coverOn() && pages.length ? 1 : 0, total = pages.length + off;
-      // every file in order: cover, proof pages, then the QA checklist (own folder)
+      // every file in order: cover, proof pages, then the QA checklist.
+      // Zip layout:  SVG/  PNG/  QA_Checklist/SVG/  QA_Checklist/PNG/  QA_Checklist/qa_checklist.csv
       let jobs = [];
-      if (off) jobs.push({ name: 'p01_cover', svg: () => buildCoverSVG(pages, info, total) });
-      pages.forEach((p, i) => jobs.push({ name: `p${String(i + 1 + off).padStart(2, '0')}_${slug(p.item.name)}_specs_${p.n}`,
+      if (off) jobs.push({ dir: '', file: 'p01_cover', svg: () => buildCoverSVG(pages, info, total) });
+      pages.forEach((p, i) => jobs.push({ dir: '', file: `p${String(i + 1 + off).padStart(2, '0')}_${slug(p.item.name)}_specs_${p.n}`,
                                           svg: () => buildSheetSVG(p, i + 1 + off, total, info) }));
       if (qaOn() && pages.length) buildQAPages(pages, info, total).forEach((svg, i) =>
-          jobs.push({ name: `QA_Checklist/qa${String(i + 1).padStart(2, '0')}_checklist`, svg: () => svg, pw: 2550, ph: 3300 }));
+          jobs.push({ dir: 'QA_Checklist/', file: `qa${String(i + 1).padStart(2, '0')}_checklist`, svg: () => svg, pw: 2550, ph: 3300 }));
       let save = async (name, blob) => {
           if (zip) zip.file(name, blob);
           else { saveBlob(blob, name.split('/').pop()); await new Promise(r => setTimeout(r, 400)); }
@@ -1679,13 +1750,15 @@
               btn.innerHTML = `Generating ${i + 1} of ${jobs.length}...`;
               let j = jobs[i], svg = j.svg();
               let png = await svgToPngBlob(svg, j.pw, j.ph);
-              await save(`${j.name}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
-              await save(`${j.name}.png`, png);
+              await save(`${j.dir}SVG/${j.file}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
+              await save(`${j.dir}PNG/${j.file}.png`, png);
           }
           if (qaOn() && pages.length) await save('QA_Checklist/qa_checklist.csv', new Blob([buildQACsv(pages, info)], { type: 'text/csv' }));
           if (zip) {
               btn.innerHTML = 'Zipping...';
-              saveBlob(await zip.generateAsync({ type: 'blob' }), `${base}_proof_package.zip`);
+              let blob = await zip.generateAsync({ type: 'blob' });
+              if (fileHandle) { let w = await fileHandle.createWritable(); await w.write(blob); await w.close(); toast('Saved ' + fileHandle.name); }
+              else saveBlob(blob, `${base}_proof_package.zip`);
           }
       } catch (e) {
           alert('Export failed: ' + e.message);

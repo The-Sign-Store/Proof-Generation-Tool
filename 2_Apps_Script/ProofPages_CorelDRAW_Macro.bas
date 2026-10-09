@@ -8,7 +8,8 @@ Option Explicit
 '                    missing ones at 11 x 8.5 landscape. Existing pages
 '                    are never resized or deleted.
 '
-'  BuildFromPackage  Pick the UNZIPPED Proof Generator package folder.
+'  BuildFromPackage  Pick the UNZIPPED Proof Generator package folder
+'                    (or its SVG folder: either works).
 '                    Makes a new document with one 11 x 8.5 page per SVG,
 '                    in package order (p01, p02 ...), imports each sheet
 '                    onto its page and names the page from the file.
@@ -71,6 +72,8 @@ Public Sub BuildFromPackage()
     If folder = "" Then folder = InputBox("Paste the path of the unzipped proof package folder:", "Proof Package")
     If folder = "" Then Exit Sub
     If Right(folder, 1) <> "\" Then folder = folder & "\"
+    ' packages from v1.4 on keep the SVG files in an SVG subfolder
+    If Dir(folder & "*.svg") = "" And Dir(folder & "SVG\*.svg") <> "" Then folder = folder & "SVG\"
 
     ' 2) list the SVG sheets
     f = Dir(folder & "*.svg")
