@@ -39,9 +39,12 @@ REGISTRY = [
  ("HALO_LETTERS", "Halo Letters", "No", "Yes", "Reverse / halo lit channel letters (one line of copy per block)."),
  ("BACKER_PANEL", "Backer Panel", "Yes", "No", "Panel behind letters (flat, framed or routed shape)."),
  ("ADA_SIGN", "ADA Sign", "No", "Yes", "Tactile / Braille ADA sign (one message per block)."),
+ ("CLOUD", "Cloud", "Yes", "No", "Cloud (shaped backer) behind channel letters: size, depth, material, color, lighting."),
 ]
 
 F = {}
+from legacy_components import standoff_rows
+ADA_STANDOFFS = standoff_rows(C4, "MOUNTING=Standoffs", 10)
 
 F["POLE"] = [
  (C1, "QUANTITY", "QTY", "number", "2", "", "", "Yes", "", ""),
@@ -209,6 +212,15 @@ F["HALO_LETTERS"] = [
  (C4, "WALL SURFACE", "WALL", "text", "", "", "", "Yes", "", "e.g. Painted stucco, light beige"),
 ]
 
+# v1.9: cloud behind cloud letters (front lit / halo lit products reuse the channel letter components)
+F["CLOUD"] = [
+ (C1, "CLOUD SIZE", "CLOUD SIZE", "dims", "", "W|H", "", "Yes", "", "Overall cloud size, inches"),
+ (C1, "CLOUD DEPTH", "CLOUD DEPTH", "text", "", "", "", "Yes", "", 'e.g. 5" return'),
+ (C2, "CLOUD MATERIAL", "MATERIAL", "select", "Fabricated Aluminum", "Fabricated Aluminum|ACM|PVC", "", "Yes", "", ""),
+ (C2, "CLOUD COLOR", "CLOUD COLOR", "paint", "", "", "", "Yes", "", ""),
+ (C3, "CLOUD LIGHTING", "CLOUD LIGHTING", "select", "Non-Lit", "Non-Lit|Lit", "", "Yes", "", ""),
+]
+
 F["BACKER_PANEL"] = [
  (C1, "BACKER SIZE", "DIMENSIONS", "dims", "120|36", "W|H", "", "Yes", "", ""),
  (C1, "BACKER TYPE", "TYPE", "select", "Flat", "Flat|Framed|Custom Shape (Routed)", "", "Yes", "", ""),
@@ -240,6 +252,7 @@ F["ADA_SIGN"] = [
   "Master_Mat_ADA: ADA_SUB_116_LENS", ""),
  (C4, "MOUNTING", "MOUNTING", "select", "VHB Tape + Silicone", "VHB Tape + Silicone|Screws|Standoffs", "", "Yes",
   "Master_Mat_Hardware: VIN_SUP_VHB_TPE", ""),
+] + ADA_STANDOFFS + [
  (C4, "LOCATION", "LOCATION", "text", 'Latch side, 48"-60" AFF to baseline', "", "", "Yes", "ADA 703.4.1", ""),
 ]
 
@@ -285,6 +298,13 @@ ASSEMBLIES = [
  ("Reverse / Halo Lit Channel Letters", 3, "ILLUMINATION", "Illumination", "Required", "No", "PHOTO CELL=Yes"),
 
  ("ADA Signs", 1, "ADA_SIGN", "ADA Sign", "Required", "Yes", ""),
+
+ ("Cloud Letters - Front Lit", 1, "CHANNEL_LETTERS_FL", "Letters", "Required", "Yes", ""),
+ ("Cloud Letters - Front Lit", 2, "CLOUD", "Cloud", "Required", "No", ""),
+
+ ("Cloud Letters - Halo Lit", 1, "HALO_LETTERS", "Letters", "Required", "Yes", ""),
+ ("Cloud Letters - Halo Lit", 2, "CLOUD", "Cloud", "Required", "No", ""),
+ ("Cloud Letters - Halo Lit", 3, "ILLUMINATION", "Illumination", "Required", "No", "PHOTO CELL=Yes"),
 ]
 
 FINISH_COLORS = [
