@@ -25,10 +25,22 @@ def panel(thick_def, thick_opts, side_def, color_opts, lam_def, extra_c3):
         (C3, "CORNERS", "CORNERS", "select", "Square", 'Square|Rounded 1/4"|Rounded 1/2"|Rounded 1"', "", "", "", "Rounded corners print a detail drawing", "Square"),
     ] + extra_c3
 
+# v1.9: standoff model / size / finish, shown when the mounting is standoffs.
+# Picking a model fills in its size (an editable text field per model); Custom Input on the model opens a size field to type.
+def standoff_rows(zone, trigger, n=11):
+    rows = [
+        (zone, "STANDOFF MODEL", "STANDOFF", "select", "AL25-30A", "AL25-30A|AL16-25A", trigger, "Yes", "", "Aluminum standoff. Use Custom Input for other models / materials", ""),
+        (zone, "STANDOFF SIZE", "STANDOFF SIZE", "text", "25 mm dia. x 30 mm", "", trigger + "&STANDOFF MODEL=AL25-30A", "Yes", "", "", ""),
+        (zone, "STANDOFF SIZE - AL16", "STANDOFF SIZE", "text", "16 mm dia. x 25 mm", "", trigger + "&STANDOFF MODEL=AL16-25A", "Yes", "", "", ""),
+        (zone, "STANDOFF SIZE - CUSTOM", "STANDOFF SIZE", "text", "", "", trigger + "&STANDOFF MODEL=CUSTOM", "Yes", "", 'e.g. 3/4" dia. x 1"', ""),
+        (zone, "STANDOFF FINISH", "STANDOFF FINISH", "select", "Brushed Aluminum", "Brushed Aluminum|Satin Aluminum|Black|Chrome|Gold", trigger, "Yes", "", "", ""),
+    ]
+    return [r[:n] for r in rows]
+
 MOUNT_ROWS = [
     (C3, "MOUNTING", "MOUNTING", "select", "None", MOUNT, "", "", "", "", "None"),
-    (C3, "MOUNTING DETAIL", "MOUNT DETAIL", "text", "", "", "MOUNTING~=Spacer|Stand-offs", "Yes", "", 'e.g. 1/2" spacer, brushed standoffs', ""),
-]
+    (C3, "MOUNTING DETAIL", "MOUNT DETAIL", "text", "", "", "MOUNTING~=Spacer", "Yes", "", 'e.g. 1/2" spacer', ""),
+] + standoff_rows(C3, "MOUNTING=Stand-offs")
 
 LEGACY = {}
 
@@ -60,7 +72,8 @@ LEGACY["ACRYLIC_PANEL"] = ("Acrylic", "Acrylic panel; second surface print on cl
     (C3, "ROUTING", "ROUTING", "select", "No", "No|Yes - Simple|Yes - Complex|Push-Thru", "", "Yes", "", "", ""),
     (C3, "CORNERS", "CORNERS", "select", "Square", 'Square|Rounded 1/4"|Rounded 1/2"|Rounded 1"', "", "", "", "Rounded corners print a detail drawing", "Square"),
     (C3, "MOUNTING", "MOUNTING", "select", "None", MOUNT + "|Push-Thru", "", "", "PROD_Acrylic_Signs: Retail_Price_Standoff", "", "None"),
-    (C3, "MOUNTING DETAIL", "MOUNT DETAIL", "text", "", "", "MOUNTING~=Spacer|Stand-offs", "Yes", "", "", ""),
+    (C3, "MOUNTING DETAIL", "MOUNT DETAIL", "text", "", "", "MOUNTING~=Spacer", "Yes", "", "", ""),
+] + standoff_rows(C3, "MOUNTING=Stand-offs") + [
 ])
 
 LEGACY["PVC_ROUTED_LETTERS"] = ("PVC - Routed Letters", "Routed PVC dimensional letters.", [
@@ -134,6 +147,7 @@ LEGACY["CHANNEL_LETTERS_FL"] = ("Channel Letters - Front Lit", "Front lit channe
     (C4, "LED COLOR", "LED COLOR", "db", "White (6500K)", "LED", "", "Yes", "Master_Mat_Fab_Channel: CLD-SUP-LED-WHT", "", ""),
     (C4, "MOUNTING", "MOUNTING", "select", "Flush Mount", "Flush Mount|Raceway|Panel", "", "Yes", "", "", ""),
     (C4, "MOUNTING PAINT", "MOUNTING COLOR", "paint", "", "", "MOUNTING=Raceway|Panel", "Yes", "", "", ""),
+    (C4, "RACEWAY SIZE", "RACEWAY SIZE", "dims", "", "L|H|D", "MOUNTING=Raceway", "Yes", "", "Length x height x depth, inches", ""),
 ])
 
 LEGACY["HDU_SIGN"] = ("HDU Sign", "Routed / sandblasted HDU sign, painted.", [
@@ -149,7 +163,8 @@ LEGACY["HDU_SIGN"] = ("HDU Sign", "Routed / sandblasted HDU sign, painted.", [
     (C3, "TEXTURE", "TEXTURE", "text", "", "", "ROUTING=Textured", "Yes", "", "e.g. wood grain, pebble", ""),
     (C3, "MOUNTING", "MOUNTING", "select", "Stud Mount - Flush",
      "None|Stud Mount - Flush|Stud Mount - Spacer|Stand-offs|Hanging Bracket - Swinging|Hanging Bracket - Fixed|Blade Bracket|Custom", "", "", "", "", "None"),
-    (C3, "MOUNTING DETAIL", "MOUNT DETAIL", "text", "", "", "MOUNTING~=Bracket|Spacer|Stand-offs|Custom", "Yes", "", "", ""),
+    (C3, "MOUNTING DETAIL", "MOUNT DETAIL", "text", "", "", "MOUNTING~=Bracket|Spacer|Custom", "Yes", "", "", ""),
+] + standoff_rows(C3, "MOUNTING=Stand-offs") + [
     (C3, "BRACKET PAINT", "BRACKET COLOR", "paint", "", "", "MOUNTING~=Bracket", "Yes", "", "", ""),
 ])
 
