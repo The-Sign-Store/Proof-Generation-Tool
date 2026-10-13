@@ -18,6 +18,12 @@ _creg, _cf, _casm = cloud_signs.build(F, {"PHOTO CELL": "Yes"})
 REGISTRY = REGISTRY + _creg
 F.update(_cf)
 ASSEMBLIES = ASSEMBLIES + _casm
+# v2.1: monument letters (own component + optional section of Monument Signs)
+import monument_letters
+REGISTRY = REGISTRY + [monument_letters.REGISTRY]
+F["MONUMENT_LETTERS"] = monument_letters.FIELDS
+ASSEMBLIES = ASSEMBLIES + [monument_letters.ASSEMBLY + (2,)]
+GUIDE = list(GUIDE) + [monument_letters.GUIDE]
 DRAWINGS = [(d[0], d[1], d[2], cloud_signs.mirror_comps(d[3]), cloud_signs.mirror_rule(d[4])) + tuple(d[5:]) for d in DRAWINGS]
 GUIDE = [(g[0], g[1], cloud_signs.mirror_comps(g[2], g[0]), cloud_signs.mirror_rule(g[3], g[0])) + tuple(g[4:]) for g in GUIDE]
 
@@ -142,7 +148,7 @@ sheet("SignOS_Reference", ["SignOS Tab", "SKU / Key", "Description", "UOM"], ref
 
 # ---------- 8b. Proof sheet template text (fixed content on every page) ----------
 TEMPLATE = [
- ("Title", "DESIGN PROOF"),
+ ("Title", "SALES PROOF"),
  ("ETL_Text", "ETL Listed for Safety (USA & Canada) This product proudly bears the ETL Listed Mark. This certification from Intertek \u2014 an OSHA-recognized Nationally Recognized Testing Laboratory (NRTL) \u2014 proves that this item has been independently tested and meets all applicable U.S. and Canadian product safety standards. The ETL mark is accepted by inspectors, retailers, and regulatory authorities across North America."),
  ("Legal_Text", "This design and engineering is submitted as our proposal, and the right to use or exhibit in any form, is not authorized without written permission by The Sign Store Online, Inc."),
  ("Copyright_Text", "Copyright {YEAR}. All Design/Images for The Sign Store Online, Inc."),
@@ -152,7 +158,7 @@ TEMPLATE = [
  ("Watermark_Opacity", "2"),
  ("Detail_Drawings", "On"),
  ("Cover_Page", "On"),
- ("Cover_Title", "DESIGN PROOF PACKAGE"),
+ ("Cover_Title", "SALES PROOF PACKAGE"),
  ("Company_Name", "The Sign Store Online, Inc."),
  ("Company_Address", "1836 Broadway, Macon, GA 31201"),
  ("Company_Phone", "478-785-0610"),
@@ -194,7 +200,7 @@ for r in range(2, dg.max_row + 1):
 
 # ---------- 9. README ----------
 readme = [
- ("VERSION 2.0 (PROOF PACKAGES)", ""),
+ ("VERSION 2.1 (PROOF PACKAGES)", ""),
  ("Flow", "1) Select any mix of products and components on the dashboard  2) Fill in specs  3) Add customer info  4) Generate Proof Package (zip of editable SVG + PNG per page)."),
  ("All products migrated", "The 10 original products are now components too (ACM_PANEL, CORO_SIGN, BANNER ...), each with a one-line Product_Assembly row. Product_Schema is kept for reference only; the current app does not read it."),
  ("Proof_Template", "Fixed text printed on every proof page (title, ETL text, legal text, copyright). {YEAR} becomes the current year."),

@@ -110,7 +110,7 @@
           <div class="cf-help">In Windows File Explorer, open the job folder, click the address bar, copy (Ctrl+C) and paste here.</div>
         </div>
         <div class="cf-group optional"><label>Project Notes (optional)</label><textarea id="cf-notes" rows="5" oninput="schedulePreview()"></textarea></div>
-        <button class="primary-btn full" id="generate-btn" onclick="generatePackage()">&#128229; Generate Proof Package</button>
+        <button class="primary-btn full" id="generate-btn" onclick="generatePackage()">&#128229; Generate Sales Proof Package</button>
         <div class="cf-help" style="text-align:center;">Downloads one .zip: cover page + every proof page as an editable SVG (Illustrator / CorelDRAW) and a 300 ppi PNG, plus the QA checklist (pages + .csv).</div>
       </div>
     </div>
@@ -164,9 +164,12 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3 id="modal-title">Select Color</h3>
+        <input type="search" id="swatch-search" placeholder="Search by name, number or series" oninput="filterSwatches(this.value)"
+               onkeydown="if (event.key === 'Enter') pickFirstSwatch()">
         <span class="close-btn" onclick="closeModal()">&times;</span>
       </div>
       <div id="swatch-grid"></div>
+      <div id="swatch-empty" class="lib-empty" style="display:none;">No colors match your search.</div>
     </div>
   </div>
 

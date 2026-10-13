@@ -455,6 +455,13 @@ def fill(markup, values):
     return re.sub(r"\{([^{}]+)\}", rep, markup)
 
 
+
+# ===================================================================== v2.1 monument letters (top mount)
+import monument_letters as _ml
+_ml.drawings(add, rect, line, call, hdim, vdim, concrete, HW, HATCH, INK, LBL)
+# halo-lit monument letters use the halo section drawing
+D[:] = [(d[0], d[1], d[2], d[3] + ",MONUMENT_LETTERS", d[4] + " OR LIGHTING=Halo Lit", d[5], d[6]) if d[0] == "LTR_HALO_LIT" else d for d in D]
+
 if __name__ == "__main__":
     import cairosvg
     S = "/tmp/claude-0/-home-claude/acc1ae59-fc94-5c54-82d5-acb68bbab5a0/scratchpad/"

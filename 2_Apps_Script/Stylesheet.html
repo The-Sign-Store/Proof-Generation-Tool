@@ -191,6 +191,18 @@
   .cc-lab { width: 40px; font-size: 11px; font-weight: 500; color: var(--on-surface-variant); }
   .cc-swatch { width: 28px; height: 28px; margin-left: 6px; border: 1px solid rgba(0, 0, 0, .25); border-radius: 50%; background: #fff; }
   .cc-note { font-size: 11px; color: var(--on-surface-variant); }
+  .cc-hex { width: 104px !important; text-transform: uppercase; }
+  .cc-match:empty { display: none; }
+  .cc-match { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--surface-high); }
+  .ccm-head { font-size: 12px; font-weight: 500; color: var(--on-surface); margin-bottom: 6px; }
+  .ccm-head span { font-weight: 400; color: var(--on-surface-variant); margin-left: 6px; font-size: 11px; }
+  .ccm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 4px; }
+  .ccm-lab { width: 100%; font-size: 11px; color: var(--on-surface-variant); }
+  .ccm-chip { display: inline-flex; align-items: center; gap: 6px; width: auto; max-width: 100%; height: 28px; padding: 0 8px 0 4px; border: 1px solid var(--outline-variant);
+              border-radius: 14px; background: var(--surface-low); font: 12px var(--font); color: var(--on-surface); cursor: pointer; white-space: nowrap; overflow: hidden; }
+  .ccm-chip:hover { border-color: var(--primary); background: var(--surface); }
+  .ccm-chip i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .2); flex: none; }
+  .ccm-chip small { color: var(--on-surface-variant); font-size: 11px; }
   .cc-toggle { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--on-surface-variant); font-weight: 400; cursor: pointer; }
   .cc-toggle input { margin: 0; }
 
@@ -253,6 +265,8 @@
   .close-btn { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 20px; font-size: 26px;
                cursor: pointer; color: var(--on-surface-variant); line-height: 1; }
   .close-btn:hover { background: var(--surface-container); color: var(--on-surface); }
+  #swatch-search { flex: 1; max-width: 360px; height: 40px; margin: 0 12px 0 20px; border: none; border-radius: 20px; background: var(--surface-high); padding: 0 16px; font-size: 14px; }
+  #swatch-search:focus { box-shadow: none; outline: 2px solid var(--primary); background: var(--surface-low); }
   #swatch-grid { padding: 20px 24px 24px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 12px; }
   .swatch-card { border: 1px solid var(--outline-variant); border-radius: 12px; padding: 12px 8px; cursor: pointer; display: flex; flex-direction: column;
                  align-items: center; background: var(--surface-low); transition: box-shadow .15s, border-color .15s; }
@@ -321,6 +335,15 @@
   .st-btn:hover { box-shadow: var(--elev-1); filter: brightness(.97); }
   .st-img { display: inline-flex; align-items: center; gap: 3px; padding: 2px 4px 2px 10px; background: var(--surface-container); border-radius: 14px; color: var(--on-surface); }
   .st-hint { color: var(--on-surface-variant); font-size: 11.5px; }
+  .sheet-bar { display: flex; align-items: center; gap: 6px; margin: 0 auto 8px; padding: 6px 8px 6px 12px; background: var(--surface-low);
+               border-radius: 12px; font-size: 12px; line-height: 1.3; box-shadow: var(--elev-1); }
+  .sheet-bar.portrait { max-width: 850px; }
+  .sheet-tools { flex-wrap: nowrap; overflow-x: auto; }                                         /* one line: the hint shortens instead */
+  .sheet-tools > * { flex: none; }
+  .sheet-tools > .st-hint { flex: 0 1 auto; min-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .st-dl { margin-left: auto; background: #1A4FBF; color: #fff; padding: 0 14px; }           /* far right, deep blue */
+  .st-dl:hover { background: #143E99; filter: none; }
+  .st-dl::before { content: '\2193'; margin-right: 6px; font-weight: 700; }
   .st-measure.on { background: #E00000; color: #fff; }
   .st-meas input { width: 64px; height: 24px; padding: 0 6px; font-size: 12px; margin: 0 2px; border-radius: 6px; }
   .sheet.active { outline: 2px solid var(--primary); outline-offset: 3px; }
