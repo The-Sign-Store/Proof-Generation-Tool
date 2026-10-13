@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.9.1  (October 13, 2026)
+SIGN PROOF GENERATOR  v1.9.2  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -162,9 +162,9 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.9.1)
+WHAT THE APP DOES (v1.9.2)
 -----------------------------------------------------------------------------
-Step 1  Select: any mix of 19 products and 11 stand-alone components.
+Step 1  Select: any mix of 19 products and 12 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
         - Section names (red titles, e.g. "Acrylic 2") are editable: click
           and type "Front Menu". The name prints on the proof, cover and
@@ -179,8 +179,11 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
         - Custom colors: Custom on a color field (or the "Custom color"
           checkbox under a swatch picker) takes a name plus CMYK or RGB;
           the other set is calculated and printed as "(approx.)".
-        - + Add Letters (channel and cloud letters): adds another letter
-          set copying the one above, for mixed letter sizes.
+        - + Add Letters (channel and cloud letters): adds a quantity /
+          letter height / text line inside the section, for mixed letter
+          sizes. "+ Add Another ..." still copies the whole section.
+        - Calculated fields (green, read-only), e.g. EMC display size from
+          modules wide x high at 9.45", and overall / cabinet depth.
         - Detail drawings print bottom-right when specs match (uncheck any
           per product). Live values fill in (embed depth, return, trim cap).
         - Design Help (? button): plain-text standards + CorelDRAW how-to's
@@ -229,6 +232,41 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.9.2  (2026-10-13)
+  Added
+    - Cloud letter components: Cloud Letters - Front Lit and Cloud Letters -
+      Halo Lit can now be added as stand-alone components. Each one has every
+      face, trim cap, return, back, illumination, mounting and raceway option
+      of the matching channel letters, plus the cloud fields (size, depth,
+      material, color, lighting). The halo version also includes the
+      illumination fields (power supply, photo cell, timer). Letter detail
+      drawings and Design Help rules apply to them as they do to channel
+      letters.
+    - + Add Letters: front-lit, halo-lit and cloud letter sections have a +
+      Add Letters button that adds a simple Quantity / Letter Height / Text
+      line inside the section. The quantity is counted from the text, the
+      height carries over from the line above, and each line prints on the
+      proof as its own QTY / HEIGHT and TEXT rows. Lines can be removed with
+      ×.
+    - EMC specs from production: the Digital Sign (EMC) section now uses
+      9.45" x 9.45" modules. Enter modules wide and high to get the display
+      size. Pixel pitch offers FLEX Ultra Resolution (5, 6, 8, 10mm) and FLEX
+      Enhanced Resolution (12, 16, 20mm). Depths default to 1.5" modules, a
+      5" LED cabinet and a 3" back angle. The overall depth and the cabinet
+      depth are calculated, with modules extending past the cabinet: single
+      sided is 9.5" overall in an 8" cabinet, and double sided on a 4" pole
+      is 23" overall in a 20" cabinet.
+    - Calculated fields: a new calc field type in Component_Schema shows a
+      read-only value worked out from other fields in the same section.
+      Number fields can show a unit (e.g. ") set in Options.
+  Changed
+    - The section button is + Add Another … again; it copies the whole
+      section with its settings.
+    - The custom color checkbox under swatch pickers is labelled Custom, so
+      it no longer gets cut off.
+    - Cloud is no longer offered on its own in the component list. Use the
+      two cloud letter components, or add Cloud to a cloud letter product.
+
 v1.9.1  (2026-10-13)
   Fixed
     - Measurement lines stay out of the way: lines can now only be selected,

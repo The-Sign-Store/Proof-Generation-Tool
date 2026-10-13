@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.9.1  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.9.2  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -234,8 +234,8 @@
           if (d.repeatable) {
               let btn = document.createElement('button'), clone = CLONE_COMPONENTS.indexOf(d.component) !== -1;
               btn.type = 'button'; btn.className = 'swatch-btn add-part-btn'; btn.id = `madd-${iid}-${di}`;
-              btn.innerHTML = clone ? '+ Add Letters' : `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
-              if (clone) btn.title = 'Adds another letter set (e.g. a different letter height) with the same settings as the one above; edit what differs';
+              btn.innerHTML = `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
+              if (clone) btn.title = 'Adds another full section with the same settings as the one above; edit what differs';
               btn.onclick = function () { addPart(it, di, clone); refreshAll(); };
               group.appendChild(btn);
           }
@@ -273,7 +273,7 @@
   }
 
   // channel letter components: "+ Add Letters" copies the previous letter set's settings into the new one
-  const CLONE_COMPONENTS = ['CHANNEL_LETTERS_FL', 'HALO_LETTERS'];
+  const CLONE_COMPONENTS = ['CHANNEL_LETTERS_FL', 'HALO_LETTERS', 'CLOUD_LETTERS_FL', 'CLOUD_LETTERS_HALO'];
   function copyPartValues(fromUid, toUid) {
       let src = document.getElementById(`part-${fromUid}`), dst = document.getElementById(`part-${toUid}`);
       if (!src || !dst) return;
@@ -289,13 +289,57 @@
       });
   }
 
+  // ---------- extra letter lines (QTY / LETTER HEIGHT / TEXT) inside one channel letter section ----------
+  let lineSeq = 0;
+  function hasLetterLines(comp) {
+      let v = comp.fields.map(f => f.variable.toUpperCase());
+      return v.indexOf('TEXT') !== -1 && v.indexOf('LETTER HEIGHT') !== -1 && comp.fields.some(f => f.type === 'autoqty');
+  }
+  function letterCount(t) { return String(t || '').replace(/\s/g, '').length; }
+  function addLetterLine(uid) {
+      let p = allParts.find(x => x.uid === uid); if (!p) return;
+      let last = p.letterLines[p.letterLines.length - 1];
+      p.letterLines.push({ id: 'L' + (++lineSeq), height: last ? last.height : getRaw(p, 'LETTER HEIGHT'), text: '' });
+      renderLetterLines(p); schedulePreview();
+      let box = document.getElementById(`pline-text-${p.letterLines[p.letterLines.length - 1].id}`); if (box) box.focus();
+  }
+  function removeLetterLine(uid, id) { let p = allParts.find(x => x.uid === uid); if (!p) return; p.letterLines = p.letterLines.filter(l => l.id !== id); renderLetterLines(p); schedulePreview(); }
+  function setLetterLine(uid, id, key, v) {
+      let p = allParts.find(x => x.uid === uid), l = p && p.letterLines.find(x => x.id === id); if (!l) return;
+      l[key] = v;
+      let q = document.getElementById(`pline-qty-${id}`); if (q) q.value = letterCount(l.text);
+      schedulePreview();
+  }
+  function renderLetterLines(p) {
+      let box = document.getElementById(`plines-${p.uid}`); if (!box) return;
+      box.innerHTML = p.letterLines.map(l => `<div class="zone-row letter-line">
+            <div class="form-group"><label>QUANTITY</label><input type="number" id="pline-qty-${l.id}" value="${letterCount(l.text)}" readonly style="background:#f0f0f0;" title="Counted from TEXT"></div>
+            <div class="form-group"><label>LETTER HEIGHT *</label><input type="number" value="${esc(l.height)}" oninput="setLetterLine('${p.uid}', '${l.id}', 'height', this.value)"></div>
+            <div class="flex-break"></div>
+            <div class="form-group wide-field"><label>TEXT * <span class="part-remove" onclick="removeLetterLine('${p.uid}', '${l.id}')">[x] Remove</span></label>
+              <input type="text" id="pline-text-${l.id}" value="${esc(l.text)}" oninput="setLetterLine('${p.uid}', '${l.id}', 'text', this.value)"></div>
+          </div>`).join('');
+  }
+  // proof rows for the extra lines, right after the section's own TEXT row
+  function letterLineItems(part, zone) {
+      let out = [];
+      (part.letterLines || []).forEach(l => {
+          let h = String(l.height || '').replace(/"/g, '').trim(), t = String(l.text || '').trim();
+          out.push(h ? { zone, label: 'QTY / HEIGHT', variable: 'QUANTITY', type: 'autoqty', val: `${letterCount(t)} @ ${h}"`, hex: '' }
+                     : { zone, label: 'QTY / HEIGHT', variable: 'QUANTITY', type: 'autoqty', val: 'Enter LETTER HEIGHT', hex: '', warn: true, warnLabel: 'MISSING' });
+          out.push(t ? { zone, label: 'TEXT', variable: 'TEXT', type: 'text', val: `"${t}"`, hex: '' }
+                     : { zone, label: 'TEXT', variable: 'TEXT', type: 'text', val: 'Enter TEXT', hex: '', warn: true, warnLabel: 'MISSING' });
+      });
+      return out;
+  }
+
   function addPart(it, di, clone) {
       let d = it.defs[di];
       let comp = appData.components[d.component];
       let num = allParts.filter(p => p.iid === it.iid && p.di === di).length + 1;
       let uid = 'p' + (++partSeq);
       let optional = d.include !== 'Required';
-      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, include: d.include,
+      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, letterLines: [], include: d.include,
                    enabled: d.include !== 'Optional-Off', overrides: parseOverrides(d.overrides), num };
       allParts.push(part);
 
@@ -314,10 +358,15 @@
                     </span>
                   </div>
                   <div class="part-body" id="pbody-${uid}" style="display:${part.enabled ? 'block' : 'none'};">`;
+      let lettersZone = hasLetterLines(comp) ? comp.fields.find(f => f.variable.toUpperCase() === 'TEXT').zone : null;
       zones.forEach(z => {
           html += `<div class="zone-group"><div class="zone-row">`;
           comp.fields.forEach((f, fi) => { if (f.zone === z) html += renderField(part, f, fi); });
-          html += `</div></div>`;
+          html += `</div>`;
+          if (z === lettersZone)
+              html += `<div class="letter-lines" id="plines-${uid}"></div>
+                       <button type="button" class="swatch-btn add-letters-btn" onclick="addLetterLine('${uid}')" title="Another line of letters in this section (e.g. a different letter height); all other specs are shared">+ Add Letters</button>`;
+          html += `</div>`;
       });
       html += `<div class="part-notes">
                  <label class="part-toggle"><input type="checkbox" id="pnote-on-${uid}" onchange="togglePartNotes('${uid}')"> Add Special Notes</label>
@@ -334,7 +383,11 @@
       if (addBtn) group.insertBefore(card, addBtn); else group.appendChild(card);
       if (clone) {
           let prev = allParts.filter(p => p.iid === it.iid && p.di === di && p.uid !== uid).pop();
-          if (prev) copyPartValues(prev.uid, uid);
+          if (prev) {
+              copyPartValues(prev.uid, uid);
+              part.letterLines = prev.letterLines.map(l => Object.assign({}, l, { id: 'L' + (++lineSeq) }));
+              renderLetterLines(part);
+          }
       }
   }
 
@@ -473,7 +526,7 @@
       });
   }
   function ccSwitch(fid) {
-      return `<label class="cc-toggle"><input type="checkbox" id="mccon-${fid}" onchange="ccToggle('${fid}')"> Custom color (CMYK / RGB)</label>` + ccPanel(fid, false);
+      return `<label class="cc-toggle" title="Custom color by name + CMYK / RGB"><input type="checkbox" id="mccon-${fid}" onchange="ccToggle('${fid}')"> Custom</label>` + ccPanel(fid, false);
   }
 
   function renderField(part, f, fi) {
@@ -489,6 +542,8 @@
               html += `<input type="number" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`; break;
           case 'autoqty':
               html += `<input type="number" id="mf-${fid}" value="${esc(def)}" readonly style="background:#f0f0f0;" title="Counted from TEXT">`; break;
+          case 'calc':
+              html += `<input type="text" id="mf-${fid}" value="" readonly class="calc-field" title="Calculated from the fields in this section">`; break;
           case 'fullcolor':
               html += `<div class="fullcolor-chip">Full Color Digital</div><input type="hidden" id="mf-${fid}" value="Full Color Digital">`; break;
           case 'select': case 'color':
@@ -657,6 +712,26 @@
       });
   }
 
+  // ---------- calculated fields: Options = "W={MODULES WIDE}*9.45|H={MODULES HIGH}*9.45" or "={A}+{B}" (inches) ----------
+  function calcNumber(v) { let n = Math.round(v * 100) / 100; return String(n); }
+  function calcText(part, f) {
+      let out = [];
+      for (let term of splitOpts(f.options)) {
+          let eq = term.indexOf('='), label = eq > 0 ? term.slice(0, eq).trim() : '', expr = term.slice(eq + 1);
+          let bad = false;
+          expr = expr.replace(/\{([^{}]+)\}/g, (all, name) => {
+              let n = parseFloat(String(getRaw(part, name.trim())).replace(/[^0-9.\-]/g, ''));
+              if (isNaN(n)) bad = true;
+              return '(' + n + ')';
+          });
+          if (bad || !/^[0-9.+\-*\/() ]+$/.test(expr)) return '';
+          let v; try { v = Function('"use strict"; return (' + expr + ');')(); } catch (e) { return ''; }
+          if (typeof v !== 'number' || !isFinite(v)) return '';
+          out.push(`${calcNumber(v)}"${label}`);
+      }
+      return out.join(' x ');
+  }
+
   function refreshAll() {
       allParts.forEach(part => {
           let fields = appData.components[part.comp].fields;
@@ -665,6 +740,10 @@
               let t = getRaw(part, 'TEXT');
               let el = document.getElementById(`mf-${part.uid}_${fi}`);
               if (el && t !== '') el.value = t.replace(/\s/g, '').length;
+          });
+          fields.forEach((f, fi) => {
+              if (f.type !== 'calc') return;
+              let el = document.getElementById(`mf-${part.uid}_${fi}`); if (el) el.value = calcText(part, f);
           });
           fields.forEach((f, fi) => {
               let fid = `${part.uid}_${fi}`;
@@ -718,6 +797,12 @@
               break;
           }
           case 'fullcolor': r.val = 'Full Color Digital'; r.gradient = true; break;
+          case 'calc': r.val = calcText(part, f); if (!r.val && f.required) { r.val = 'Enter the values above'; r.warn = true; } break;
+          case 'number': {                        // Options on a number field = its unit, e.g. " -> 1.5"
+              let v = String(byId(`mf-${fid}`).value).trim();
+              r.val = v && f.options ? v + String(f.options).trim() : v;
+              break;
+          }
           case 'vinyl': case 'db': case 'rowmark':
               if (byId(`mccon-${fid}`) && byId(`mccon-${fid}`).checked) { Object.assign(r, ccValue(fid, f.required)); break; }
               r.val = byId(`mpv-${fid}`).value; r.hex = byId(`mhex-${fid}`).value;
@@ -763,6 +848,10 @@
           if (h && !h.warn) { q.val = `${q.val} @ ${h.val.replace(/"/g, '')}"`; q.label = 'QTY / HEIGHT'; items = items.filter(i => i !== h); }
       }
       items.forEach(i => { if (i.variable === 'TEXT' && !i.warn) i.val = `"${i.val}"`; });
+      if ((part.letterLines || []).length) {
+          let ti = items.findIndex(i => i.variable === 'TEXT'), zone = ti !== -1 ? items[ti].zone : (items[0] || {}).zone;
+          items.splice(ti === -1 ? items.length : ti + 1, 0, ...letterLineItems(part, zone));
+      }
       if (part.comp === 'ADA_SIGN') {
           let bg = items.find(i => i.variable === 'BACKGROUND COLOR'), fg = items.find(i => i.variable === 'TACTILE COLOR');
           if (bg && fg && bg.hex && fg.hex) {
@@ -1474,7 +1563,11 @@
   // Package contents: one bold row per product / component, then its sections as indented sub-rows
   // cover only: quantity tag from the QUANTITY field(s): "(x2) Main Menu Boards"; blank quantity = no tag
   function qtyTag(parts) {
-      let raw = parts.map(p => getRaw(p, 'QUANTITY').trim()).filter(v => v !== '');
+      let raw = parts.map(p => {
+          let v = getRaw(p, 'QUANTITY').trim();
+          if (!(p.letterLines || []).length || !/^\d+$/.test(v || '0')) return v;
+          return String(Number(v || 0) + p.letterLines.reduce((a, l) => a + letterCount(l.text), 0));
+      }).filter(v => v !== '');
       if (!raw.length) return '';
       if (raw.every(v => /^\d+$/.test(v))) return `(x${raw.reduce((a, v) => a + Number(v), 0)})`;
       return raw.length === 1 ? `(x${raw[0]})` : '';

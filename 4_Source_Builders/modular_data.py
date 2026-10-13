@@ -123,13 +123,32 @@ F["ILLUMINATION"] = [
 ]
 
 F["EMC"] = [
+ # v1.9.2 (Evan Zebley): 9.45" x 9.45" modules; 1.5" deep modules, 5" LED cabinet, 3" angle on the back.
+ # Cabinets let the modules extend past them: double sided on a 4" pole = 23" overall, 20" cabinet.
  (C1, "QUANTITY", "QTY", "number", "1", "", "", "Yes", "", ""),
- (C1, "EMC SIZE", "DIMENSIONS", "dims", "94.5|47.25", "W|H", "", "Yes", "", "Per vendor spec"),
  (C1, "SIDEDNESS", "SIDEDNESS", "select", "Single Sided", "Single Sided|Double Sided", "", "Yes", "", ""),
- (C2, "PIXEL PITCH", "PITCH", "select", "10mm", "10mm|16mm|20mm", "", "Yes", "", ""),
+ (C1, "MODULES WIDE", "MODULES WIDE", "number", "", "", "", "Yes", "", 'Modules are 9.45" x 9.45"'),
+ (C1, "MODULES HIGH", "MODULES HIGH", "number", "", "", "", "Yes", "", 'Modules are 9.45" x 9.45"'),
+ (C1, "DISPLAY SIZE", "DISPLAY SIZE", "calc", "", "W={MODULES WIDE}*9.45|H={MODULES HIGH}*9.45", "", "", "", "Calculated: modules x 9.45\""),
+ (C2, "PIXEL PITCH", "PITCH", "select", "10mm (FLEX Ultra)",
+  "5mm (FLEX Ultra)|6mm (FLEX Ultra)|8mm (FLEX Ultra)|10mm (FLEX Ultra)|12mm (FLEX Enhanced)|16mm (FLEX Enhanced)|20mm (FLEX Enhanced)", "", "Yes", "",
+  "FLEX Ultra Resolution: 5-10mm. FLEX Enhanced Resolution: 12-20mm"),
  (C2, "COLOR TYPE", "DISPLAY", "select", "Full Color", "Full Color|Monochrome Amber|Monochrome Red", "", "Yes", "", ""),
- (C3, "VENT FINISH", "VENTS", "finish", "Black", "Black|Bronze|Match Cabinet", "", "", "", ""),
- (C3, "VENDOR", "VENDOR", "text", "Farm Out", "", "", "", "", ""),
+ (C2, "MODULE SIZE", "MODULE SIZE", "text", '9.45" x 9.45" (front view)', "", "", "", "", ""),
+ (C2, "VENDOR", "VENDOR", "text", "Farm Out", "", "", "", "", ""),
+ (C3, "MODULE DEPTH", "MODULE DEPTH", "number", "1.5", '"', "", "Yes", "", ""),
+ (C3, "LED CABINET DEPTH", "LED CABINET", "number", "5", '"', "", "Yes", "", ""),
+ (C3, "BACK ANGLE DEPTH", "BACK ANGLE", "number", "3", '"', "", "Yes", "", "Angle on the back of the sign"),
+ (C3, "POLE WIDTH", "POLE BETWEEN FACES", "number", "4", '"', "SIDEDNESS=Double Sided", "Yes", "", ""),
+ (C3, "OVERALL DEPTH", "OVERALL DEPTH", "calc", "", "{MODULE DEPTH}+{LED CABINET DEPTH}+{BACK ANGLE DEPTH}", "SIDEDNESS=Single Sided", "", "",
+  "Calculated: module + LED cabinet + back angle"),
+ (C3, "OVERALL DEPTH - DS", "OVERALL DEPTH", "calc", "", "2*({MODULE DEPTH}+{LED CABINET DEPTH}+{BACK ANGLE DEPTH})+{POLE WIDTH}", "SIDEDNESS=Double Sided", "", "",
+  "Calculated: both faces + pole"),
+ (C3, "CABINET DEPTH", "CABINET DEPTH", "calc", "", "{LED CABINET DEPTH}+{BACK ANGLE DEPTH}", "SIDEDNESS=Single Sided", "", "",
+  "Calculated: modules extend past the cabinet face"),
+ (C3, "CABINET DEPTH - DS", "CABINET DEPTH", "calc", "", "2*({LED CABINET DEPTH}+{BACK ANGLE DEPTH})+{POLE WIDTH}", "SIDEDNESS=Double Sided", "", "",
+  "Calculated: modules extend past the cabinet on both faces"),
+ (C4, "VENT FINISH", "VENTS", "finish", "Black", "Black|Bronze|Match Cabinet", "", "", "", ""),
 ]
 
 F["MONUMENT_BASE"] = [

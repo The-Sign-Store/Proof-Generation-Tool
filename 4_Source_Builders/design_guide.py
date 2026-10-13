@@ -282,7 +282,7 @@ r("A06", S, "ADA_SIGN", "", "Size signs to fit our equipment: engraver beds 18x1
 
 # ======================================================================  15. EMC
 S = "ELECTRONIC MESSAGE CENTERS"
-r("E01", S, "EMC", "", "EMC: draw the display at the vendor's cabinet size and pixel matrix ({PIXEL PITCH|per spec} pitch), with sample content labeled SAMPLE CONTENT. Attach the vendor drawing to the job folder.",
+r("E01", S, "EMC", "", "EMC: draw the display as a grid of 9.45\" x 9.45\" modules ({DISPLAY SIZE|per spec}, {PIXEL PITCH|per spec} pitch). In side views the 1.5\" modules stand proud of the cabinet; show overall vs. cabinet depth, with sample content labeled SAMPLE CONTENT. Attach the vendor drawing to the job folder.",
   "The vendor drawing controls the cabinet opening and the power / data requirements.")
 
 

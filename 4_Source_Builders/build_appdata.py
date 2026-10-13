@@ -12,6 +12,13 @@ REGISTRY = list(REGISTRY) + [(cid, name, "No", "Yes", desc) for cid, (name, desc
 F = dict(F); F.update({cid: f for cid, (_n, _d, f) in LEGACY.items()})
 ASSEMBLIES = list(ASSEMBLIES) + LEGACY_ASSEMBLIES
 FINISH_COLORS = list(FINISH_COLORS) + EXTRA_FINISH
+# v1.9.2: stand-alone cloud letter components mirror their channel letter counterparts
+import cloud_letters
+_creg, _cf = cloud_letters.build(F, REGISTRY, {"PHOTO CELL": "Yes"})
+REGISTRY = [r if r[0] != "CLOUD" else (r[0], r[1], "No", r[3], r[4]) for r in REGISTRY] + _creg   # cloud-only section: products only
+F.update(_cf)
+DRAWINGS = [(d[0], d[1], d[2], cloud_letters.mirror_comps(d[3]), cloud_letters.mirror_rule(d[4])) + tuple(d[5:]) for d in DRAWINGS]
+GUIDE = [(g[0], g[1], cloud_letters.mirror_comps(g[2]), cloud_letters.mirror_rule(g[3])) + tuple(g[4:]) for g in GUIDE]
 
 UP = "/root/.claude/uploads/acc1ae59-fc94-5c54-82d5-acb68bbab5a0/"
 SRC = UP + "5fae4e44-Sign_Proof_Specifications_App_Data.xlsx"
@@ -186,7 +193,7 @@ for r in range(2, dg.max_row + 1):
 
 # ---------- 9. README ----------
 readme = [
- ("VERSION 1.9.1 (PROOF PACKAGES)", ""),
+ ("VERSION 1.9.2 (PROOF PACKAGES)", ""),
  ("Flow", "1) Select any mix of products and components on the dashboard  2) Fill in specs  3) Add customer info  4) Generate Proof Package (zip of editable SVG + PNG per page)."),
  ("All products migrated", "The 10 original products are now components too (ACM_PANEL, CORO_SIGN, BANNER ...), each with a one-line Product_Assembly row. Product_Schema is kept for reference only; the current app does not read it."),
  ("Proof_Template", "Fixed text printed on every proof page (title, ETL text, legal text, copyright). {YEAR} becomes the current year."),
@@ -210,7 +217,8 @@ readme = [
  ("SignOS_Reference", "SignOS SKUs behind the material options (posts, frames, sheet stock, LEDs, vinyl, ADA, hardware). The SignOS_Ref column in Component_Schema points here."),
  ("", ""),
  ("TYPES", ""),
- ("text / number", "Free entry."),
+ ("text / number", "Free entry. On a number field, Options = a unit added after the value on the proof (e.g. \" gives 1.5\")."),
+ ("calc", "Read-only, calculated from other fields in the same component (inches). Options = LABEL=EXPR terms joined by |, e.g. W={MODULES WIDE}*9.45|H={MODULES HIGH}*9.45  gives 94.5\"W x 47.25\"H.  No label: just the expression, e.g. {A}+{B} (do not start with =, the sheet would read it as a formula). Only + - * / ( ) and numbers are allowed."),
  ("select", "Dropdown from Options. A '-- Custom Input --' choice is added automatically."),
  ("dims", "Dimension boxes. Options = box labels (e.g. W|H|D). Default = values (e.g. 96|36|8). Proof shows 96\"W x 36\"H x 8\"D."),
  ("paint", "Sherwin-Williams / PMS / Custom swatch picker."),

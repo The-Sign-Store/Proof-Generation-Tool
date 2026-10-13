@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v1.9.1** · The Sign Store Online, Inc. · Design Department
+**Current version: v1.9.2** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -16,14 +16,15 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 
 ### Proof builder
 - **Data-driven:** every product, component, field, option, default, rule, drawing and design standard lives in the Google Sheet. You change the sheet, not the code.
-- **19 products and 24 modular components:** pole signs, channel letters, cloud letters, cabinets, monuments, banners, decals, ADA and more. You can mix products and stand-alone components in one package.
+- **19 products and 26 modular components:** pole signs, channel letters, cloud letters, cabinets, monuments, banners, decals, ADA and more. You can mix products and stand-alone components in one package.
 - **Conditional specs:** `Show_If` rules, required fields, and live color and material pickers. The pickers cover Oracal, Sherwin-Williams, PMS, ACM, acrylic, LED, trim cap and ADA pictograms.
 - **26 vector detail drawings:** mounting, letter construction, cabinets, footers/poles and panel finishing. Each drawing is added automatically when its specs match, with live values such as embed depth, return depth and trim cap.
 - **Editable section names:** rename any section, e.g. "Acrylic 2" to "Front Menu". The new name carries through to the proof sheet, cover contents and QA checklist.
 - **Special notes per section:** check **Add Special Notes** on any section and type. The notes print in a gold-edged **SPECIAL NOTES** column beside that section's table on the proof sheet. Unchecking hides them but keeps the text.
 - **Custom colors:** any color field takes a custom color by name plus CMYK or RGB; the other set is calculated and marked "(approx.)".
 - **Page control:** a "New page" toggle per section, and blank pages per product (sidebar and watermark, empty art board, editable title).
-- **Mixed letter sizes:** "+ Add Letters" on channel and cloud letters adds a letter set that copies the one above.
+- **Mixed letter sizes:** "+ Add Letters" on channel and cloud letters adds a Quantity / Letter Height / Text line inside the section; "+ Add Another ..." copies the whole section.
+- **Calculated fields:** e.g. EMC display size from 9.45" modules, and overall vs. cabinet depth (modules extend past the cabinet).
 - **Measurement lines:** draw red dimension lines over images on any page, type the value in inches, move and resize them; they export as editable SVG.
 - **Artwork placement:** add a screenshot or JPEG to any proof page with a button, by dropping it, or by pasting with Ctrl+V. You can move and resize it, and it is embedded in the SVG and PNG exports.
 - **Missing info flagged:** blank fields print as yellow **MISSING** tags. In the SVG, each tag has an empty matching text box underneath, ready to type in.
@@ -102,6 +103,20 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [1.9.2] – 2026-10-13
+#### Added
+- **Cloud letter components:** Cloud Letters - Front Lit and Cloud Letters - Halo Lit can now be added as stand-alone components. Each one has every face, trim cap, return, back, illumination, mounting and raceway option of the matching channel letters, plus the cloud fields (size, depth, material, color, lighting). The halo version also includes the illumination fields (power supply, photo cell, timer). Letter detail drawings and Design Help rules apply to them as they do to channel letters.
+- **+ Add Letters:** front-lit, halo-lit and cloud letter sections have a **+ Add Letters** button that adds a simple Quantity / Letter Height / Text line inside the section. The quantity is counted from the text, the height carries over from the line above, and each line prints on the proof as its own QTY / HEIGHT and TEXT rows. Lines can be removed with ×.
+- **EMC specs from production:** the Digital Sign (EMC) section now uses 9.45" x 9.45" modules. Enter modules wide and high to get the display size. Pixel pitch offers FLEX Ultra Resolution (5, 6, 8, 10mm) and FLEX Enhanced Resolution (12, 16, 20mm). Depths default to 1.5" modules, a 5" LED cabinet and a 3" back angle. The overall depth and the cabinet depth are calculated, with modules extending past the cabinet: single sided is 9.5" overall in an 8" cabinet, and double sided on a 4" pole is 23" overall in a 20" cabinet.
+- **Calculated fields:** a new `calc` field type in Component_Schema shows a read-only value worked out from other fields in the same section. Number fields can show a unit (e.g. `"`) set in Options.
+
+#### Changed
+- The section button is **+ Add Another …** again; it copies the whole section with its settings.
+- The custom color checkbox under swatch pickers is labelled **Custom**, so it no longer gets cut off.
+- Cloud is no longer offered on its own in the component list. Use the two cloud letter components, or add Cloud to a cloud letter product.
+
+---
 
 ### [1.9.1] – 2026-10-13
 #### Fixed
