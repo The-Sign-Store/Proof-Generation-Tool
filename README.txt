@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v2.1.1  (October 13, 2026)
+SIGN PROOF GENERATOR  v2.1.2  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -167,7 +167,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v2.1.1)
+WHAT THE APP DOES (v2.1.2)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 19 products and 11 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -276,6 +276,30 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v2.1.2  (2026-10-13)
+  Changed
+    - Monument Letters can be front lit or halo lit. Lighting is now the
+      first construction choice (Non-Lit, Front Lit, Halo Lit or Ground Lit
+      by others), and it decides which material fields appear:
+      - Non-lit / ground lit: letter type (flat cut aluminum, fabricated
+        aluminum, cast, stainless, brass, acrylic, PVC, HDU), plate
+        thickness, or face / return gauge and depth for fabricated letters;
+        finish and paint color.
+      - Front lit (built like channel letters): 3/16" acrylic or
+        polycarbonate face, face color, translucent vinyl and its color, trim
+        cap size and color, return gauge, depth (2" to 6") and return (coil)
+        color, LED color, power supply and photo cell.
+      - Halo lit (reverse channel): aluminum face gauge, return gauge, depth,
+        clear polycarbonate or acrylic back, finish and paint color, return
+        color, LED color, diffuser vinyl, power supply and photo cell.
+    - Front lit monument letters show the Front Lit Section and Trim Cap &
+      Return detail drawings, halo lit ones the Halo Lit Section, and both
+      get the lit-sign Design Help rules. The top-mount drawings label the
+      thickness or depth that applies.
+    - Cleaner field labels: fields that exist in two versions (e.g. FACE
+      GAUGE for halo and unlit letters, OVERALL DEPTH for single / double
+      sided EMCs) show just the plain name in the form.
+
 v2.1.1  (2026-10-13)
   Changed
     - Download page / Download table: the single Download SVG button is now

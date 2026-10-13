@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v2.1.1** · The Sign Store Online, Inc. · Design Department
+**Current version: v2.1.2** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -108,6 +108,17 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [2.1.2] – 2026-10-13
+#### Changed
+- **Monument Letters can be front lit or halo lit.** **Lighting** is now the first construction choice (Non-Lit, Front Lit, Halo Lit or Ground Lit by others), and it decides which material fields appear:
+  - **Non-lit / ground lit:** letter type (flat cut aluminum, fabricated aluminum, cast, stainless, brass, acrylic, PVC, HDU), plate thickness, or face / return gauge and depth for fabricated letters; finish and paint color.
+  - **Front lit** (built like channel letters): 3/16" acrylic or polycarbonate face, face color, translucent vinyl and its color, trim cap size and color, return gauge, depth (2" to 6") and return (coil) color, LED color, power supply and photo cell.
+  - **Halo lit** (reverse channel): aluminum face gauge, return gauge, depth, clear polycarbonate or acrylic back, finish and paint color, return color, LED color, diffuser vinyl, power supply and photo cell.
+- Front lit monument letters show the **Front Lit Section** and **Trim Cap & Return** detail drawings, halo lit ones the **Halo Lit Section**, and both get the lit-sign Design Help rules. The top-mount drawings label the thickness or depth that applies.
+- **Cleaner field labels:** fields that exist in two versions (e.g. FACE GAUGE for halo and unlit letters, OVERALL DEPTH for single / double sided EMCs) show just the plain name in the form.
+
+---
 
 ### [2.1.1] – 2026-10-13
 #### Changed

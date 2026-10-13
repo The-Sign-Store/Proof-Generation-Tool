@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v2.1.1  -  Proof Packages
+  //  SIGN PROOF GENERATOR v2.1.2  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '2.1.1';
+  const APP_VERSION = '2.1.2';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -953,6 +953,9 @@
       return `<label class="cc-toggle" title="Custom color by name + CMYK / RGB"><input type="checkbox" id="mccon-${fid}" onchange="ccToggle('${fid}')"> Custom</label>` + ccPanel(fid, false);
   }
 
+  // "FACE GAUGE - UNLIT", "OVERALL DEPTH - DS": the part after " - " only tells same-named variants apart
+  function formLabel(f) { return f.custom ? f.variable : String(f.variable).replace(/ - [A-Z0-9]+$/, ''); }
+
   function renderField(part, f, fi) {
       let fid = `${part.uid}_${fi}`;
       let up = f.variable.toUpperCase();
@@ -960,7 +963,7 @@
       let opts = splitOpts(f.options);
       let wide = (f.type === 'dims' && opts.length > 2) || f.type === 'paint' || up === 'TEXT';
       let html = (wide ? `<div class="flex-break"></div>` : '') +
-                 `<div class="form-group${wide ? ' wide-field' : ''}" id="mg-${fid}"${f.notes ? ` title="${esc(f.notes)}"` : ''}><label>${esc(f.variable)}${f.required ? ' *' : ''}</label>`;
+                 `<div class="form-group${wide ? ' wide-field' : ''}" id="mg-${fid}"${f.notes ? ` title="${esc(f.notes)}"` : ''}><label>${esc(formLabel(f))}${f.required ? ' *' : ''}</label>`;
       switch (f.type) {
           case 'number':
               html += `<input type="number" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`; break;

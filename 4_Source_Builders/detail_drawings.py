@@ -461,6 +461,9 @@ import monument_letters as _ml
 _ml.drawings(add, rect, line, call, hdim, vdim, concrete, HW, HATCH, INK, LBL)
 # halo-lit monument letters use the halo section drawing
 D[:] = [(d[0], d[1], d[2], d[3] + ",MONUMENT_LETTERS", d[4] + " OR LIGHTING=Halo Lit", d[5], d[6]) if d[0] == "LTR_HALO_LIT" else d for d in D]
+# front lit monument letters are channel letters: front lit section + trim cap drawings (rule keeps them off unlit monument letters)
+D[:] = [(d[0], d[1], d[2], d[3] + ",MONUMENT_LETTERS", "COMPONENT=CHANNEL_LETTERS_FL OR LIGHTING=Front Lit", d[5], d[6])
+        if d[0] in ("LTR_FRONT_LIT", "LTR_TRIMCAP") else d for d in D]
 
 if __name__ == "__main__":
     import cairosvg
