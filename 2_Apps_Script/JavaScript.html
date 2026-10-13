@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.9.3  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.9.4  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -138,12 +138,92 @@
       return { products, comps };
   }
 
+  // =====================================================================
+  //  DASHBOARD ICONS + COLOR FAMILIES (one-color line icons; the card outline uses the family color)
+  // =====================================================================
+  const SIGN_FAMILIES = {
+      letters: { name: 'Channel Letters & Cloud Signs', color: '#1E6FD9' },
+      cabinets: { name: 'Cabinets & Digital', color: '#7E3FC2' },
+      ground: { name: 'Pole, Monument & Ground', color: '#D06F12' },
+      panels: { name: 'Panels', color: '#23885A' },
+      vinyl: { name: 'Vinyl & Banners', color: '#D0337A' },
+      ada: { name: 'ADA', color: '#0E8A8A' },
+      custom: { name: 'Custom', color: '#C1272D' },
+      other: { name: 'Other', color: '#7A7F87' }
+  };
+  // first match wins: [name pattern, icon, family]
+  const SIGN_ICON_RULES = [
+      [/cloud sign.*halo/i, 'cloud_halo', 'letters'], [/cloud sign/i, 'cloud_fl', 'letters'],
+      [/halo|reverse/i, 'letters_halo', 'letters'], [/channel letter/i, 'letters_fl', 'letters'], [/backer panel/i, 'backer', 'letters'],
+      [/routed letters/i, 'pvc_letters', 'panels'],
+      [/digital sign|emc/i, 'emc', 'cabinets'], [/lighted cabinet/i, 'cabinet_lit', 'cabinets'], [/^cabinet$/i, 'cabinet', 'cabinets'],
+      [/polycarbonate face/i, 'face_poly', 'cabinets'], [/routed aluminum face/i, 'face_routed', 'cabinets'],
+      [/pole sign/i, 'pole_sign', 'ground'], [/pole cover/i, 'pole_cover', 'ground'], [/^poles?$/i, 'pole', 'ground'],
+      [/monument base/i, 'mon_base', 'ground'], [/monument/i, 'monument', 'ground'], [/post and panel/i, 'post_panel', 'ground'],
+      [/directional/i, 'directional', 'ground'], [/panel frame/i, 'frame', 'ground'],
+      [/ada/i, 'ada', 'ada'],
+      [/acm/i, 'acm', 'panels'], [/acrylic/i, 'acrylic', 'panels'], [/pvc/i, 'pvc', 'panels'], [/coro/i, 'coro', 'panels'],
+      [/hdu/i, 'hdu', 'panels'], [/sign panel/i, 'panel', 'panels'],
+      [/cut vinyl/i, 'vinyl_cut', 'vinyl'], [/digital print/i, 'vinyl_print', 'vinyl'], [/banner/i, 'banner', 'vinyl']
+  ];
+  const ST = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"';
+  const FL = 'fill="currentColor"';
+  const LTR = (y, sz, extra) => `<text x="20" y="${y}" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="${sz}" ${extra}>AB</text>`;
+  const CLOUD = 'M11 31h18a6 6 0 0 0 1.5-11.8A8.5 8.5 0 0 0 14 16.6 7.2 7.2 0 0 0 11 31z';
+  const SIGN_ICONS = {
+      letters_fl: LTR(32, 19, FL) + `<path d="M9 9l2 3M20 6v4M31 9l-2 3" ${ST}/>`,
+      letters_halo: LTR(30, 19, 'fill="none" stroke="currentColor" stroke-width="6" stroke-opacity=".3"') + LTR(30, 19, FL),
+      cloud_fl: `<path d="${CLOUD}" ${FL}/><path d="M9 9l2 3M20 5v4M31 9l-2 3" ${ST}/>`,
+      cloud_halo: `<path d="${CLOUD}" fill="none" stroke="currentColor" stroke-width="6" stroke-opacity=".3"/><path d="${CLOUD}" ${FL}/>`,
+      backer: `<rect x="4" y="9" width="32" height="22" rx="2" ${FL}/>` + LTR(26, 12, 'fill="#fff"'),
+      pvc_letters: LTR(31, 19, 'fill="currentColor" fill-opacity=".35" transform="translate(2 2)"') + LTR(31, 19, FL),
+      emc: [0, 1, 2].map(c => [0, 1].map(r => `<rect x="${6 + c * 10}" y="${10 + r * 10}" width="8.5" height="8.5" rx="1" ${FL}/>`).join('')).join(''),
+      cabinet_lit: `<rect x="5" y="11" width="30" height="20" rx="2" ${ST}/><rect x="9" y="15" width="22" height="12" rx="1" ${FL}/><path d="M12 5l1.5 3M20 4v4M28 5l-1.5 3" ${ST}/>`,
+      cabinet: `<path d="M5 14h24v20H5zM5 14l6-6h24l-6 6M29 34l6-6V8" ${ST}/>`,
+      face_poly: `<rect x="5" y="8" width="30" height="24" rx="2" ${ST}/><path d="M11 26l8-12M17 26l8-12" ${ST} stroke-opacity=".6"/>`,
+      face_routed: `<rect x="5" y="8" width="30" height="24" rx="2" ${FL}/>` + LTR(26, 12, 'fill="#fff"'),
+      pole_sign: `<rect x="7" y="4" width="26" height="15" rx="1.5" ${FL}/><path d="M20 19v15M13 35h14" ${ST} stroke-width="3"/>`,
+      pole_cover: `<path d="M20 4v18" ${ST} stroke-width="3"/><path d="M13 22h14l2 13H11z" ${FL}/>`,
+      pole: `<path d="M20 4v25M8 29h24" ${ST} stroke-width="3"/><rect x="15" y="29" width="10" height="7" ${FL} fill-opacity=".45"/>`,
+      mon_base: `<path d="M8 18h24l4 15H4z" ${FL}/>`,
+      monument: `<rect x="7" y="8" width="26" height="15" rx="2" ${FL}/><rect x="4" y="25" width="32" height="8" rx="1" ${FL}/>`,
+      post_panel: `<path d="M8 5v31M32 5v31" ${ST} stroke-width="3.5"/><rect x="11" y="9" width="18" height="14" rx="1" ${FL}/>`,
+      directional: `<path d="M20 22v14" ${ST} stroke-width="3"/><rect x="5" y="6" width="30" height="16" rx="2" ${ST}/><path d="M11 14h15M21 10l5 4-5 4" ${ST}/>`,
+      frame: `<rect x="5" y="7" width="30" height="26" rx="2" ${ST} stroke-width="3"/><rect x="11" y="13" width="18" height="14" ${ST} stroke-opacity=".5"/>`,
+      ada: `<rect x="6" y="5" width="28" height="30" rx="3" ${ST}/><circle cx="20" cy="13" r="2.6" ${FL}/><path d="M16 23l4-6 4 6M20 17v-1" ${ST}/>` +
+           [13, 18, 23, 28].map(x => `<circle cx="${x - 1.5}" cy="30" r="1.3" ${FL}/>`).join(''),
+      acm: `<rect x="4" y="8" width="32" height="24" rx="1.5" ${FL}/>` + [[8, 12], [32, 12], [8, 28], [32, 28]].map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="1.6" fill="#fff"/>`).join(''),
+      acrylic: `<rect x="4" y="8" width="32" height="24" rx="1.5" ${ST}/>` + [[9, 13], [31, 13], [9, 27], [31, 27]].map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="2.6" ${FL}/>`).join(''),
+      pvc: `<path d="M4 12h28v22H4z" ${FL}/><path d="M4 12l4-4h28v22l-4 4M32 12l4-4" ${ST}/>`,
+      coro: `<rect x="5" y="5" width="30" height="20" rx="1" ${ST}/><path d="M10 5v20M15 5v20M20 5v20M25 5v20M30 5v20" ${ST} stroke-width="1" stroke-opacity=".5"/><path d="M13 25v11M27 25v11M13 30h14" ${ST}/>`,
+      hdu: `<rect x="4" y="7" width="32" height="26" rx="4" ${FL}/><rect x="8" y="11" width="24" height="18" rx="3" fill="none" stroke="#fff" stroke-width="1.6"/><ellipse cx="20" cy="20" rx="7" ry="4" fill="#fff" fill-opacity=".85"/>`,
+      panel: `<rect x="4" y="9" width="32" height="22" rx="2" ${FL}/>`,
+      vinyl_cut: `<path d="M5 6h30v20l-9 9H5z" ${ST}/><path d="M35 26h-9v9" ${ST}/><text x="17" y="24" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="14" ${FL}>A</text>`,
+      vinyl_print: `<path d="M5 6h30v20l-9 9H5z" ${FL}/><path d="M35 26h-9v9" fill="none" stroke="#fff" stroke-width="2"/><path d="M8 26l7-9 5 6 3-3 4 6" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>`,
+      banner: `<rect x="4" y="9" width="32" height="20" rx="1" ${FL}/>` + [7, 20, 33].map(x => `<circle cx="${x}" cy="12" r="1.5" fill="#fff"/><circle cx="${x}" cy="26" r="1.5" fill="#fff"/>`).join(''),
+      custom: `<rect x="4" y="7" width="32" height="26" rx="2" ${ST}/><path d="M4 15h32M4 24h32M16 7v26" ${ST}/><path d="M28 27v-6M25 24h6" ${ST} stroke-width="2.4"/>`,
+      generic: `<rect x="5" y="8" width="30" height="24" rx="2" ${ST}/>`
+  };
+  function signLook(name) {
+      let r = SIGN_ICON_RULES.find(x => x[0].test(String(name || '')));
+      let fam = SIGN_FAMILIES[r ? r[2] : 'other'];
+      return { icon: SIGN_ICONS[r ? r[1] : 'generic'], color: fam.color, family: r ? r[2] : 'other' };
+  }
+  function iconSvg(icon) { return `<svg class="cat-svg" viewBox="0 0 40 40" aria-hidden="true">${icon}</svg>`; }
+  function renderLegend() {
+      let el = document.getElementById('cat-legend'); if (!el) return;
+      el.innerHTML = Object.keys(SIGN_FAMILIES).filter(k => k !== 'other').map(k =>
+          `<span class="legend-chip" style="--cat:${SIGN_FAMILIES[k].color}"><i></i>${esc(SIGN_FAMILIES[k].name)}</span>`).join('');
+  }
+
   function renderDashboard() {
       let cat = catalog();
-      let card = c => `<label class="cat-card" data-name="${esc(c.name.toLowerCase())}" id="card-${esc(c.key)}">
+      let card = c => { let look = signLook(c.name); return `<label class="cat-card" style="--cat:${look.color}" data-name="${esc(c.name.toLowerCase())}" id="card-${esc(c.key)}">
               <input type="checkbox" onchange="toggleSelect('${esc(c.key).replace(/'/g, "\\'")}', this.checked)">
+              <span class="cat-icon">${iconSvg(look.icon)}</span>
               <div><div class="cat-name">${esc(c.name)}</div><div class="cat-desc">${esc(c.desc)}</div></div>
-              <span class="cat-order"></span></label>`;
+              <span class="cat-order"></span></label>`; };
+      renderLegend();
       document.getElementById('cat-products').innerHTML = cat.products.map(card).join('');
       document.getElementById('cat-components').innerHTML = cat.comps.map(card).join('');
       renderCustomCards();
@@ -153,13 +233,14 @@
   // ---------- custom tables (main screen): name a custom product, then build its table on the specs step ----------
   function renderCustomCards() {
       let box = document.getElementById('cat-custom'); if (!box) return;
-      box.innerHTML = Object.keys(customProducts).map(key => `<div class="cat-card custom-card" id="card-${key}" data-name="${esc(customProducts[key].name.toLowerCase())}">
+      box.innerHTML = Object.keys(customProducts).map(key => `<div class="cat-card custom-card" style="--cat:${SIGN_FAMILIES.custom.color}" id="card-${key}" data-name="${esc(customProducts[key].name.toLowerCase())}">
               <input type="checkbox" onchange="toggleSelect('${key}', this.checked)">
+              <span class="cat-icon">${iconSvg(SIGN_ICONS.custom)}</span>
               <div style="flex:1;"><input type="text" class="custom-name" id="cname-${key}" value="${esc(customProducts[key].name)}" maxlength="60"
                      title="Product name on the proof and the cover" oninput="renameCustomProduct('${key}', this.value)">
                 <div class="cat-desc">Custom table: your own titles and descriptions, with swatches, materials and detail drawings</div></div>
               <span class="cat-order"></span><span class="part-remove custom-x" title="Remove this custom product" onclick="removeCustomProduct('${key}')">&times;</span></div>`).join('') +
-          `<button type="button" class="custom-new" id="custom-new" onclick="addCustomProduct()"><b>+ Build Custom Table</b>` +
+          `<button type="button" class="custom-new" id="custom-new" onclick="addCustomProduct()"><b><span class="cat-icon">${iconSvg(SIGN_ICONS.custom)}</span>+ Build Custom Table</b>` +
           `<span>A product with a completely custom spec table: type each title and description, and use color swatches, materials, finishes and detail drawings</span></button>`;
   }
   function addCustomProduct() {
@@ -471,7 +552,7 @@
   }
 
   // channel letter components: "+ Add Letters" copies the previous letter set's settings into the new one
-  const CLONE_COMPONENTS = ['CHANNEL_LETTERS_FL', 'HALO_LETTERS', 'CLOUD_LETTERS_FL', 'CLOUD_LETTERS_HALO'];
+  const CLONE_COMPONENTS = ['CHANNEL_LETTERS_FL', 'HALO_LETTERS', 'CLOUD_SIGN_FL', 'CLOUD_SIGN_HALO'];
   function copyPartValues(fromUid, toUid) {
       let src = document.getElementById(`part-${fromUid}`), dst = document.getElementById(`part-${toUid}`);
       if (!src || !dst) return;

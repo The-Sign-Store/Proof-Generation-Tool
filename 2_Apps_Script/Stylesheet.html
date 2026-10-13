@@ -33,12 +33,18 @@
   .dash h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin: 18px 0 10px; }
   .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
   .cat-card { display: flex; gap: 10px; align-items: flex-start; background: #fff; border: 2px solid #e1e3e8; border-radius: 10px; padding: 14px; cursor: pointer; position: relative; transition: border-color .1s, box-shadow .1s; text-transform: none; white-space: normal; margin: 0; font-weight: normal; }
-  .cat-card:hover { border-color: #b8bcc6; }
-  .cat-card.selected { border-color: #c1272d; box-shadow: 0 0 0 3px rgba(193,39,45,.12); }
+  .cat-card { --cat: #7A7F87; border-color: color-mix(in srgb, var(--cat) 55%, #fff); border-left: 5px solid var(--cat); }
+  .cat-card:hover { border-color: var(--cat); }
+  .cat-card.selected { border-color: var(--cat); background: color-mix(in srgb, var(--cat) 7%, #fff); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cat) 22%, transparent); }
+  .cat-icon { flex: none; width: 40px; height: 40px; color: var(--cat, #c1272d); display: inline-flex; }
+  .cat-svg { width: 40px; height: 40px; display: block; }
+  .cat-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: -8px 0 6px; font-size: 11.5px; color: #555; }
+  .legend-chip { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-chip i { width: 14px; height: 14px; border-radius: 3px; border: 2px solid var(--cat); border-left-width: 5px; background: color-mix(in srgb, var(--cat) 10%, #fff); }
   .cat-card input { width: 16px; height: 16px; margin: 2px 0 0; flex-shrink: 0; }
   .cat-name { font-weight: bold; font-size: 14px; color: #222; margin-bottom: 4px; }
   .cat-desc { font-size: 11.5px; color: #777; line-height: 1.35; }
-  .cat-order { position: absolute; top: 8px; right: 10px; font-size: 11px; font-weight: bold; color: #c1272d; }
+  .cat-order { position: absolute; top: 8px; right: 10px; font-size: 11px; font-weight: bold; color: var(--cat, #c1272d); }
   .dash-footer { flex-shrink: 0; background: #fff; border-top: 1px solid #ddd; padding: 14px 40px; display: flex; justify-content: flex-end; align-items: center; gap: 24px; }
 
   /* ---------- Steps 2-3 layout ---------- */
@@ -91,12 +97,13 @@
   .letter-line label .part-remove { margin-left: 8px; font-weight: bold; }
   .add-letters-btn { width: auto !important; margin-top: 8px; padding: 4px 12px !important; font-size: 12px; justify-content: center !important;
                      background: #e6f7ff !important; border-color: #91d5ff !important; color: #0050b3 !important; }
+  .custom-new b { display: flex; align-items: center; gap: 8px; } .custom-new .cat-icon { width: 30px; height: 30px; } .custom-new .cat-svg { width: 30px; height: 30px; }
   .custom-new { display: flex; flex-direction: column; gap: 4px; text-align: left; background: #fff; border: 2px dashed #c1272d; color: #c1272d; border-radius: 10px; padding: 14px; cursor: pointer; font: inherit; }
   .custom-new span { color: #666; font-size: 12px; }
   .custom-new:hover { background: #fdf3f3; }
   .custom-card { cursor: default; }
   .custom-card .custom-name { width: 100%; font-weight: bold; font-size: 14px; border: 1px solid #d5d8de; border-radius: 6px; padding: 4px 6px; margin-bottom: 4px; }
-  .custom-x { position: absolute; top: 4px; right: 8px; font-size: 18px; }
+  .custom-x { position: absolute; bottom: 6px; right: 10px; font-size: 18px; }
   .custom-item-name { margin: 0 0 10px; } .custom-item-name label { display: block; font-size: 11px; font-weight: bold; color: #555; margin-bottom: 3px; }
   .custom-item-name input { width: 100%; }
   .custom-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0 10px; }
