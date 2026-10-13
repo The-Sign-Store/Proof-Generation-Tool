@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v2.0  (October 13, 2026)
+SIGN PROOF GENERATOR  v2.1  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -167,9 +167,9 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v2.0)
+WHAT THE APP DOES (v2.1)
 -----------------------------------------------------------------------------
-Step 1  Select: any mix of 19 products and 10 stand-alone components.
+Step 1  Select: any mix of 19 products and 11 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
         - Section names (red titles, e.g. "Acrylic 2") are editable: click
           and type "Front Menu". The name prints on the proof, cover and
@@ -217,6 +217,16 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           editing. New starts an empty package.
         - Dashboard: the color key above the cards is also a filter; click
           families on / off (with the search box), "Show all" to reset.
+        - Download SVG (right end of each page's bar, incl. cover and QA):
+          that one page as an SVG, same file and name as in the zip.
+        - Every product / component section has "+ Add Another".
+        - Custom colors: type CMYK, RGB or HEX; "Closest matches" lists the
+          3 nearest Sherwin-Williams, Pantone (and Oracal on vinyl) colors
+          by Delta E 2000. Click one to use it. Screen colors only: confirm
+          with a physical swatch.
+        - Swatch libraries have a search box (name, number or series);
+          Enter picks the first result.
+          series list takes any vinyl typed in (other brands / colors).
         - Detail drawings print bottom-right when specs match (uncheck any
           per product). Live values fill in (embed depth, return, trim cap).
         - Design Help (? button): plain-text standards + CorelDRAW how-to's
@@ -265,6 +275,52 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v2.1  (2026-10-13)
+  Added
+    - Monument Letters: a new component (blue Letters family, with its own
+      icon) and an optional section in Monument Signs, for permanent 3D
+      letters on a monument or free-standing sign.
+      - Letters: quantity counted from the text, letter height, text, font,
+        and + Add Letters for more sizes.
+      - Material: flat cut aluminum, fabricated aluminum (reverse channel),
+        cast aluminum, flat cut stainless, brass, acrylic or PVC, or routed
+        HDU. Flat cut, cast and HDU letters list their plate thickness (1/8"
+        to 2"); fabricated letters list face gauge (.040 to .125), return
+        gauge (.040 to .063) and depth (1-1/2" to 6").
+      - Finish (painted, brushed, polished, anodized, natural) with a paint
+        color picker, and return color on painted fabricated letters.
+      - Mounting: Top Mount - Pinned (default: letters stand on the cap with
+        threaded pins set in epoxy, with pin size and embed depth), Top Mount
+        - Adhesive, face mounted with studs (flush or with spacers), or
+        Standoffs (model AL25-30A or AL16-25A, size and finish, as on
+        panels). Monument surface and a full-size mounting pattern.
+      - Lighting: non-lit, halo lit (LED color, power supply, photo cell) or
+        ground lit by others.
+      - Two new detail drawings, TOP MOUNT - PINNED and TOP MOUNT - ADHESIVE;
+        face mounting uses the existing stud and stand-off drawings and halo
+        lit letters the halo section. New Design Help rule L08.
+    - Color matching: the custom color panel takes a HEX code as well as CMYK
+      and RGB, and lists Closest matches: the 3 nearest Sherwin-Williams
+      colors, the 3 nearest Pantone colors and, on vinyl fields, the 3
+      nearest Oracal colors in that field's series, ranked by Delta E 2000.
+      Clicking a match selects that swatch where the field offers the
+      library, otherwise it names the custom color after it. Matches are
+      based on screen colors; confirm with a physical swatch.
+    - Swatch search: every color and pictogram library has a search box
+      (name, number or series; several words narrow it down). Enter picks the
+      first result; Esc closes.
+    - Download SVG per page: a deep blue Download SVG button at the right end
+      of every page's bar (cover, proof pages and QA pages) saves that page
+      alone, identical to and named like the file in the package zip.
+    - + Add Another everywhere: every section of every product and component
+      can now be added again (Pole Cover and others were missing it). The
+      added copy of an optional section is always included.
+  Changed
+    - Sales Proof: the proof is now called a Sales Proof. The button reads
+      Generate Sales Proof Package, the cover title is SALES PROOF PACKAGE
+      and each page's sidebar says SALES PROOF (Proof_Template: Title,
+      Cover_Title).
+
 v2.0  (2026-10-13)
   Added
     - Proof Library (saved, editable proofs): Save in the top bar stores the

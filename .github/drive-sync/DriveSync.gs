@@ -31,7 +31,7 @@ const CFG = {
 
 // ---------------------------------------------------------------- entry points
 function setup() {
-  gh_(`/repos/${CFG.OWNER}/${CFG.REPO}`);                       // fails early with a clear message if the repo / token is wrong
+  listReleases_();                                              // fails early with a clear message if the repo is wrong
   ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'syncAll').forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('syncAll').timeBased().everyHours(1).create();
   syncAll();
@@ -89,17 +89,20 @@ function resetAndResync() {
 function syncReleases() {
   const props = PropertiesService.getScriptProperties();
   const done = JSON.parse(props.getProperty('SYNCED_RELEASES') || '[]');
-  const releases = gh_(`/repos/${CFG.OWNER}/${CFG.REPO}/releases?per_page=50`).filter(r => !r.draft);
-  const root = folder_(), added = [];
-  releases.reverse().forEach(r => {                              // oldest first
+  const releases = listReleases_();
+  const root = folder_(), added = [], failed = [];
+  releases.slice().reverse().forEach(r => {                      // oldest first
     if (done.indexOf(r.tag_name) !== -1) return;
-    r.assets.filter(a => /\.zip$/i.test(a.name)).forEach(a => {
-      if (root.getFilesByName(a.name).hasNext()) return;          // already in the folder (uploaded by hand or synced before)
-      root.createFile(asset_(a).setName(a.name));
-    });
+    try {
+      r.zips.forEach(z => {
+        if (root.getFilesByName(z.name).hasNext()) return;        // already in the folder (uploaded by hand or synced before)
+        root.createFile(download_(z).setName(z.name));
+      });
+    } catch (e) { failed.push(r.tag_name + ': ' + e.message); return; }   // left for the next run
     done.push(r.tag_name); added.push(r);
     props.setProperty('SYNCED_RELEASES', JSON.stringify(done));  // saved per release, so a timeout never repeats work
   });
+  if (failed.length) console.warn('Not copied yet (will retry next run):\n' + failed.join('\n'));
   if (added.length && CFG.NOTIFY_EMAIL) {
     MailApp.sendEmail(Session.getEffectiveUser().getEmail(),
       `Sign Proof Generator: ${added.map(r => r.tag_name).join(', ')} backed up to Drive`,
@@ -108,23 +111,57 @@ function syncReleases() {
   return added.map(r => r.tag_name);
 }
 
-function asset_(a) {
-  // GitHub answers with a redirect to signed storage; follow it WITHOUT the GitHub token
-  const res = UrlFetchApp.fetch(a.url, { headers: headers_({ Accept: 'application/octet-stream' }), followRedirects: false, muteHttpExceptions: true });
+/**
+ * Releases, newest first: [{ tag_name, name, html_url, body, zips: [{ name, url }] }].
+ * One GitHub API call. If GitHub's API limit is used up (Apps Script shares its internet
+ * address with many other scripts), falls back to the public releases feed (latest 10).
+ */
+function listReleases_() {
+  const res = UrlFetchApp.fetch(`https://api.github.com/repos/${CFG.OWNER}/${CFG.REPO}/releases?per_page=100`, { headers: headers_(), muteHttpExceptions: true });
+  const code = res.getResponseCode();
+  if (code === 200) {
+    return JSON.parse(res.getContentText()).filter(r => !r.draft).map(r => ({
+      tag_name: r.tag_name, name: r.name, html_url: r.html_url, body: r.body,
+      zips: r.assets.filter(a => /\.zip$/i.test(a.name)).map(a => ({ name: a.name, url: a.browser_download_url })) }));
+  }
+  if (code === 404) throw new Error(`GitHub says "not found" for ${CFG.OWNER}/${CFG.REPO}. Check CFG.OWNER / CFG.REPO.`);
+  if (code === 401) throw new Error('GitHub rejected GITHUB_TOKEN (expired or wrong). Make a new one or delete the script property.');
+  console.warn(`GitHub API ${code}; using the releases feed instead. ${res.getContentText().slice(0, 150)}`);
+  return feedReleases_();
+}
+
+/** Public Atom feed of the latest releases (not rate limited like the API). Zip names follow the release script. */
+function feedReleases_() {
+  const res = UrlFetchApp.fetch(`https://github.com/${CFG.OWNER}/${CFG.REPO}/releases.atom`, { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error(`GitHub releases feed failed (${res.getResponseCode()}). Try again later.`);
+  const root = XmlService.parse(res.getContentText()).getRootElement(), ns = root.getNamespace();
+  return root.getChildren('entry', ns).map(e => {
+    const href = e.getChild('link', ns).getAttribute('href').getValue(), tag = decodeURIComponent(href.split('/').pop());
+    const v = tag.replace(/^v/, '');
+    return { tag_name: tag, name: e.getChildText('title', ns), html_url: href, body: '',
+             zips: [{ name: `Sign_Proof_Generator_v${v}.zip`,
+                      url: `https://github.com/${CFG.OWNER}/${CFG.REPO}/releases/download/${encodeURIComponent(tag)}/Sign_Proof_Generator_v${v}.zip` }] };
+  });
+}
+
+/** Release zips come from the public download link (github.com), which doesn't count against the API limit. */
+function download_(z) {
+  const res = UrlFetchApp.fetch(z.url, { followRedirects: true, muteHttpExceptions: true });
   const code = res.getResponseCode();
   if (code === 200) return res.getBlob();
-  const loc = res.getHeaders().Location || res.getHeaders().location;
-  if (code >= 300 && code < 400 && loc) return UrlFetchApp.fetch(loc).getBlob();
-  throw new Error(`Download of ${a.name} failed (${code}): ${res.getContentText().slice(0, 200)}`);
+  throw new Error(`Download of ${z.name} failed (${code}): ${res.getContentText().slice(0, 150)}`);
 }
 
 // ---------------------------------------------------------------- markdown files -> Google Docs
 function syncDocs() {
   const props = PropertiesService.getScriptProperties();
   CFG.DOCS.forEach(d => {
-    const f = gh_(`/repos/${CFG.OWNER}/${CFG.REPO}/contents/${encodeURI(d.path)}?ref=${CFG.BRANCH}`);
+    // the plain file (raw.githubusercontent.com) - no API call, so no API limit
+    const res = UrlFetchApp.fetch(`https://raw.githubusercontent.com/${CFG.OWNER}/${CFG.REPO}/${CFG.BRANCH}/${encodeURI(d.path)}`, { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) { console.warn(`Could not read ${d.path} (${res.getResponseCode()}); the doc is left as it was.`); return; }
+    const md = res.getContentText('UTF-8');
+    const f = { sha: Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, md, Utilities.Charset.UTF_8)) };
     if (props.getProperty('SHA_' + d.path) === f.sha && doc_(d.name, false)) return;   // unchanged
-    const md = Utilities.newBlob(Utilities.base64Decode(f.content.replace(/\s/g, ''))).getDataAsString('UTF-8');
     const doc = doc_(d.name, true);
     writeMarkdown_(doc.getBody(), md, `Synced automatically from GitHub (${CFG.OWNER}/${CFG.REPO}, ${d.path}) on ${new Date().toLocaleString()}. Edit the file on GitHub, not this doc - changes here are overwritten.`);
     doc.saveAndClose();
@@ -136,11 +173,12 @@ function syncDocs() {
 function writeMarkdown_(body, md, banner) {
   body.clear();
   const first = body.getParagraphs()[0];
-  first.setText(banner).setItalic(true).setFontSize(8).setForegroundColor('#888888');
+  first.setText(banner);                                         // setText returns nothing, so style separately
+  first.editAsText().setItalic(true).setFontSize(8).setForegroundColor('#888888');
   let inCode = false;
   md.replace(/\r/g, '').split('\n').forEach(line => {
     if (/^```/.test(line)) { inCode = !inCode; return; }
-    if (inCode) { body.appendParagraph(line || ' ').setFontFamily('Courier New').setFontSize(9).setItalic(false).setForegroundColor('#000000'); return; }
+    if (inCode) { body.appendParagraph(line || ' ').editAsText().setFontFamily('Courier New').setFontSize(9).setItalic(false).setForegroundColor('#000000'); return; }
     if (/^\s*$/.test(line)) return;
     if (/^-{3,}\s*$/.test(line)) { body.appendHorizontalRule(); return; }
     if (/^\|[\s:|-]+\|\s*$/.test(line)) return;                  // table separator row
@@ -201,15 +239,6 @@ function headers_(extra) {
   const h = Object.assign({ 'X-GitHub-Api-Version': '2022-11-28', Accept: 'application/vnd.github+json' }, extra || {});
   if (tok && tok !== 'none') h.Authorization = 'Bearer ' + tok;
   return h;
-}
-
-function gh_(path) {
-  const res = UrlFetchApp.fetch('https://api.github.com' + path, { headers: headers_(), muteHttpExceptions: true });
-  const code = res.getResponseCode();
-  if (code === 404) throw new Error(`GitHub says "not found" for ${path}. Check CFG.OWNER / CFG.REPO, and for a private repo add a GITHUB_TOKEN script property.`);
-  if (code === 401) throw new Error('GitHub rejected GITHUB_TOKEN (expired or wrong). Make a new one and update the script property.');
-  if (code >= 300) throw new Error(`GitHub ${code} for ${path}: ${res.getContentText().slice(0, 300)}`);
-  return JSON.parse(res.getContentText());
 }
 
 function folder_() {

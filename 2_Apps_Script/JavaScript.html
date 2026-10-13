@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v2.0  -  Proof Packages
+  //  SIGN PROOF GENERATOR v2.1  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '2.0';
+  const APP_VERSION = '2.1';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -155,6 +155,7 @@
   // first match wins: [name pattern, icon, family]
   const SIGN_ICON_RULES = [
       [/cloud sign.*halo/i, 'cloud_halo', 'letters'], [/cloud sign/i, 'cloud_fl', 'letters'],
+      [/monument letters/i, 'mon_letters', 'letters'],
       [/halo|reverse/i, 'letters_halo', 'letters'], [/channel letter/i, 'letters_fl', 'letters'], [/backer panel/i, 'backer', 'letters'],
       [/routed letters/i, 'pvc_letters', 'panels'],
       [/digital sign|emc/i, 'emc', 'cabinets'], [/lighted cabinet/i, 'cabinet_lit', 'cabinets'], [/^cabinet$/i, 'cabinet', 'cabinets'],
@@ -176,6 +177,7 @@
       letters_halo: LTR(30, 19, 'fill="none" stroke="currentColor" stroke-width="6" stroke-opacity=".3"') + LTR(30, 19, FL),
       cloud_fl: `<path d="${CLOUD}" ${FL}/><path d="M9 9l2 3M20 5v4M31 9l-2 3" ${ST}/>`,
       cloud_halo: `<path d="${CLOUD}" fill="none" stroke="currentColor" stroke-width="6" stroke-opacity=".3"/><path d="${CLOUD}" ${FL}/>`,
+      mon_letters: LTR(25, 17, FL) + `<rect x="3" y="29" width="34" height="8" rx="1" ${FL} fill-opacity=".45"/>`,
       backer: `<rect x="4" y="9" width="32" height="22" rx="2" ${FL}/>` + LTR(26, 12, 'fill="#fff"'),
       pvc_letters: LTR(31, 19, 'fill="currentColor" fill-opacity=".35" transform="translate(2 2)"') + LTR(31, 19, FL),
       emc: [0, 1, 2].map(c => [0, 1].map(r => `<rect x="${6 + c * 10}" y="${10 + r * 10}" width="8.5" height="8.5" rx="1" ${FL}/>`).join('')).join(''),
@@ -420,7 +422,7 @@
       document.getElementById(`igroups-${iid}`).appendChild(group);
       if (!appData.components[d.component]) { group.innerHTML = `<div class="part-card" style="color:#c1272d;">Unknown Component_ID: ${esc(d.component)}</div>`; return; }
       addPart(it, di);
-      if (d.repeatable) {
+      {                                                         // every product / component section can be added again
           let btn = document.createElement('button'), clone = CLONE_COMPONENTS.indexOf(d.component) !== -1 || !!appData.components[d.component].custom;
           btn.type = 'button'; btn.className = 'swatch-btn add-part-btn'; btn.id = `madd-${iid}-${di}`;
           btn.innerHTML = `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
@@ -579,7 +581,7 @@
   }
 
   // channel letter components: "+ Add Letters" copies the previous letter set's settings into the new one
-  const CLONE_COMPONENTS = ['CHANNEL_LETTERS_FL', 'HALO_LETTERS', 'CLOUD_SIGN_FL', 'CLOUD_SIGN_HALO'];
+  const CLONE_COMPONENTS = ['CHANNEL_LETTERS_FL', 'HALO_LETTERS', 'CLOUD_SIGN_FL', 'CLOUD_SIGN_HALO', 'MONUMENT_LETTERS'];
   function copyPartValues(fromUid, toUid) {
       let src = document.getElementById(`part-${fromUid}`), dst = document.getElementById(`part-${toUid}`);
       if (!src || !dst) return;
@@ -647,7 +649,7 @@
       let optional = d.include !== 'Required';
       let prevPart = clone ? allParts.filter(p => p.iid === it.iid && p.di === di).pop() : null;
       let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, letterLines: [], drawPick: [], colorLines: {}, colorSeq: 0, include: d.include,
-                   enabled: d.include !== 'Optional-Off', overrides: parseOverrides(d.overrides), num };
+                   enabled: d.include !== 'Optional-Off' || num > 1, overrides: parseOverrides(d.overrides), num };   // an added copy is always included
       if (prevPart) { Object.keys(prevPart.colorLines).forEach(k => { part.colorLines[k] = prevPart.colorLines[k].slice(); }); part.colorSeq = prevPart.colorSeq; }
       if (restoring) takeSavedPart(part);
       allParts.push(part);
@@ -803,7 +805,9 @@
                 <input type="text" id="mccn-${fid}" class="cc-name" placeholder="Color name (e.g. Client brand blue)" oninput="refreshAll()">
                 <div class="cc-row"><span class="cc-lab">CMYK</span>${CC_CMYK.map(k => box(k, 100, 'cmyk')).join('')}</div>
                 <div class="cc-row"><span class="cc-lab">RGB</span>${CC_RGB.map(k => box(k, 255, 'rgb')).join('')}<span class="cc-swatch" id="mccsw-${fid}"></span></div>
-                <div class="cc-note">Type CMYK or RGB; the other set is calculated and marked approx.</div>
+                <div class="cc-row"><span class="cc-lab">HEX</span><input type="text" id="mcchex-${fid}" class="cc-hex" maxlength="7" placeholder="#RRGGBB" title="Hex color (sets RGB)" oninput="ccHexInput('${fid}')"></div>
+                <div class="cc-note">Type CMYK, RGB or a hex code; the other values are calculated and marked approx.</div>
+                <div class="cc-match" id="mccmatch-${fid}"></div>
                 <input type="hidden" id="mccsrc-${fid}" value="">
               </div>`;
   }
@@ -822,8 +826,100 @@
           put(CC_RGB, any ? rg.map(v => v || 0) : null, false);
       }
       let hex = ccHex(fid), sw = document.getElementById(`mccsw-${fid}`); if (sw) sw.style.background = hex || '#fff';
+      let hx = document.getElementById(`mcchex-${fid}`); if (hx && hx !== document.activeElement) hx.value = hex;
+      ccMatches(fid);
       refreshAll();
   }
+  function ccHexInput(fid) {
+      let v = document.getElementById(`mcchex-${fid}`).value.trim().replace(/^#/, '');
+      if (/^[0-9a-f]{3}$/i.test(v)) v = v.split('').map(c => c + c).join('');
+      if (!/^[0-9a-f]{6}$/i.test(v)) return;
+      CC_RGB.forEach((k, i) => { document.getElementById(`mcc${k}-${fid}`).value = parseInt(v.substr(i * 2, 2), 16); });
+      ccInput(fid, 'rgb');
+  }
+
+  // ---------- closest library colors (Sherwin-Williams, Pantone, Oracal) to a custom color: CIEDE2000 on the hex values ----------
+  function hexToLab(hex) {
+      let h = String(hex || '').replace('#', ''); if (!/^[0-9a-f]{6}$/i.test(h)) return null;
+      let c = [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16) / 255).map(v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+      let x = (c[0] * 0.4124 + c[1] * 0.3576 + c[2] * 0.1805) / 0.95047, y = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722,
+          z = (c[0] * 0.0193 + c[1] * 0.1192 + c[2] * 0.9505) / 1.08883;
+      let f = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+      return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+  }
+  function deltaE00(a, b) {
+      let rad = Math.PI / 180, [L1, a1, b1] = a, [L2, a2, b2] = b;
+      let C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cm = (C1 + C2) / 2;
+      let G = 0.5 * (1 - Math.sqrt(Math.pow(Cm, 7) / (Math.pow(Cm, 7) + Math.pow(25, 7))));
+      let a1p = a1 * (1 + G), a2p = a2 * (1 + G), C1p = Math.hypot(a1p, b1), C2p = Math.hypot(a2p, b2);
+      let h = (x, y) => { let v = Math.atan2(y, x) / rad; return v < 0 ? v + 360 : v; };
+      let h1p = h(a1p, b1), h2p = h(a2p, b2), dLp = L2 - L1, dCp = C2p - C1p;
+      let dhp = C1p * C2p === 0 ? 0 : (Math.abs(h2p - h1p) <= 180 ? h2p - h1p : (h2p - h1p > 180 ? h2p - h1p - 360 : h2p - h1p + 360));
+      let dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin(dhp * rad / 2);
+      let Lm = (L1 + L2) / 2, Cmp = (C1p + C2p) / 2;
+      let hm = C1p * C2p === 0 ? h1p + h2p : (Math.abs(h1p - h2p) <= 180 ? (h1p + h2p) / 2 : (h1p + h2p < 360 ? (h1p + h2p + 360) / 2 : (h1p + h2p - 360) / 2));
+      let T = 1 - 0.17 * Math.cos((hm - 30) * rad) + 0.24 * Math.cos(2 * hm * rad) + 0.32 * Math.cos((3 * hm + 6) * rad) - 0.2 * Math.cos((4 * hm - 63) * rad);
+      let SL = 1 + 0.015 * Math.pow(Lm - 50, 2) / Math.sqrt(20 + Math.pow(Lm - 50, 2)), SC = 1 + 0.045 * Cmp, SH = 1 + 0.015 * Cmp * T;
+      let RT = -2 * Math.sqrt(Math.pow(Cmp, 7) / (Math.pow(Cmp, 7) + Math.pow(25, 7))) * Math.sin(60 * Math.exp(-Math.pow((hm - 275) / 25, 2)) * rad);
+      return Math.sqrt(Math.pow(dLp / SL, 2) + Math.pow(dCp / SC, 2) + Math.pow(dHp / SH, 2) + RT * (dCp / SC) * (dHp / SH));
+  }
+  let LIB_LAB = null;
+  function libraryLab() {
+      if (LIB_LAB) return LIB_LAB;
+      let real = c => c.lab && !/^standard white$/i.test(c.name || '') && !/transparent|clear/i.test(c.name || '');
+      let sw = (appData.colors_sw || []).map(c => {
+          let code = String(c.code || ''), label = /^SW\d/i.test(code) ? `${code.replace(/^SW/i, 'SW ')} ${c.name}` : c.name;
+          return { label, value: /^SW/i.test(label) ? label : `SW ${label}`, hex: c.hex, name: c.name, lab: hexToLab(c.hex) };
+      }).filter(real);
+      let pms = (appData.colors_pms || []).map(c => ({ label: c.name, value: c.name, hex: c.hex, name: c.name, lab: hexToLab(c.hex) })).filter(real);
+      let oracal = (appData.colors_oracal || []).map(c => {
+          let series = String(c.series).replace(/\.0$/, '').trim(), code = String(c.code).replace(/\.0$/, '').padStart(3, '0');
+          return { label: `${code} - ${c.name}`, value: `Oracal ${series} ${code} ${c.name}`, series, hex: c.hex, name: c.name, lab: hexToLab(c.hex) };
+      }).filter(real);
+      return (LIB_LAB = { sw, pms, oracal });
+  }
+  function matchWord(d) { return d < 1 ? 'same' : d < 2 ? 'very close' : d < 5 ? 'close' : d < 10 ? 'similar' : 'nearest'; }
+  function ccMatches(fid) {
+      let box = document.getElementById(`mccmatch-${fid}`); if (!box) return;
+      let hex = ccHex(fid), lab = hex && hexToLab(hex);
+      if (!lab) { box.innerHTML = ''; box._m = null; return; }
+      let L = libraryLab(), top = list => list.map(c => ({ c, d: deltaE00(lab, c.lab) })).sort((x, y) => x.d - y.d).slice(0, 3);
+      let groups = { sw: ['Sherwin-Williams', top(L.sw)], pms: ['Pantone', top(L.pms)] };
+      let ser = document.getElementById(`mser-${fid}`);
+      if (ser) {                                                     // vinyl field: Oracal in the series this field allows
+          let allowed = [...ser.options].map(o => o.value).filter(v => v !== 'CUSTOM');
+          groups.oracal = ['Oracal', top(L.oracal.filter(c => allowed.indexOf(c.series) !== -1))];
+      }
+      box._m = groups;
+      box.innerHTML = `<div class="ccm-head">Closest matches <span>screen colors: confirm with a physical swatch</span></div>` +
+          Object.keys(groups).map(k => `<div class="ccm-row"><span class="ccm-lab">${groups[k][0]}</span>` + groups[k][1].map((m, i) =>
+              `<button type="button" class="ccm-chip" title="Delta E ${m.d.toFixed(1)} (${matchWord(m.d)}). Click to use this color." onclick="useMatch('${fid}', '${k}', ${i})">` +
+              `<i style="background:${esc(m.c.hex)}"></i>${esc(k === 'oracal' ? m.c.value.replace(/^Oracal /, '') : m.c.label)}<small>${m.d.toFixed(1)}</small></button>`).join('') + `</div>`).join('');
+  }
+  // use a match: a real swatch where the field offers that library, otherwise name the custom color after it
+  function useMatch(fid, kind, i) {
+      let box = document.getElementById(`mccmatch-${fid}`), m = box && box._m && box._m[kind] && box._m[kind][1][i]; if (!m) return;
+      let c = m.c, byId = id => document.getElementById(id);
+      let pick = () => {
+          byId(`mpv-${fid}`).value = c.value; byId(`mhex-${fid}`).value = c.hex || '';
+          byId(`mtxt-${fid}`).innerText = c.label;
+          let col = byId(`mcol-${fid}`); col.innerHTML = ''; col.style.background = cssBg(c.hex);
+      };
+      let brand = byId(`mb-${fid}`), ser = byId(`mser-${fid}`), on = byId(`mccon-${fid}`);
+      if (brand && (kind === 'sw' || kind === 'pms')) {
+          brand.value = kind === 'sw' ? 'SW' : 'PMS'; paintBrandChanged(fid); pick();
+      } else if (ser && kind === 'oracal') {
+          if (on && on.checked) { on.checked = false; ccToggle(fid); }
+          ser.value = c.series; vinylSeriesChanged(fid); pick();
+      } else {
+          byId(`mccn-${fid}`).value = c.label;
+          [0, 1, 2].forEach(j => { byId(`mcc${CC_RGB[j]}-${fid}`).value = parseInt(c.hex.replace('#', '').substr(j * 2, 2), 16); });
+          ccInput(fid, 'rgb');
+      }
+      refreshAll();
+      toast(`Using ${kind === 'oracal' ? c.value : c.label}`);
+  }
+
   function ccHex(fid) {
       let rg = CC_RGB.map(k => ccNum(`mcc${k}-${fid}`, 255));
       return rg.some(v => v === null) ? '' : '#' + rg.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -989,13 +1085,28 @@
       items.forEach((it, i) => {
           let inner = it.svg ? pictoSvgHtml(it.svg, '#000') : '';
           let style = it.svg ? 'background:#fff;' : `background:${cssBg(it.hex)};`;
-          grid += `<div class="swatch-card" onclick="pickSwatch(${i})">
+          let q = [it.label, it.sub, it.value].filter(Boolean).join(' ').toLowerCase();
+          grid += `<div class="swatch-card" data-q="${esc(q)}" onclick="pickSwatch(${i})">
                      <div class="swatch-card-color" style="${style}">${inner}</div>
                      <div class="swatch-card-label">${esc(it.label)}${it.sub ? `<br><span style="font-weight:normal;color:#888;">${esc(it.sub)}</span>` : ''}</div>
                    </div>`;
       });
       document.getElementById('swatch-grid').innerHTML = grid;
       document.getElementById('swatch-modal').style.display = 'flex';
+      let sb = document.getElementById('swatch-search'); sb.value = ''; filterSwatches(''); sb.focus();
+  }
+  // search inside a swatch library: every word must appear in the name, number or series ("7069", "iron ore", "8500 red")
+  function filterSwatches(q) {
+      let words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean), shown = 0;
+      document.querySelectorAll('#swatch-grid .swatch-card').forEach(c => {
+          let on = words.every(w => c.dataset.q.indexOf(w) !== -1);
+          c.style.display = on ? '' : 'none'; if (on) shown++;
+      });
+      document.getElementById('swatch-empty').style.display = shown || !modalItems.length ? 'none' : 'block';
+  }
+  function pickFirstSwatch() {
+      let first = [...document.querySelectorAll('#swatch-grid .swatch-card')].find(c => c.style.display !== 'none');
+      if (first) first.click();
   }
   function closeModal() { document.getElementById('swatch-modal').style.display = 'none'; }
 
@@ -1590,7 +1701,7 @@
       const x0 = PG.SB.x0, x1 = PG.SB.x1, lx = 927.5, rx = 1071, cx = (x0 + x1) / 2;
       let o = `<g id="Proof_Info">`;
       [37.4, 77, 149, 212, 261, 376, 651, 762].forEach(y => o += L(x0, y, x1, y));
-      o += T(cx, 52, TEMPLATE.Title || 'DESIGN PROOF', 10.5, { anchor: 'middle', fill: '#333333' });
+      o += T(cx, 52, TEMPLATE.Title || 'SALES PROOF', 10.5, { anchor: 'middle', fill: '#333333' });
       o += T(cx, 67.5, `Page ${pkgN} / ${pkgTotal}`, 11, { anchor: 'middle', bold: true });
       // customer / project name box
       o += R(x0, 84, x1 - x0, 58, RED_BOX);
@@ -1866,7 +1977,7 @@
       let lw = 320, lh = lw * LOGO_AR;
       o += `<g id="Logo">` + IMG(X0, M + 30, lw, lh, PROOF_ASSETS.logo) + `</g>`;
       o += `<g id="Cover_Title">` +
-           T(XR, M + 58, TEMPLATE.Cover_Title || 'DESIGN PROOF PACKAGE', 20, { anchor: 'end', bold: true, ls: 1.2 }) +
+           T(XR, M + 58, TEMPLATE.Cover_Title || 'SALES PROOF PACKAGE', 20, { anchor: 'end', bold: true, ls: 1.2 }) +
            T(XR, M + 78, `Page 1 / ${total}`, 11, { anchor: 'end', bold: true }) +
            T(XR, M + 94, `${pages.length} proof page${pages.length === 1 ? '' : 's'} \u00B7 ${pkgItems.length} product${pkgItems.length === 1 ? '' : 's'} / component${pkgItems.length === 1 ? '' : 's'}`, 9, { anchor: 'end', fill: '#666666' }) +
            `</g>`;
@@ -2323,7 +2434,8 @@
              (pageMeasures[key] || []).map((m, j) => `<span class="st-img st-meas" title="Value printed on the line (inches)">M${j + 1}` +
                  `<input type="text" id="meas-${key}-${j}" value="${esc(m.label)}" placeholder="inches" onclick="event.stopPropagation()" ` +
                  `oninput="setMeasureLabel('${key}', ${j}, this.value)">` +
-                 b(`removeMeasure('${key}', ${j})`, '&times;', 'Remove this measurement') + `</span>`).join('') + `</div>`;
+                 b(`removeMeasure('${key}', ${j})`, '&times;', 'Remove this measurement') + `</span>`).join('') +
+             `<button type="button" class="st-btn st-dl" title="Download this page as one SVG file" onclick="event.stopPropagation(); downloadPageSVG('page', ${pageNo - 1 - (coverOn() ? 1 : 0)})">Download SVG</button></div>`;
   }
 
   // =====================================================================
@@ -2480,12 +2592,16 @@
           let pages = packagePages(), info = getCustomerInfo();
           let strip = svg => svg.replace(/^<\?xml[^>]*>\s*/, '');
           let off = coverOn() && pages.length ? 1 : 0, total = pages.length + off, html = '';
-          if (off) html += `<div class="sheet">${strip(buildCoverSVG(pages, info, total))}</div>`;
+          let bar = (title, kind, i) => `<div class="sheet-bar"><span class="st-title">${title}</span>` +
+              `<button type="button" class="st-btn st-dl" title="Download this page as one SVG file" onclick="downloadPageSVG('${kind}', ${i})">Download SVG</button></div>`;
+          if (off) html += bar('Page 1 \u00B7 Cover', 'cover', 0) + `<div class="sheet">${strip(buildCoverSVG(pages, info, total))}</div>`;
           html += pages.map((p, i) => artToolbar(p, i + 1 + off) +
               `<div class="sheet${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildSheetSVG(p, i + 1 + off, total, info))}</div>`).join('');
           if (qaOn() && pages.length) {
               html += `<div class="sheet-label">QA CHECKLIST \u00B7 exported in the package's QA_Checklist folder (not for the customer)</div>`;
-              html += buildQAPages(pages, info, total).map(svg => `<div class="sheet portrait">${strip(svg)}</div>`).join('');
+              let qa = buildQAPages(pages, info, total);
+              html += qa.map((svg, i) => bar(`QA checklist ${i + 1} / ${qa.length}`, 'qa', i).replace('class="sheet-bar"', 'class="sheet-bar portrait"') +
+                                         `<div class="sheet portrait">${strip(svg)}</div>`).join('');
           }
           document.getElementById('sheets').innerHTML = html || '<div style="color:#aaa;padding:40px;">Nothing to preview yet.</div>';
           document.getElementById('page-count').innerText = `${total} page${total === 1 ? '' : 's'}${qaOn() && pages.length ? ' + QA' : ''}`;
@@ -2547,6 +2663,22 @@
           img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not render SVG')); };
           img.src = url;
       });
+  }
+
+  // one page as a single SVG file, built exactly like the package export (same name it has inside the zip)
+  function downloadPageSVG(kind, i) {
+      let pages = packagePages(), info = getCustomerInfo(), base = exportBase(info);
+      let off = coverOn() && pages.length ? 1 : 0, total = pages.length + off, pad = n => String(n).padStart(2, '0');
+      let svg, file;
+      try {
+          EXPORTING = true;
+          if (kind === 'cover') { svg = buildCoverSVG(pages, info, total); file = `${base} - p01`; }
+          else if (kind === 'qa') { svg = buildQAPages(pages, info, total)[i]; file = `${base} - qa${pad(i + 1)}`; }
+          else { svg = buildSheetSVG(pages[i], i + 1 + off, total, info); file = `${base} - p${pad(i + 1 + off)}`; }
+      } finally { EXPORTING = false; }
+      if (!svg) return;
+      saveBlob(new Blob([svg], { type: 'image/svg+xml' }), file + '.svg');
+      toast(`Downloaded ${file}.svg`);
   }
 
   function saveBlob(blob, name) {
@@ -2806,6 +2938,7 @@
   }
   document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
+      if (document.getElementById('swatch-modal').style.display === 'flex') { closeModal(); return; }
       if (document.getElementById('save-modal').style.display === 'flex') closeSaveDialog();
       if (document.getElementById('library-modal').style.display === 'flex') closeLibrary();
   });

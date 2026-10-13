@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v2.0** · The Sign Store Online, Inc. · Design Department
+**Current version: v2.1** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -16,7 +16,7 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 
 ### Proof builder
 - **Data-driven:** every product, component, field, option, default, rule, drawing and design standard lives in the Google Sheet. You change the sheet, not the code.
-- **19 products and 25 modular components:** pole signs, channel letters, cloud signs, cabinets, monuments, banners, decals, ADA and more. You can mix products and stand-alone components in one package.
+- **19 products and 26 modular components:** pole signs, channel letters, cloud signs, cabinets, monuments, banners, decals, ADA and more. You can mix products and stand-alone components in one package.
 - **Conditional specs:** `Show_If` rules, required fields, and live color and material pickers. The pickers cover Oracal, Sherwin-Williams, PMS, ACM, acrylic, LED, trim cap and ADA pictograms.
 - **26 vector detail drawings:** mounting, letter construction, cabinets, footers/poles and panel finishing. Each drawing is added automatically when its specs match, with live values such as embed depth, return depth and trim cap.
 - **Editable section names:** rename any section, e.g. "Acrylic 2" to "Front Menu". The new name carries through to the proof sheet, cover contents and QA checklist.
@@ -29,6 +29,8 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 - **Measurement lines:** draw red dimension lines over images on any page, type the value in inches, move and resize them; they export as editable SVG.
 - **Proof Library:** Save stores the whole package in a shared Drive folder (every value, custom table, color, note, image and measurement); reopen any revision from **Saved proofs** and keep editing. Every save is a new revision.
 - **Material-style interface:** tonal surfaces, Roboto, a color key that filters the dashboard by sign family.
+- **Color matching:** a custom color typed as CMYK, RGB or HEX lists its closest Sherwin-Williams, Pantone and Oracal colors (Delta E 2000); click one to use it. Every swatch library is searchable.
+- **Single-page SVG:** download any one page (cover, proof or QA) without exporting the whole package.
 - **Artwork placement:** add a screenshot or JPEG to any proof page with a button, by dropping it, or by pasting with Ctrl+V. You can move and resize it, and it is embedded in the SVG and PNG exports.
 - **Missing info flagged:** blank fields print as yellow **MISSING** tags. In the SVG, each tag has an empty matching text box underneath, ready to type in.
 
@@ -106,6 +108,25 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [2.1] – 2026-10-13
+#### Added
+- **Monument Letters:** a new component (blue Letters family, with its own icon) and an optional section in Monument Signs, for permanent 3D letters on a monument or free-standing sign.
+  - Letters: quantity counted from the text, letter height, text, font, and **+ Add Letters** for more sizes.
+  - Material: flat cut aluminum, fabricated aluminum (reverse channel), cast aluminum, flat cut stainless, brass, acrylic or PVC, or routed HDU. Flat cut, cast and HDU letters list their plate **thickness** (1/8" to 2"); fabricated letters list **face gauge** (.040 to .125), **return gauge** (.040 to .063) and **depth** (1-1/2" to 6").
+  - Finish (painted, brushed, polished, anodized, natural) with a paint color picker, and return color on painted fabricated letters.
+  - Mounting: **Top Mount - Pinned** (default: letters stand on the cap with threaded pins set in epoxy, with pin size and embed depth), **Top Mount - Adhesive**, face mounted with studs (flush or with spacers), or **Standoffs** (model AL25-30A or AL16-25A, size and finish, as on panels). Monument surface and a full-size mounting pattern.
+  - Lighting: non-lit, halo lit (LED color, power supply, photo cell) or ground lit by others.
+  - Two new detail drawings, TOP MOUNT - PINNED and TOP MOUNT - ADHESIVE; face mounting uses the existing stud and stand-off drawings and halo lit letters the halo section. New Design Help rule L08.
+- **Color matching:** the custom color panel takes a **HEX** code as well as CMYK and RGB, and lists **Closest matches**: the 3 nearest Sherwin-Williams colors, the 3 nearest Pantone colors and, on vinyl fields, the 3 nearest Oracal colors in that field's series, ranked by Delta E 2000. Clicking a match selects that swatch where the field offers the library, otherwise it names the custom color after it. Matches are based on screen colors; confirm with a physical swatch.
+- **Swatch search:** every color and pictogram library has a search box (name, number or series; several words narrow it down). Enter picks the first result; Esc closes.
+- **Download SVG per page:** a deep blue **Download SVG** button at the right end of every page's bar (cover, proof pages and QA pages) saves that page alone, identical to and named like the file in the package zip.
+- **+ Add Another everywhere:** every section of every product and component can now be added again (Pole Cover and others were missing it). The added copy of an optional section is always included.
+
+#### Changed
+- **Sales Proof:** the proof is now called a Sales Proof. The button reads **Generate Sales Proof Package**, the cover title is **SALES PROOF PACKAGE** and each page's sidebar says **SALES PROOF** (Proof_Template: Title, Cover_Title).
+
+---
 
 ### [2.0] – 2026-10-13
 #### Added
