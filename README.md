@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v2.2** · The Sign Store Online, Inc. · Design Department
+**Current version: v2.3** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -31,6 +31,7 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 - **Material-style interface:** tonal surfaces, Roboto, a color key that filters the dashboard by sign family.
 - **Color matching:** a custom color typed as CMYK, RGB or HEX lists its closest Sherwin-Williams, Pantone and Oracal colors (Delta E 2000); click one to use it. Every swatch library is searchable.
 - **Single-page SVG:** download any one page (cover, proof or QA), or just a page's spec table, without exporting the whole package.
+- **Self-updating sheet:** a **Proof Generator** menu updates the sheet's data tabs in place from the latest GitHub release (with backups, keeping your Proof_Template wording) or from an uploaded workbook (then trashes the .xlsx), and updates the Apps Script code and web app when the Apps Script API is on.
 - **Artwork placement:** add a screenshot or JPEG to any proof page with a button, by dropping it, or by pasting with Ctrl+V. You can move and resize it, and it is embedded in the SVG and PNG exports.
 - **Missing info flagged:** blank fields print as yellow **MISSING** tags. In the SVG, each tag has an empty matching text box underneath, ready to type in.
 
@@ -78,7 +79,7 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 ## Repository layout
 ```
 1_Google_Sheet/      Sign_Proof_Specifications_App_Data.xlsx  (the database)
-2_Apps_Script/       Code.gs, ProofLibrary.gs, Index.html, Stylesheet.html, JavaScript.html,
+2_Apps_Script/       Code.gs, ProofLibrary.gs, Updater.gs, Index.html, Stylesheet.html, JavaScript.html,
                      Assets.html, appsscript.json, ProofPages_CorelDRAW_Macro.bas
 3_Samples/           sample export zip, cover, proof pages (incl. special notes),
                      QA pages and PDF
@@ -89,8 +90,8 @@ README.txt           full setup guide
 
 ## Setup
 1. Upload the `.xlsx` to Google Drive, then choose **File › Save as Google Sheets**.
-2. In the sheet, open **Extensions › Apps Script**. Create `Code`, `ProofLibrary` (script files), `Index`, `Stylesheet`, `JavaScript` and `Assets` (HTML files), named exactly as shown, and paste in the matching files. Approve the Google Drive permission when asked; saved proofs go to a **Proof Library** folder next to the sheet.
-3. Check that the last line of `Assets` is `PROOF_ASSETS.loaded = true;`.
+2. In the sheet, open **Extensions › Apps Script**. Create `Code`, `ProofLibrary`, `Updater` (script files), `Index`, `Stylesheet`, `JavaScript` and `Assets` (HTML files), named exactly as shown, and paste in the matching files. Approve the Google Drive permission when asked; saved proofs go to a **Proof Library** folder next to the sheet.
+3. Project Settings › show `appsscript.json`, and paste the manifest (permissions and the Drive service). Turn on the Apps Script API once at script.google.com/home/usersettings for automatic code updates. Check that the last line of `Assets` is `PROOF_ASSETS.loaded = true;`.
 4. Choose **Deploy › New deployment › Web app** with Execute as: *Me*. Use **Test deployments** (the `/dev` link) while you are testing.
 5. **CorelDRAW:** press Alt+F11, select **GlobalMacros**, then **File › Import** the `.bas` file and save. Add `ImportProofPackage` to a toolbar.
 
@@ -108,6 +109,24 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [2.3] – 2026-10-13
+#### Added
+- **Proof Generator menu in the Google Sheet** (new Apps Script file **Updater**): **Update from GitHub**, **Import workbook from Drive** and **About this version** (code, sheet data and latest release versions).
+- **Update from GitHub:** reads the latest release and updates **this** sheet in place; no new spreadsheet. It backs up Component_Registry, Component_Schema, Product_Assembly, Detail_Drawings and Design_Guide as hidden "(backup ...)" tabs (the last 3 per tab), then replaces them with the release's rows. These five tabs are release-managed: edit them through a release, not by hand.
+- **Proof_Template merge:** new keys are added, and your own wording is kept. A value you never changed that the release updated (e.g. DESIGN PROOF to SALES PROOF) is listed for you to accept or skip.
+- **Code updates itself** (when the Apps Script API is on for your Google account, a one-time switch): changed files are written into the project, saved as a new script version, and the web app deployment moves to it, with the same link. If Google blocks it, the summary lists exactly which files changed since your version and how to paste them.
+- **Import workbook from Drive:** finds the newest Sign_Proof_Specifications_App_Data .xlsx in your Drive (or pick from a list), converts it in the background and updates the tabs the same way. Afterwards the .xlsx and its temporary converted copy are **moved to the Drive trash** (recoverable for 30 days); you can trash older copies in the same step. If anything fails, nothing is trashed.
+- Each release now includes **1_Google_Sheet/App_Data.json**: the app's data tabs as plain text, which the update reads.
+
+#### Never touched by either menu
+- Saved_Proofs, the color tabs (Paint, vinyl, Pantone ...), Product_Schema, README and any tab of your own.
+
+#### Setup
+- New Apps Script file **Updater** (script) and the new **appsscript.json** (Project Settings > Show "appsscript.json" manifest file in editor, then paste). Reload the sheet: the **Proof Generator** menu appears; the first run asks for permission (Sheets, Drive, external requests, managing this script and its deployments).
+- One-time, for automatic code updates: **script.google.com/home/usersettings** > Google Apps Script API: **On**.
+
+---
 
 ### [2.2] – 2026-10-13
 #### Added

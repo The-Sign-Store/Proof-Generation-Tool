@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v2.2  (October 13, 2026)
+SIGN PROOF GENERATOR  v2.3  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -12,6 +12,8 @@ WHAT IS IN THIS PACKAGE
 -----------------------------------------------------------------------------
 1_Google_Sheet/
    Sign_Proof_Specifications_App_Data.xlsx   The database the app reads.
+   App_Data.json      the same data tabs as plain text, read by
+                      Proof Generator > Update from GitHub
 
 2_Apps_Script/                               One file per Apps Script file.
    Code.gs            server: reads the sheet (getAppData)
@@ -19,7 +21,8 @@ WHAT IS IN THIS PACKAGE
    Stylesheet.html    styles
    JavaScript.html    the app (builder, proof sheets, drawings, help center)
    Assets.html        logo + ETL artwork (image data, split into short lines)
-   appsscript.json    project manifest (time zone, V8 runtime, no libraries)
+   Updater.gs         server: Proof Generator menu (update / import, v2.3)
+   appsscript.json    project manifest (permissions, Drive service, V8)
    ProofPages_CorelDRAW_Macro.bas   CorelDRAW macros (not for Apps Script).
                       See CORELDRAW below.
 
@@ -64,14 +67,16 @@ SET UP FROM SCRATCH (about 10 minutes)
      JavaScript   (HTML)    paste JavaScript.html
      Assets       (HTML)    paste Assets.html
      ProofLibrary (Script)  paste ProofLibrary.gs   (+ > Script; saves / opens proofs)
+     Updater      (Script)  paste Updater.gs        (+ > Script; Proof Generator menu)
    For each HTML file: + > HTML > type the name, select all, delete, paste.
 
 4. Check Assets pasted completely: its last two lines must be
        PROOF_ASSETS.loaded = true;
      </script>
 
-5. Optional manifest: Project Settings > check "Show appsscript.json in editor",
-   then paste appsscript.json. Libraries must be empty.
+5. Manifest (required from v2.3): Project Settings > check "Show
+   appsscript.json manifest file in editor", then paste appsscript.json over
+   it. It lists the permissions and turns on the Drive service.
 
 6. Save (Ctrl+S). Deploy > New deployment > type Web app.
      Execute as: Me      Who has access: your company / as needed
@@ -87,11 +92,33 @@ SET UP FROM SCRATCH (about 10 minutes)
 
 UPDATE AN EXISTING COPY
 -----------------------------------------------------------------------------
-- Code changes: paste the changed files over the old ones, save, hard refresh
+From v2.3 the sheet has a Proof Generator menu (reload the sheet to see it).
+
+- Proof Generator > Update from GitHub: reads the latest release and updates
+  THIS sheet (never a new one):
+    1. Component_Registry, Component_Schema, Product_Assembly, Detail_Drawings
+       and Design_Guide are copied to hidden "(backup <date>)" tabs (the last
+       3 per tab are kept; View > Hidden sheets), then replaced in place.
+       These five tabs are release-managed: change them through a release.
+    2. Proof_Template: new keys are added; your own values are kept. Values
+       you never edited that the release changed are listed to accept / skip.
+    3. The Apps Script code: written into the project, saved as a new
+       version and the web app deployment moved to it (same link). This
+       needs, ONCE per Google account:
+         script.google.com/home/usersettings > Google Apps Script API: On
+       Without it (or if your Workspace blocks it) the summary lists the
+       files that changed since your version, to paste by hand.
+- Proof Generator > Import workbook from Drive: the same tab update from a
+  Sign_Proof_Specifications_App_Data .xlsx uploaded to Drive (the newest, or
+  pick one). Afterwards the .xlsx and its temporary converted copy are moved
+  to the Drive trash (recoverable 30 days); older copies can go too. If the
+  import fails, nothing is trashed.
+- Never touched by either: Saved_Proofs, the color tabs, Product_Schema,
+  README and any tab you added.
+- First time on v2.3 (the menu cannot install itself): paste Updater.gs and
+  appsscript.json (and the other changed files) by hand once, as above.
+- Code by hand: paste the changed files over the old ones, save, hard refresh
   the /dev link (Ctrl+Shift+R), then publish a New version for the live link.
-- New tabs only (keep your own edits): upload this workbook as a separate
-  Google Sheet, right-click the tab > Copy to > Existing spreadsheet, and
-  rename the copy to the exact tab name (e.g. "Detail_Drawings").
 
 
 IF THE PAGE WILL NOT LOAD
@@ -167,7 +194,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v2.2)
+WHAT THE APP DOES (v2.3)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 19 products and 11 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -287,6 +314,45 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v2.3  (2026-10-13)
+  Added
+    - Proof Generator menu in the Google Sheet (new Apps Script file
+      Updater): Update from GitHub, Import workbook from Drive and About this
+      version (code, sheet data and latest release versions).
+    - Update from GitHub: reads the latest release and updates this sheet in
+      place; no new spreadsheet. It backs up Component_Registry,
+      Component_Schema, Product_Assembly, Detail_Drawings and Design_Guide as
+      hidden "(backup ...)" tabs (the last 3 per tab), then replaces them
+      with the release's rows. These five tabs are release-managed: edit them
+      through a release, not by hand.
+    - Proof_Template merge: new keys are added, and your own wording is kept.
+      A value you never changed that the release updated (e.g. DESIGN PROOF
+      to SALES PROOF) is listed for you to accept or skip.
+    - Code updates itself (when the Apps Script API is on for your Google
+      account, a one-time switch): changed files are written into the
+      project, saved as a new script version, and the web app deployment
+      moves to it, with the same link. If Google blocks it, the summary lists
+      exactly which files changed since your version and how to paste them.
+    - Import workbook from Drive: finds the newest
+      Sign_Proof_Specifications_App_Data .xlsx in your Drive (or pick from a
+      list), converts it in the background and updates the tabs the same way.
+      Afterwards the .xlsx and its temporary converted copy are moved to the
+      Drive trash (recoverable for 30 days); you can trash older copies in
+      the same step. If anything fails, nothing is trashed.
+    - Each release now includes 1_Google_Sheet/App_Data.json: the app's data
+      tabs as plain text, which the update reads.
+  Never
+    - Saved_Proofs, the color tabs (Paint, vinyl, Pantone ...),
+      Product_Schema, README and any tab of your own.
+  Setup
+    - New Apps Script file Updater (script) and the new appsscript.json
+      (Project Settings > Show "appsscript.json" manifest file in editor,
+      then paste). Reload the sheet: the Proof Generator menu appears; the
+      first run asks for permission (Sheets, Drive, external requests,
+      managing this script and its deployments).
+    - One-time, for automatic code updates:
+      script.google.com/home/usersettings > Google Apps Script API: On.
+
 v2.2  (2026-10-13)
   Added
     - Autosave: about every 30 seconds after a change, the package is saved
