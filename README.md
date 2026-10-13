@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v2.1** · The Sign Store Online, Inc. · Design Department
+**Current version: v2.1.1** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -30,7 +30,7 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 - **Proof Library:** Save stores the whole package in a shared Drive folder (every value, custom table, color, note, image and measurement); reopen any revision from **Saved proofs** and keep editing. Every save is a new revision.
 - **Material-style interface:** tonal surfaces, Roboto, a color key that filters the dashboard by sign family.
 - **Color matching:** a custom color typed as CMYK, RGB or HEX lists its closest Sherwin-Williams, Pantone and Oracal colors (Delta E 2000); click one to use it. Every swatch library is searchable.
-- **Single-page SVG:** download any one page (cover, proof or QA) without exporting the whole package.
+- **Single-page SVG:** download any one page (cover, proof or QA), or just a page's spec table, without exporting the whole package.
 - **Artwork placement:** add a screenshot or JPEG to any proof page with a button, by dropping it, or by pasting with Ctrl+V. You can move and resize it, and it is embedded in the SVG and PNG exports.
 - **Missing info flagged:** blank fields print as yellow **MISSING** tags. In the SVG, each tag has an empty matching text box underneath, ready to type in.
 
@@ -108,6 +108,14 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [2.1.1] – 2026-10-13
+#### Changed
+- **Download page / Download table:** the single Download SVG button is now two deep blue buttons at the right end of each page's bar.
+  - **Download page** saves the whole page as an SVG, identical to and named like the file in the package zip (also on the cover and QA pages).
+  - **Download table** saves only that page's spec table with its product label, as an SVG cropped to the table at true size (1 unit = 0.01"), named `... - p02 - table.svg`. It appears on every page that has a spec table.
+
+---
 
 ### [2.1] – 2026-10-13
 #### Added
