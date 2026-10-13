@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.9.4  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.9.5  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -513,6 +513,7 @@
       let f = appData.components[cid].fields[fi], t = CUSTOM_TYPES.find(x => x.k === k) || CUSTOM_TYPES[0];
       Object.assign(f, { type: t.type, ck: t.k, options: customTypeOptions(t), def: '' });
       customParts(cid).forEach(p => {
+          delete p.colorLines[fi];
           let row = document.getElementById(`cr-${p.uid}_${fi}`); if (!row) return;
           row.outerHTML = customRowHtml(p, f, fi); placeholders(p, fi);
       });
@@ -618,8 +619,10 @@
       let num = allParts.filter(p => p.iid === it.iid && p.di === di).length + 1;
       let uid = 'p' + (++partSeq);
       let optional = d.include !== 'Required';
-      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, letterLines: [], drawPick: [], include: d.include,
+      let prevPart = clone ? allParts.filter(p => p.iid === it.iid && p.di === di).pop() : null;
+      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, letterLines: [], drawPick: [], colorLines: {}, colorSeq: 0, include: d.include,
                    enabled: d.include !== 'Optional-Off', overrides: parseOverrides(d.overrides), num };
+      if (prevPart) { Object.keys(prevPart.colorLines).forEach(k => { part.colorLines[k] = prevPart.colorLines[k].slice(); }); part.colorSeq = prevPart.colorSeq; }
       allParts.push(part);
 
       let zones = [];
@@ -817,10 +820,11 @@
       if (btn) btn.style.display = on || (ser && ser.value === 'CUSTOM') ? 'none' : 'flex';
       refreshAll();
   }
-  function ccLayout() {
-      document.querySelectorAll('.cc-panel').forEach(pn => {
-          let g = pn.closest('.form-group'); if (g) g.classList.toggle('cc-open', pn.style.display === 'block');
-      });
+  function ccLayout() {          // a field widens to the full row while a custom color panel is open or it lists several colors
+      let open = new Set();
+      document.querySelectorAll('.cc-panel').forEach(pn => { if (pn.style.display === 'block') open.add(pn.closest('.form-group')); });
+      document.querySelectorAll('.color-lines').forEach(cl => { if (cl.children.length) open.add(cl.closest('.form-group')); });
+      document.querySelectorAll('.form-group').forEach(g => g.classList.toggle('cc-open', open.has(g)));
   }
   function ccSwitch(fid) {
       return `<label class="cc-toggle" title="Custom color by name + CMYK / RGB"><input type="checkbox" id="mccon-${fid}" onchange="ccToggle('${fid}')"> Custom</label>` + ccPanel(fid, false);
@@ -872,11 +876,9 @@
           case 'vinyl': {
               let series = opts.length ? opts : ['751RA'];
               let defSeries = series.indexOf(def) !== -1 ? def : series[0];
-              html += `<select id="mser-${fid}" style="margin-bottom:5px;" onchange="vinylSeriesChanged('${fid}')">`;
-              series.forEach(s => html += `<option value="${esc(s)}" ${s === defSeries ? 'selected' : ''}>Oracal ${esc(s)}</option>`);
-              html += `<option value="CUSTOM">-- Custom Input --</option></select>
-                       <input type="text" id="mc-${fid}" placeholder="Vinyl brand, series and color (e.g. 3M 3630-33 Red)" style="display:none; margin-bottom:5px;" oninput="refreshAll()">` +
-                      swatchBtn(fid, `openVinylModal('${fid}')`, '', '') + ccSwitch(fid);
+              html += vinylPicker(fid, series, defSeries) +
+                      `<div class="color-lines" id="mcl-${fid}">${(part.colorLines[fi] || []).map((k, n) => colorLineHtml(part, fi, k, n, series, defSeries)).join('')}</div>` +
+                      `<button type="button" class="swatch-btn add-color-btn" onclick="addColorLine('${part.uid}', ${fi})" title="Another vinyl color for this section (each prints as its own row)">+ Add Color</button>`;
               break;
           }
           case 'db': {
@@ -892,6 +894,38 @@
               html += `<input type="text" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`;
       }
       return html + `</div>`;
+  }
+
+  function vinylPicker(fid, series, defSeries) {
+      let html = `<select id="mser-${fid}" style="margin-bottom:5px;" onchange="vinylSeriesChanged('${fid}')">`;
+      series.forEach(s => html += `<option value="${esc(s)}" ${s === defSeries ? 'selected' : ''}>Oracal ${esc(s)}</option>`);
+      return html + `<option value="CUSTOM">-- Custom Input --</option></select>
+               <input type="text" id="mc-${fid}" placeholder="Vinyl brand, series and color (e.g. 3M 3630-33 Red)" style="display:none; margin-bottom:5px;" oninput="refreshAll()">` +
+             swatchBtn(fid, `openVinylModal('${fid}')`, '', '') + ccSwitch(fid);
+  }
+
+  // ---------- extra vinyl colors in one field ("+ Add Color"): VINYL COLOR 1, 2, 3 ... on the proof ----------
+  function colorLineHtml(part, fi, k, n, series, defSeries) {
+      let fid = `${part.uid}_${fi}c${k}`;
+      return `<div class="color-line" id="mcline-${fid}"><div class="color-line-head"><span class="color-line-n">Color ${n + 2}</span>` +
+             `<span class="part-remove" onclick="removeColorLine('${part.uid}', ${fi}, ${k})">[x] Remove</span></div>${vinylPicker(fid, series, defSeries)}</div>`;
+  }
+  function addColorLine(uid, fi) {
+      let part = allParts.find(p => p.uid === uid); if (!part) return;
+      let f = appData.components[part.comp].fields[fi], series = splitOpts(f.options); if (!series.length) series = ['751RA'];
+      let k = ++part.colorSeq;
+      (part.colorLines[fi] = part.colorLines[fi] || []).push(k);
+      let box = document.getElementById(`mcl-${uid}_${fi}`), main = document.getElementById(`mser-${uid}_${fi}`);
+      let cur = main && main.value !== 'CUSTOM' ? main.value : series[0];             // new color starts on the series chosen above
+      box.insertAdjacentHTML('beforeend', colorLineHtml(part, fi, k, part.colorLines[fi].length - 1, series, cur));
+      refreshAll();
+  }
+  function removeColorLine(uid, fi, k) {
+      let part = allParts.find(p => p.uid === uid); if (!part) return;
+      part.colorLines[fi] = (part.colorLines[fi] || []).filter(x => x !== k);
+      let el = document.getElementById(`mcline-${uid}_${fi}c${k}`); if (el) el.remove();
+      document.querySelectorAll(`#mcl-${uid}_${fi} .color-line-n`).forEach((s, n) => { s.innerText = `Color ${n + 2}`; });
+      refreshAll();
   }
 
   // vinyl: "-- Custom Input --" in the series list = type any vinyl (other brands / colors not in the list)
@@ -1072,8 +1106,9 @@
   }
 
   // ---------- VALUES FOR THE PROOF ----------
-  function getDisplay(part, f, fi) {
-      let fid = `${part.uid}_${fi}`;
+  function getDisplay(part, f, fi, fidOver, req) {
+      let fid = fidOver || `${part.uid}_${fi}`;
+      if (req) f = Object.assign({}, f, { required: true });
       let byId = id => document.getElementById(id);
       let r = { val: '', hex: '', svg: null, warn: false, warnLabel: 'MISSING', gradient: false };
       let paintValue = () => {
@@ -1156,9 +1191,12 @@
           let g = document.getElementById(`mg-${part.uid}_${fi}`);
           if (g && g.style.display === 'none') return;
           let d = getDisplay(part, f, fi);
-          if (!d.warn && (d.val === '' || d.val.toUpperCase() === 'N/A')) return;
-          if (!d.warn && splitOpts(f.hideValues).indexOf(d.val) !== -1) return;
-          items.push(Object.assign({ zone: f.zone, label: f.label, variable: f.variable.toUpperCase(), type: f.type, opts: f.options }, d));
+          let extra = f.type === 'vinyl' ? (part.colorLines[fi] || []) : [];
+          if (!d.warn && (d.val === '' || d.val.toUpperCase() === 'N/A') && !extra.length) return;
+          if (!d.warn && splitOpts(f.hideValues).indexOf(d.val) !== -1 && !extra.length) return;
+          if (!(d.val === '' && !d.warn)) items.push(Object.assign({ zone: f.zone, label: extra.length ? `${f.label} 1` : f.label, variable: f.variable.toUpperCase(), type: f.type, opts: f.options }, d));
+          extra.forEach((k, n) => items.push(Object.assign({ zone: f.zone, label: `${f.label} ${n + 2}`, variable: `${f.variable.toUpperCase()} ${n + 2}`, type: f.type, opts: f.options },
+                                                            getDisplay(part, f, fi, `${part.uid}_${fi}c${k}`, true))));
       });
       let q = items.find(i => i.type === 'autoqty');
       if (q) {

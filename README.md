@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v1.9.4** · The Sign Store Online, Inc. · Design Department
+**Current version: v1.9.5** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -104,6 +104,14 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [1.9.5] – 2026-10-13
+#### Added
+- **Multiple vinyl colors:** every vinyl color field has a **+ Add Color** button, like **+ Add Letters** on channel letters, so one vinyl proof can list all of its colors. Each added color has its own Oracal series, swatch picker, **-- Custom Input --** and **Custom** CMYK / RGB panel, and starts on the series chosen above it.
+- On the proof, QA checklist and CSV the colors print as numbered rows (e.g. VINYL COLOR 1, VINYL COLOR 2, VINYL COLOR 3), each with its color chip. An added color left unpicked prints as MISSING; **[x] Remove** takes one out and the rest renumber.
+- Works on every vinyl field, including Cut Vinyl Decal, channel letter face vinyl and vinyl rows in custom tables. **+ Add Another** on channel letter and custom sections copies the color list; a field that lists several colors widens to the full row.
+
+---
 
 ### [1.9.4] – 2026-10-13
 #### Changed

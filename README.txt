@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.9.4  (October 13, 2026)
+SIGN PROOF GENERATOR  v1.9.5  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -162,7 +162,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.9.4)
+WHAT THE APP DOES (v1.9.5)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 19 products and 10 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -198,6 +198,9 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           (blue = channel letters and cloud signs, purple = cabinets and
           digital, orange = pole / monument / ground, green = panels,
           pink = vinyl and banners, teal = ADA, red = custom).
+        - + Add Color (vinyl fields): adds another vinyl color to the same
+          section, each with its own series, swatch, custom input or
+          CMYK / RGB. Prints as VINYL COLOR 1, 2, 3 ... on the proof.
         - Vinyl fields: "-- Custom Input --" at the end of the Oracal
           series list takes any vinyl typed in (other brands / colors).
         - Detail drawings print bottom-right when specs match (uncheck any
@@ -248,6 +251,22 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.9.5  (2026-10-13)
+  Added
+    - Multiple vinyl colors: every vinyl color field has a + Add Color
+      button, like + Add Letters on channel letters, so one vinyl proof can
+      list all of its colors. Each added color has its own Oracal series,
+      swatch picker, -- Custom Input -- and Custom CMYK / RGB panel, and
+      starts on the series chosen above it.
+    - On the proof, QA checklist and CSV the colors print as numbered rows
+      (e.g. VINYL COLOR 1, VINYL COLOR 2, VINYL COLOR 3), each with its color
+      chip. An added color left unpicked prints as MISSING; [x] Remove takes
+      one out and the rest renumber.
+    - Works on every vinyl field, including Cut Vinyl Decal, channel letter
+      face vinyl and vinyl rows in custom tables. + Add Another on channel
+      letter and custom sections copies the color list; a field that lists
+      several colors widens to the full row.
+
 v1.9.4  (2026-10-13)
   Changed
     - Cloud signs replace cloud letters: the Cloud Letters products and the
