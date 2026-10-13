@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.9  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.9.1  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -1873,7 +1873,7 @@
                `<rect x="${f(-w / 2)}" y="${f(-h / 2)}" width="${f(w)}" height="${f(h)}" fill="#FFFFFF"/>` +
                `<text x="0" y="${f(size * 0.36)}" font-family="Arial" font-size="${size}" font-weight="bold" fill="${txt ? MEAS_RED : '#999999'}" text-anchor="middle">${xText(shown)}</text></g>`;
       }
-      if (!EXPORTING) {                        // on-screen only: wide grab area + end handles
+      if (!EXPORTING && measureKey === key) {  // on-screen, Measure mode only: wide grab area + end handles
           o += `<line data-meas-hit="${key}|${i}|line" x1="${f(m.x1)}" y1="${f(m.y1)}" x2="${f(m.x2)}" y2="${f(m.y2)}" stroke="rgba(0,0,0,0)" stroke-width="12" style="cursor:move"/>` +
                `<circle data-meas-hit="${key}|${i}|p1" cx="${f(m.x1)}" cy="${f(m.y1)}" r="4" fill="#FFFFFF" stroke="${MEAS_RED}" stroke-width="1.2" style="cursor:crosshair"/>` +
                `<circle data-meas-hit="${key}|${i}|p2" cx="${f(m.x2)}" cy="${f(m.y2)}" r="4" fill="#FFFFFF" stroke="${MEAS_RED}" stroke-width="1.2" style="cursor:crosshair"/>`;
@@ -1882,7 +1882,8 @@
   }
   function drawMeasures(page) {
       let key = artKey(page), list = pageMeasures[key] || [];
-      return list.length ? `<g id="Measurements">` + list.map((m, i) => measureSVG(m, key, i)).join('') + `</g>` : '';
+      let inert = !EXPORTING && measureKey !== key ? ' pointer-events="none"' : '';
+      return list.length ? `<g id="Measurements"${inert}>` + list.map((m, i) => measureSVG(m, key, i)).join('') + `</g>` : '';
   }
   function patchMeasure(key, i) {             // redraw one line in place (keeps focus in the toolbar box)
       let g = document.querySelector(`#sheets g[data-meas="${key}|${i}"]`), m = (pageMeasures[key] || [])[i];

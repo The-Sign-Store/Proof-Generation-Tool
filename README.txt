@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.9  (October 12, 2026)
+SIGN PROOF GENERATOR  v1.9.1  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -162,7 +162,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.9)
+WHAT THE APP DOES (v1.9.1)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 19 products and 11 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -229,6 +229,14 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.9.1  (2026-10-13)
+  Fixed
+    - Measurement lines stay out of the way: lines can now only be selected,
+      moved or resized while that page's Measure mode is on. Outside Measure
+      mode they ignore the mouse, so dragging an image underneath a line
+      moves the image and never the line. Lines are still removed with the x
+      beside their value in the page toolbar.
+
 v1.9  (2026-10-12)
   Added
     - Custom colors with CMYK and RGB: choosing Custom on a color field

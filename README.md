@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v1.9** · The Sign Store Online, Inc. · Design Department
+**Current version: v1.9.1** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -102,6 +102,12 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [1.9.1] – 2026-10-13
+#### Fixed
+- **Measurement lines stay out of the way:** lines can now only be selected, moved or resized while that page's Measure mode is on. Outside Measure mode they ignore the mouse, so dragging an image underneath a line moves the image and never the line. Lines are still removed with the x beside their value in the page toolbar.
+
+---
 
 ### [1.9] – 2026-10-12
 #### Added
