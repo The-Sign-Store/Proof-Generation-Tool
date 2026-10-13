@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.8  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.9  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -210,7 +210,7 @@
           name = c.name;
           defs = [{ component: ref, title: c.name, include: 'Required', repeatable: c.repeatable, overrides: '', pageGroup: 1 }];
       }
-      let it = { iid, key, kind, name, defs };
+      let it = { iid, key, kind, name, defs, blanks: [] };
       pkgItems.push(it);
 
       let panel = document.createElement('div');
@@ -232,16 +232,38 @@
           if (!appData.components[d.component]) { group.innerHTML = `<div class="part-card" style="color:#c1272d;">Unknown Component_ID: ${esc(d.component)}</div>`; return; }
           addPart(it, di);
           if (d.repeatable) {
-              let btn = document.createElement('button');
+              let btn = document.createElement('button'), clone = CLONE_COMPONENTS.indexOf(d.component) !== -1;
               btn.type = 'button'; btn.className = 'swatch-btn add-part-btn'; btn.id = `madd-${iid}-${di}`;
-              btn.innerHTML = `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
-              btn.onclick = function () { addPart(it, di); refreshAll(); };
+              btn.innerHTML = clone ? '+ Add Letters' : `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
+              if (clone) btn.title = 'Adds another letter set (e.g. a different letter height) with the same settings as the one above; edit what differs';
+              btn.onclick = function () { addPart(it, di, clone); refreshAll(); };
               group.appendChild(btn);
           }
       });
       body.appendChild(ddBox);
+      let blankBox = document.createElement('div');
+      blankBox.className = 'item-blanks'; blankBox.id = `iblank-${iid}`;
+      body.appendChild(blankBox);
+      let blankBtn = document.createElement('button');
+      blankBtn.type = 'button'; blankBtn.className = 'swatch-btn add-part-btn'; blankBtn.innerHTML = '+ Add Blank Page';
+      blankBtn.title = 'A proof page with the sidebar filled in and an empty art board (for elevations, mockups, site photos)';
+      blankBtn.onclick = function () { addBlank(it); };
+      body.appendChild(blankBtn);
       return it;
   }
+
+  // ---------- blank pages: sidebar + watermark, empty art board, editable title (default "Page") ----------
+  let blankSeq = 0;
+  function addBlank(it) { it.blanks.push({ id: 'b' + (++blankSeq), title: 'Page' }); renderBlanks(it); schedulePreview(); }
+  function removeBlank(iid, bid) { let it = pkgItems.find(x => x.iid === iid); if (!it) return; it.blanks = it.blanks.filter(b => b.id !== bid); renderBlanks(it); schedulePreview(); }
+  function renameBlank(iid, bid, v) { let it = pkgItems.find(x => x.iid === iid), b = it && it.blanks.find(x => x.id === bid); if (b) { b.title = v; schedulePreview(); } }
+  function renderBlanks(it) {
+      let box = document.getElementById(`iblank-${it.iid}`); if (!box) return;
+      box.innerHTML = it.blanks.map((b, i) => `<div class="blank-row"><span class="blank-lab">Blank page ${i + 1}</span>` +
+          `<input type="text" value="${esc(b.title)}" maxlength="40" placeholder="Page" title="Title shown on the page and in the cover contents" oninput="renameBlank('${it.iid}', '${b.id}', this.value)">` +
+          `<span class="part-remove" onclick="removeBlank('${it.iid}', '${b.id}')">[x] Remove</span></div>`).join('');
+  }
+  function blankTitle(b) { return String(b.title || '').trim() || 'Page'; }
 
   function toggleItem(iid) {
       let b = document.getElementById(`ibody-${iid}`), c = document.getElementById(`icaret-${iid}`);
@@ -250,13 +272,30 @@
       c.innerText = open ? '\u25B8' : '\u25BE';
   }
 
-  function addPart(it, di) {
+  // channel letter components: "+ Add Letters" copies the previous letter set's settings into the new one
+  const CLONE_COMPONENTS = ['CHANNEL_LETTERS_FL', 'HALO_LETTERS'];
+  function copyPartValues(fromUid, toUid) {
+      let src = document.getElementById(`part-${fromUid}`), dst = document.getElementById(`part-${toUid}`);
+      if (!src || !dst) return;
+      src.querySelectorAll('[id]').forEach(el => {
+          if (el.id.indexOf(`${fromUid}_`) === -1) return;          // field elements only (not the title, notes or page toggles)
+          let twin = document.getElementById(el.id.replace(`${fromUid}_`, `${toUid}_`)); if (!twin) return;
+          if (el.type === 'checkbox') twin.checked = el.checked;
+          else if ('value' in el && el.tagName !== 'BUTTON') twin.value = el.value;
+          else if (el.tagName === 'SPAN' && /^mtxt-/.test(el.id)) twin.innerText = el.innerText;
+          if (/^mcol-/.test(el.id)) { twin.style.background = el.style.background; twin.innerHTML = el.innerHTML; }
+          if (el.style && el.style.display) twin.style.display = el.style.display;
+          if (el.classList && el.classList.contains('cc-approx')) twin.classList.add('cc-approx');
+      });
+  }
+
+  function addPart(it, di, clone) {
       let d = it.defs[di];
       let comp = appData.components[d.component];
       let num = allParts.filter(p => p.iid === it.iid && p.di === di).length + 1;
       let uid = 'p' + (++partSeq);
       let optional = d.include !== 'Required';
-      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', include: d.include,
+      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, include: d.include,
                    enabled: d.include !== 'Optional-Off', overrides: parseOverrides(d.overrides), num };
       allParts.push(part);
 
@@ -269,6 +308,7 @@
                            oninput="renamePart('${uid}', this.value)" onblur="renameDone('${uid}')"
                            onkeydown="if (event.key === 'Enter') this.blur()">
                     <span>
+                      <label class="part-toggle" title="Start this section's table on a new proof page"><input type="checkbox" id="pnew-${uid}" onchange="togglePartNewPage('${uid}')"> New page</label>
                       ${optional && num === 1 ? `<label class="part-toggle"><input type="checkbox" id="pinc-${uid}" ${part.enabled ? 'checked' : ''} onchange="togglePart('${uid}')"> Include</label>` : ''}
                       ${num > 1 ? `<span class="part-remove" onclick="removePart('${uid}')">[x] Remove</span>` : ''}
                     </span>
@@ -292,6 +332,10 @@
       let group = document.getElementById(`mgroup-${it.iid}-${di}`);
       let addBtn = document.getElementById(`madd-${it.iid}-${di}`);
       if (addBtn) group.insertBefore(card, addBtn); else group.appendChild(card);
+      if (clone) {
+          let prev = allParts.filter(p => p.iid === it.iid && p.di === di && p.uid !== uid).pop();
+          if (prev) copyPartValues(prev.uid, uid);
+      }
   }
 
   // ---------- section names: default "Acrylic" / "Acrylic 1", "Acrylic 2" ..., editable by the user ----------
@@ -331,6 +375,12 @@
   function setPartNotes(uid, v) { let p = allParts.find(x => x.uid === uid); if (p) { p.notes = String(v || ''); schedulePreview(); } }
   function partNotes(part) { return part.notesOn ? String(part.notes || '').trim() : ''; }
 
+  function togglePartNewPage(uid) {
+      let p = allParts.find(x => x.uid === uid); if (!p) return;
+      p.newPage = document.getElementById(`pnew-${uid}`).checked;
+      schedulePreview();
+  }
+
   function togglePart(uid) {
       let p = allParts.find(x => x.uid === uid); if (!p) return;
       p.enabled = document.getElementById(`pinc-${uid}`).checked;
@@ -360,10 +410,70 @@
 
   function paintBlock(fid) {
       return `<select id="mb-${fid}" style="margin-bottom:5px;" onchange="paintBrandChanged('${fid}')">
-                <option value="SW">Sherwin Williams</option><option value="PMS">PMS</option><option value="CUSTOM">Custom Input...</option>
+                <option value="SW">Sherwin Williams</option><option value="PMS">PMS</option><option value="CUSTOM">Custom Color (CMYK / RGB)</option>
               </select>
               ${swatchBtn(fid, `openPaintModal('${fid}')`, '', '')}
-              <input type="text" id="mcust-${fid}" placeholder="Type custom color..." style="display:none; margin-top:5px;" oninput="refreshAll()">`;
+              ${ccPanel(fid, false)}`;
+  }
+
+  // ---------- custom color: name + CMYK + RGB; whichever set is typed, the other is calculated (approx.) ----------
+  const CC_CMYK = ['c', 'm', 'y', 'k'], CC_RGB = ['r', 'g', 'b'];
+  function ccPanel(fid, show) {
+      let box = (k, max, set) => `<input type="number" min="0" max="${max}" step="1" id="mcc${k}-${fid}" placeholder="${k.toUpperCase()}" title="${k.toUpperCase()} (0-${max})" oninput="ccInput('${fid}', '${set}')">`;
+      return `<div class="cc-panel" id="mcc-${fid}" style="display:${show ? 'block' : 'none'};">
+                <input type="text" id="mccn-${fid}" class="cc-name" placeholder="Color name (e.g. Client brand blue)" oninput="refreshAll()">
+                <div class="cc-row"><span class="cc-lab">CMYK</span>${CC_CMYK.map(k => box(k, 100, 'cmyk')).join('')}</div>
+                <div class="cc-row"><span class="cc-lab">RGB</span>${CC_RGB.map(k => box(k, 255, 'rgb')).join('')}<span class="cc-swatch" id="mccsw-${fid}"></span></div>
+                <div class="cc-note">Type CMYK or RGB; the other set is calculated and marked approx.</div>
+                <input type="hidden" id="mccsrc-${fid}" value="">
+              </div>`;
+  }
+  function ccNum(id, max) { let el = document.getElementById(id); if (!el || el.value === '') return null; let v = Math.round(Number(el.value)); return isNaN(v) ? null : Math.max(0, Math.min(max, v)); }
+  function ccInput(fid, set) {
+      document.getElementById(`mccsrc-${fid}`).value = set;
+      let cm = CC_CMYK.map(k => ccNum(`mcc${k}-${fid}`, 100)), rg = CC_RGB.map(k => ccNum(`mcc${k}-${fid}`, 255));
+      let put = (keys, vals, approx) => keys.forEach((k, i) => { let el = document.getElementById(`mcc${k}-${fid}`); el.value = vals ? vals[i] : ''; el.classList.toggle('cc-approx', approx && !!vals); });
+      if (set === 'cmyk') {
+          let any = cm.some(v => v !== null), c = cm.map(v => (v || 0) / 100);
+          put(CC_RGB, any ? [0, 1, 2].map(i => Math.round(255 * (1 - c[i]) * (1 - c[3]))) : null, true);
+          put(CC_CMYK, any ? cm.map(v => v || 0) : null, false);
+      } else {
+          let any = rg.some(v => v !== null), r = rg.map(v => (v || 0) / 255), k = 1 - Math.max(r[0], r[1], r[2]);
+          put(CC_CMYK, any ? [0, 1, 2].map(i => k >= 1 ? 0 : Math.round(100 * (1 - r[i] - k) / (1 - k))).concat([Math.round(100 * k)]) : null, true);
+          put(CC_RGB, any ? rg.map(v => v || 0) : null, false);
+      }
+      let hex = ccHex(fid), sw = document.getElementById(`mccsw-${fid}`); if (sw) sw.style.background = hex || '#fff';
+      refreshAll();
+  }
+  function ccHex(fid) {
+      let rg = CC_RGB.map(k => ccNum(`mcc${k}-${fid}`, 255));
+      return rg.some(v => v === null) ? '' : '#' + rg.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+  // "Custom: Client Brand Blue · C100 M60 Y0 K10 · R0 G102 B178 (approx.)"
+  function ccValue(fid, required) {
+      let name = (document.getElementById(`mccn-${fid}`) || {}).value || '', src = document.getElementById(`mccsrc-${fid}`).value;
+      let cm = CC_CMYK.map(k => ccNum(`mcc${k}-${fid}`, 100)), rg = CC_RGB.map(k => ccNum(`mcc${k}-${fid}`, 255));
+      let hasC = cm.every(v => v !== null), hasR = rg.every(v => v !== null);
+      let parts = [`Custom${name.trim() ? ': ' + name.trim() : ''}`];
+      if (hasC) parts.push(`C${cm[0]} M${cm[1]} Y${cm[2]} K${cm[3]}${src === 'rgb' ? ' (approx.)' : ''}`);
+      if (hasR) parts.push(`R${rg[0]} G${rg[1]} B${rg[2]}${src === 'cmyk' ? ' (approx.)' : ''}`);
+      if (!name.trim() && !hasC && !hasR) return required ? { val: 'Enter Custom Color', hex: '', warn: true } : { val: '', hex: '', warn: false };
+      return { val: parts.join(' \u00B7 '), hex: ccHex(fid), warn: false };
+  }
+  // vinyl / db / rowmark pickers: "Custom color" checkbox swaps the swatch button for the custom panel
+  function ccToggle(fid) {
+      let on = document.getElementById(`mccon-${fid}`).checked;
+      document.getElementById(`mcc-${fid}`).style.display = on ? 'block' : 'none';
+      let btn = document.getElementById(`mbtn-${fid}`); if (btn) btn.style.display = on ? 'none' : 'flex';
+      refreshAll();
+  }
+  function ccLayout() {
+      document.querySelectorAll('.cc-panel').forEach(pn => {
+          let g = pn.closest('.form-group'); if (g) g.classList.toggle('cc-open', pn.style.display === 'block');
+      });
+  }
+  function ccSwitch(fid) {
+      return `<label class="cc-toggle"><input type="checkbox" id="mccon-${fid}" onchange="ccToggle('${fid}')"> Custom color (CMYK / RGB)</label>` + ccPanel(fid, false);
   }
 
   function renderField(part, f, fi) {
@@ -385,7 +495,9 @@
               if (def && opts.indexOf(def) === -1) opts.unshift(def);
               html += `<select id="mf-${fid}" onchange="refreshAll()">`;
               opts.forEach(o => html += `<option value="${esc(o)}" ${o === def ? 'selected' : ''}>${esc(o)}</option>`);
-              html += `<option value="CUSTOM">-- Custom Input --</option></select>
+              html += f.type === 'color'
+                  ? `<option value="CUSTOM">-- Custom Color (CMYK / RGB) --</option></select>${ccPanel(fid, false)}`
+                  : `<option value="CUSTOM">-- Custom Input --</option></select>
                        <input type="text" id="mc-${fid}" placeholder="Custom value" style="display:none; margin-top:5px;" oninput="refreshAll()">`;
               break;
           case 'dims': {
@@ -410,16 +522,16 @@
               let defSeries = series.indexOf(def) !== -1 ? def : series[0];
               html += `<select id="mser-${fid}" style="margin-bottom:5px;" onchange="clearSwatch('${fid}')">`;
               series.forEach(s => html += `<option value="${esc(s)}" ${s === defSeries ? 'selected' : ''}>Oracal ${esc(s)}</option>`);
-              html += `</select>` + swatchBtn(fid, `openVinylModal('${fid}')`, '', '');
+              html += `</select>` + swatchBtn(fid, `openVinylModal('${fid}')`, '', '') + ccSwitch(fid);
               break;
           }
           case 'db': {
               let hit = getModDb(f.options).find(c => c.name === def);
-              html += swatchBtn(fid, `openDbModal('${fid}', '${esc(f.options)}', '${esc(f.variable)}')`, hit ? hit.name : '', hit ? hit.hex : '');
+              html += swatchBtn(fid, `openDbModal('${fid}', '${esc(f.options)}', '${esc(f.variable)}')`, hit ? hit.name : '', hit ? hit.hex : '') + ccSwitch(fid);
               break;
           }
           case 'rowmark':
-              html += swatchBtn(fid, `openRowmarkModal('${fid}', ${fi})`, '', ''); break;
+              html += swatchBtn(fid, `openRowmarkModal('${fid}', ${fi})`, '', '') + ccSwitch(fid); break;
           case 'pictogram':
               html += swatchBtn(fid, `openPictoModal('${fid}')`, '', '', 'Select Pictogram', true); break;
           default:
@@ -431,7 +543,7 @@
   function paintBrandChanged(fid) {
       let brand = document.getElementById(`mb-${fid}`).value;
       document.getElementById(`mbtn-${fid}`).style.display = brand === 'CUSTOM' ? 'none' : 'flex';
-      document.getElementById(`mcust-${fid}`).style.display = brand === 'CUSTOM' ? 'block' : 'none';
+      document.getElementById(`mcc-${fid}`).style.display = brand === 'CUSTOM' ? 'block' : 'none';
       clearSwatch(fid);
   }
 
@@ -560,10 +672,13 @@
               if (g) g.style.display = evalShowIf(part, f.showIf) ? 'flex' : 'none';
               let mf = document.getElementById(`mf-${fid}`), mc = document.getElementById(`mc-${fid}`), mp = document.getElementById(`mpaint-${fid}`);
               if (mc && mf) mc.style.display = mf.value === 'CUSTOM' ? 'block' : 'none';
+              let mcc = document.getElementById(`mcc-${fid}`);
+              if (mcc && mf && f.type === 'color') mcc.style.display = mf.value === 'CUSTOM' ? 'block' : 'none';
               if (mp && mf) mp.style.display = mf.value === CUSTOM_PAINT ? 'block' : 'none';
           });
       });
       syncPartTitles();
+      ccLayout();
       schedulePreview();
   }
 
@@ -574,8 +689,7 @@
       let r = { val: '', hex: '', svg: null, warn: false, warnLabel: 'MISSING', gradient: false };
       let paintValue = () => {
           if (byId(`mb-${fid}`).value === 'CUSTOM') {
-              let c = byId(`mcust-${fid}`).value.trim();
-              if (c) r.val = `Custom: ${c}`; else if (f.required) { r.val = 'Type Custom Color'; r.warn = true; }
+              Object.assign(r, ccValue(fid, f.required));
           } else {
               r.val = byId(`mpv-${fid}`).value; r.hex = byId(`mhex-${fid}`).value;
               if (!r.val && f.required) { r.val = 'Select Swatch'; r.warn = true; }
@@ -600,11 +714,12 @@
           }
           case 'color': {
               let v = byId(`mf-${fid}`).value;
-              if (v === 'CUSTOM') r.val = byId(`mc-${fid}`).value.trim(); else { r.val = v; r.hex = colorHex(v); }
+              if (v === 'CUSTOM') Object.assign(r, ccValue(fid, f.required)); else { r.val = v; r.hex = colorHex(v); }
               break;
           }
           case 'fullcolor': r.val = 'Full Color Digital'; r.gradient = true; break;
           case 'vinyl': case 'db': case 'rowmark':
+              if (byId(`mccon-${fid}`) && byId(`mccon-${fid}`).checked) { Object.assign(r, ccValue(fid, f.required)); break; }
               r.val = byId(`mpv-${fid}`).value; r.hex = byId(`mhex-${fid}`).value;
               if (!r.val && f.required) { r.val = 'Select Swatch'; r.warn = true; }
               break;
@@ -755,7 +870,15 @@
   // =====================================================================
   //  PAGINATION
   // =====================================================================
+  // a section marked "New page" starts a new proof page; sections after it continue from there
   function paginateBlocks(blocks) {
+      let segs = [[]];
+      blocks.forEach(b => { if (b.newPage && segs[segs.length - 1].length) segs.push([]); segs[segs.length - 1].push(b); });
+      let pages = [];
+      segs.forEach(seg => paginateSegment(seg).forEach(pg => pages.push(pg)));
+      return pages;
+  }
+  function paginateSegment(blocks) {
       let groups = [];
       blocks.forEach(b => { let g = groups.find(x => x.key === b.pageGroup); if (!g) { g = { key: b.pageGroup, items: [] }; groups.push(g); } g.items.push(b); });
       groups.sort((x, y) => x.key - y.key);
@@ -782,21 +905,22 @@
               appData.components[part.comp].fields.forEach(f => { if (zones.indexOf(f.zone) === -1) zones.push(f.zone); });
               let cols = zones.map(z => items.filter(i => i.zone === z)).filter(c => c.length);
               if (!cols.length) return;
-              blocks.push({ part, title: partLabel(part), cols, notes: partNotes(part),
+              blocks.push({ part, title: partLabel(part), cols, notes: partNotes(part), newPage: part.newPage,
                             rows: Math.max.apply(null, cols.map(c => c.length)),
                             pageGroup: Number(it.defs[part.di].pageGroup) || (part.di + 1) });
           });
-          let ip = paginateBlocks(blocks);
-          if (!ip.length) ip = [[]];
-          let matched = [];
+          let ip = paginateBlocks(blocks), blanks = it.blanks || [];
+          if (!ip.length && !blanks.length) ip = [[]];
+          let matched = [], total = ip.length + blanks.length;
           ip.forEach((pb, n) => {
               let dr = pageDrawings(it, pb);
               dr.all.forEach(m => { if (!matched.some(x => x.d.id === m.d.id)) matched.push(m); });
-              pages.push({ item: it, blocks: pb, n: n + 1, total: ip.length, drawings: dr.shown });
+              pages.push({ item: it, blocks: pb, n: n + 1, total, drawings: dr.shown });
           });
+          blanks.forEach((b, k) => pages.push({ item: it, blocks: [], n: ip.length + k + 1, total, drawings: [], blank: true, title: blankTitle(b) }));
           renderItemDrawings(it, matched);
           let tag = document.getElementById(`ipages-${it.iid}`);
-          if (tag) tag.innerText = `${ip.length} page${ip.length > 1 ? 's' : ''}`;
+          if (tag) tag.innerText = `${total} page${total > 1 ? 's' : ''}`;
       });
       return pages;
   }
@@ -1098,7 +1222,7 @@
               `width="11in" height="8.5in" viewBox="0 0 ${PG.W} ${PG.H}">` +
               `<defs><linearGradient id="fullcolor" x1="0" y1="0" x2="1" y2="0">` +
               ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#8b00ff'].map((c, i) => `<stop offset="${(i / 6).toFixed(3)}" stop-color="${c}"/>`).join('') +
-              `</linearGradient><clipPath id="abclip"><rect x="${AB.x}" y="${AB.y}" width="${AB.w}" height="${AB.h}"/></clipPath></defs>` +
+              `</linearGradient>` + (EXPORTING ? '' : `<clipPath id="abclip"><rect x="${AB.x}" y="${AB.y}" width="${AB.w}" height="${AB.h}"/></clipPath>`) + `</defs>` +
               R(0, 0, PG.W, PG.H, '#FFFFFF');
       o += `<g id="Artboard">` + R(AB.x, AB.y, AB.w, AB.h, '#FFFFFF');
       if (String(TEMPLATE.Watermark || 'On').toUpperCase() !== 'OFF')
@@ -1107,7 +1231,8 @@
       o += drawArt(page, artRegion(page, lay));          // screenshots / artwork (under the table)
       if (lay) o += drawTable(page, lay, AB.x + 26, AB.y + AB.h - 30);
       o += drawDetails(page.drawings || []);
-      o += T(AB.x + AB.w - 10, AB.y + AB.h - 9, `${page.item.name.toUpperCase()} \u00B7 PAGE ${page.n}/${page.total}`, 6.5, { anchor: 'end', bold: true, fill: '#C1272D' });
+      o += drawMeasures(page);
+      o += T(AB.x + AB.w - 10, AB.y + AB.h - 9, `${page.item.name.toUpperCase()}${page.blank ? ' \u00B7 ' + page.title.toUpperCase() : ''} \u00B7 PAGE ${page.n}/${page.total}`, 6.5, { anchor: 'end', bold: true, fill: '#C1272D' });
       o += R(AB.x, AB.y, AB.w, AB.h, 'none', LINE, 0.8) + `</g>`;
       o += drawSidebar(info, pkgN, pkgTotal) + drawFooter();
       return o + `</svg>`;
@@ -1364,10 +1489,10 @@
           let subs = [];
           pages.forEach((p, i) => {
               if (p.item.iid !== it.iid) return;
-              p.blocks.forEach(bk => {
+              (p.blank ? [{ title: p.title, part: null }] : p.blocks).forEach(bk => {
                   let s = subs.find(x => x.text === bk.title);
-                  if (s) { if (s.last !== i + 1 + off) s.pg.push(i + 1 + off); s.last = i + 1 + off; if (s.parts.indexOf(bk.part) === -1) s.parts.push(bk.part); }
-                  else subs.push({ text: bk.title, pg: [i + 1 + off], last: i + 1 + off, parts: [bk.part] });
+                  if (s) { if (s.last !== i + 1 + off) s.pg.push(i + 1 + off); s.last = i + 1 + off; if (bk.part && s.parts.indexOf(bk.part) === -1) s.parts.push(bk.part); }
+                  else subs.push({ text: bk.title, pg: [i + 1 + off], last: i + 1 + off, parts: bk.part ? [bk.part] : [] });
               });
           });
           // a single section named like the product adds nothing: skip it
@@ -1630,16 +1755,32 @@
       return { x: cx - w / 2, y: cy - h / 2, w, h };
   }
 
+  // EXPORTING = true while the package is built: no clip paths (each image is cropped to the art board instead,
+  // so CorelDRAW imports plain images, not locked PowerClips) and no on-screen handles.
+  let EXPORTING = false;
   function drawArt(page, region) {
       let arts = pageArt[artKey(page)] || [];
       if (!arts.length || region.w < 40 || region.h < 40) return '';
-      let o = `<g id="Artwork" clip-path="url(#abclip)">`;
+      let o = EXPORTING ? `<g id="Artwork">` : `<g id="Artwork" clip-path="url(#abclip)">`;
       arts.forEach((a, i) => {
-          let r = artPlacement(region, arts.length, i, a);
+          let r = artPlacement(region, arts.length, i, a), src = a.src;
+          if (EXPORTING) { let c = cropArt(a, r); if (!c) return; r = c; src = c.src; }
           o += `<g id="Artwork_${i + 1}"><image data-art="${artKey(page)}|${i}" x="${r.x.toFixed(2)}" y="${r.y.toFixed(2)}" width="${r.w.toFixed(2)}" ` +
-               `height="${r.h.toFixed(2)}" preserveAspectRatio="none" xlink:href="${a.src}"/></g>`;
+               `height="${r.h.toFixed(2)}" preserveAspectRatio="none" xlink:href="${src}"/></g>`;
       });
       return o + `</g>`;
+  }
+  // the part of an image that falls inside the art board, as its own JPEG (null = entirely outside)
+  function cropArt(a, r) {
+      const AB = PG.AB;
+      let x0 = Math.max(r.x, AB.x), y0 = Math.max(r.y, AB.y), x1 = Math.min(r.x + r.w, AB.x + AB.w), y1 = Math.min(r.y + r.h, AB.y + AB.h);
+      if (x1 - x0 < 0.5 || y1 - y0 < 0.5) return null;
+      if (x0 <= r.x && y0 <= r.y && x1 >= r.x + r.w && y1 >= r.y + r.h) return { x: r.x, y: r.y, w: r.w, h: r.h, src: a.src };
+      if (!a.canvas) return { x: r.x, y: r.y, w: r.w, h: r.h, src: a.src };
+      let kx = a.w / r.w, ky = a.h / r.h, sx = (x0 - r.x) * kx, sy = (y0 - r.y) * ky, sw = (x1 - x0) * kx, sh = (y1 - y0) * ky;
+      let c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw)); c.height = Math.max(1, Math.round(sh));
+      c.getContext('2d').drawImage(a.canvas, sx, sy, sw, sh, 0, 0, c.width, c.height);
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, src: c.toDataURL('image/jpeg', 0.9) };
   }
 
   // read a file -> downscaled JPEG data URI (white behind transparent PNG areas)
@@ -1653,7 +1794,7 @@
                   let c = document.createElement('canvas');
                   c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
                   let ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
-                  resolve({ src: c.toDataURL('image/jpeg', 0.9), w: c.width, h: c.height, scale: 1, dx: 0, dy: 0, name: file.name || 'pasted image' });
+                  resolve({ src: c.toDataURL('image/jpeg', 0.9), canvas: c, w: c.width, h: c.height, scale: 1, dx: 0, dy: 0, name: file.name || 'pasted image' });
               };
               img.onerror = () => reject(new Error('Not an image: ' + (file.name || 'pasted item')));
               img.src = fr.result;
@@ -1694,14 +1835,111 @@
       let key = artKey(p), arts = pageArt[key] || [];
       let b = (fn, label, title) => `<button type="button" class="st-btn" title="${title}" onclick="event.stopPropagation(); ${fn}">${label}</button>`;
       return `<div class="sheet-tools${key === activeArtKey ? ' active' : ''}" data-key="${key}" onclick="setActiveArt('${key}', true)" title="Click to select this page for Ctrl+V; click again to deselect">` +
-             `<span class="st-title">Page ${pageNo} &middot; ${esc(p.item.name)} ${p.n}/${p.total}</span>` +
+             `<span class="st-title">Page ${pageNo} &middot; ${esc(p.item.name)}${p.blank ? ' &middot; ' + esc(p.title) : ''} ${p.n}/${p.total}</span>` +
              b(`pickArt('${key}')`, '+ Add image', 'Add JPEG / PNG artwork or screenshots to this page') +
              (arts.length ? '' : `<span class="st-hint">${key === activeArtKey ? 'selected: press Ctrl+V to paste here (click the bar again to deselect)' : 'or drop a file here / click this bar and press Ctrl+V'}</span>`) +
              arts.map((a, j) => `<span class="st-img" title="${esc(a.name)}">Image ${j + 1}` +
                  b(`artScale('${key}', ${j}, 0.9)`, '&minus;', 'Smaller') + b(`artScale('${key}', ${j}, 1.1)`, '+', 'Larger') +
                  b(`artFit('${key}', ${j})`, 'Fit', 'Reset size and position') + b(`artRemove('${key}', ${j})`, '&times;', 'Remove this image') + `</span>`).join('') +
-             (arts.length ? `<span class="st-hint">drag an image to move it</span>` : '') + `</div>`;
+             (arts.length ? `<span class="st-hint">drag an image to move it</span>` : '') +
+             `<button type="button" class="st-btn st-measure${measureKey === key ? ' on' : ''}" title="Draw dimension lines: click, drag and release on the page (Shift = straight). Esc or click again to stop." ` +
+             `onclick="event.stopPropagation(); toggleMeasure('${key}')">${measureKey === key ? 'Measuring\u2026 (Esc)' : 'Measure'}</button>` +
+             (pageMeasures[key] || []).map((m, j) => `<span class="st-img st-meas" title="Value printed on the line (inches)">M${j + 1}` +
+                 `<input type="text" id="meas-${key}-${j}" value="${esc(m.label)}" placeholder="inches" onclick="event.stopPropagation()" ` +
+                 `oninput="setMeasureLabel('${key}', ${j}, this.value)">` +
+                 b(`removeMeasure('${key}', ${j})`, '&times;', 'Remove this measurement') + `</span>`).join('') + `</div>`;
   }
+
+  // =====================================================================
+  //  MEASUREMENTS: red dimension lines with a typed value (inches), drawn over the page
+  // =====================================================================
+  const MEAS_RED = '#E00000';
+  let pageMeasures = {}, measureKey = null;
+  function measureText(label) {
+      let t = String(label || '').trim();
+      return /^\d+(\.\d+)?$/.test(t) ? t + '"' : t;          // 48 -> 48"; anything else as typed
+  }
+  function measureSVG(m, key, i) {
+      let dx = m.x2 - m.x1, dy = m.y2 - m.y1, len = Math.hypot(dx, dy) || 1;
+      let ux = dx / len, uy = dy / len, nx = -uy, ny = ux, t = 5;
+      let ang = Math.atan2(dy, dx) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang <= -90) ang += 180;
+      let f = v => v.toFixed(2), tick = (x, y) => L(x - nx * t, y - ny * t, x + nx * t, y + ny * t, MEAS_RED, 1.2);
+      let txt = measureText(m.label), shown = txt || (EXPORTING ? '' : '?');
+      let o = `<g id="Measure_${i + 1}" data-meas="${key}|${i}">` + L(m.x1, m.y1, m.x2, m.y2, MEAS_RED, 1.2) + tick(m.x1, m.y1) + tick(m.x2, m.y2);
+      if (shown) {
+          // label centred on the line, on a white box, rotated to follow the line (kept upright)
+          let cx = (m.x1 + m.x2) / 2, cy = (m.y1 + m.y2) / 2, size = 10, w = tw(shown, size, true) + 8, h = size + 5;
+          o += `<g transform="translate(${f(cx)} ${f(cy)}) rotate(${f(ang)})">` +
+               `<rect x="${f(-w / 2)}" y="${f(-h / 2)}" width="${f(w)}" height="${f(h)}" fill="#FFFFFF"/>` +
+               `<text x="0" y="${f(size * 0.36)}" font-family="Arial" font-size="${size}" font-weight="bold" fill="${txt ? MEAS_RED : '#999999'}" text-anchor="middle">${xText(shown)}</text></g>`;
+      }
+      if (!EXPORTING) {                        // on-screen only: wide grab area + end handles
+          o += `<line data-meas-hit="${key}|${i}|line" x1="${f(m.x1)}" y1="${f(m.y1)}" x2="${f(m.x2)}" y2="${f(m.y2)}" stroke="rgba(0,0,0,0)" stroke-width="12" style="cursor:move"/>` +
+               `<circle data-meas-hit="${key}|${i}|p1" cx="${f(m.x1)}" cy="${f(m.y1)}" r="4" fill="#FFFFFF" stroke="${MEAS_RED}" stroke-width="1.2" style="cursor:crosshair"/>` +
+               `<circle data-meas-hit="${key}|${i}|p2" cx="${f(m.x2)}" cy="${f(m.y2)}" r="4" fill="#FFFFFF" stroke="${MEAS_RED}" stroke-width="1.2" style="cursor:crosshair"/>`;
+      }
+      return o + `</g>`;
+  }
+  function drawMeasures(page) {
+      let key = artKey(page), list = pageMeasures[key] || [];
+      return list.length ? `<g id="Measurements">` + list.map((m, i) => measureSVG(m, key, i)).join('') + `</g>` : '';
+  }
+  function patchMeasure(key, i) {             // redraw one line in place (keeps focus in the toolbar box)
+      let g = document.querySelector(`#sheets g[data-meas="${key}|${i}"]`), m = (pageMeasures[key] || [])[i];
+      if (!g || !m) return;
+      let tmp = document.createElementNS('http:' + '/' + '/www.w3.org/2000/svg', 'svg');
+      tmp.innerHTML = measureSVG(m, key, i);
+      g.replaceWith(tmp.firstChild);
+  }
+  function toggleMeasure(key) {
+      measureKey = measureKey === key ? null : key;
+      if (measureKey) toast('Measure: click, drag and release on the page. Hold Shift for a straight line. Esc to stop.');
+      renderPreview();
+  }
+  function setMeasureLabel(key, i, v) { let m = (pageMeasures[key] || [])[i]; if (m) { m.label = v; patchMeasure(key, i); } }
+  function removeMeasure(key, i) { let l = pageMeasures[key] || []; l.splice(i, 1); if (!l.length) delete pageMeasures[key]; renderPreview(); }
+  function svgPoint(svg, e) { let pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
+  function straighten(ax, ay, bx, by, shift) { return !shift ? [bx, by] : (Math.abs(bx - ax) >= Math.abs(by - ay) ? [bx, ay] : [ax, by]); }
+  // capture phase: measuring wins over image dragging
+  document.addEventListener('pointerdown', e => {
+      if (!e.target.closest) return;
+      let hit = e.target.closest('[data-meas-hit]');
+      if (hit) {                                   // move a line, or drag one of its ends
+          e.preventDefault(); e.stopPropagation();
+          let [key, idx, part] = hit.getAttribute('data-meas-hit').split('|'), m = (pageMeasures[key] || [])[+idx];
+          if (!m) return;
+          let svg = hit.ownerSVGElement, start = svgPoint(svg, e), o = { x1: m.x1, y1: m.y1, x2: m.x2, y2: m.y2 };
+          let move = ev => {
+              let pt = svgPoint(svg, ev), dx = pt.x - start.x, dy = pt.y - start.y;
+              if (part === 'line') { m.x1 = o.x1 + dx; m.y1 = o.y1 + dy; m.x2 = o.x2 + dx; m.y2 = o.y2 + dy; }
+              else if (part === 'p1') [m.x1, m.y1] = straighten(m.x2, m.y2, pt.x, pt.y, ev.shiftKey);
+              else [m.x2, m.y2] = straighten(m.x1, m.y1, pt.x, pt.y, ev.shiftKey);
+              patchMeasure(key, +idx);
+          };
+          let up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); renderPreview(); };
+          document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+          return;
+      }
+      if (!measureKey) return;
+      let sheet = e.target.closest('.sheet[data-key]');
+      if (!sheet || sheet.dataset.key !== measureKey) return;
+      e.preventDefault(); e.stopPropagation();
+      let key = measureKey, svg = sheet.querySelector('svg'), a = svgPoint(svg, e);
+      let list = pageMeasures[key] = pageMeasures[key] || [], m = { x1: a.x, y1: a.y, x2: a.x, y2: a.y, label: '' }, i = list.length;
+      list.push(m);
+      let host = svg.querySelector('#Measurements');
+      if (!host) { svg.insertAdjacentHTML('beforeend', '<g id="Measurements"></g>'); host = svg.querySelector('#Measurements'); }
+      host.insertAdjacentHTML('beforeend', `<g data-meas="${key}|${i}"></g>`);
+      let move = ev => { let pt = svgPoint(svg, ev); [m.x2, m.y2] = straighten(m.x1, m.y1, pt.x, pt.y, ev.shiftKey); patchMeasure(key, i); };
+      let up = () => {
+          document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up);
+          if (Math.hypot(m.x2 - m.x1, m.y2 - m.y1) < 6) list.pop();      // a click, not a line
+          if (!list.length) delete pageMeasures[key];
+          renderPreview();
+          let box = document.getElementById(`meas-${key}-${i}`); if (box) box.focus();
+      };
+      document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+  }, true);
 
   // paste a screenshot (Ctrl+V) onto the active page, or the first page
   document.addEventListener('paste', e => {
@@ -1713,7 +1951,11 @@
       addArtFiles(activeArtKey, files);
   });
   // Esc or a click on the empty preview background deselects the page
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && activeArtKey) setActiveArt(null); });
+  document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (measureKey) { measureKey = null; renderPreview(); return; }
+      if (activeArtKey) setActiveArt(null);
+  });
   document.addEventListener('click', e => {
       if (!activeArtKey || !e.target.closest) return;
       if (e.target.closest('#preview-area') && !e.target.closest('.sheet-tools') && !e.target.closest('.sheet')) setActiveArt(null);
@@ -1763,7 +2005,7 @@
           let off = coverOn() && pages.length ? 1 : 0, total = pages.length + off, html = '';
           if (off) html += `<div class="sheet">${strip(buildCoverSVG(pages, info, total))}</div>`;
           html += pages.map((p, i) => artToolbar(p, i + 1 + off) +
-              `<div class="sheet${artKey(p) === activeArtKey ? ' active' : ''}" data-key="${artKey(p)}">${strip(buildSheetSVG(p, i + 1 + off, total, info))}</div>`).join('');
+              `<div class="sheet${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildSheetSVG(p, i + 1 + off, total, info))}</div>`).join('');
           if (qaOn() && pages.length) {
               html += `<div class="sheet-label">QA CHECKLIST \u00B7 exported in the package's QA_Checklist folder (not for the customer)</div>`;
               html += buildQAPages(pages, info, total).map(svg => `<div class="sheet portrait">${strip(svg)}</div>`).join('');
@@ -1892,7 +2134,7 @@
       if (off) { jobs.push({ dir: '', file: `${base} - p01`, svg: () => buildCoverSVG(pages, info, total) }); pageNames.push(['Page01', 'COVER']); }
       pages.forEach((p, i) => {
           jobs.push({ dir: '', file: `${base} - p${pad(i + 1 + off)}`, svg: () => buildSheetSVG(p, i + 1 + off, total, info) });
-          pageNames.push([`Page${pad(i + 1 + off)}`, `${p.item.name.toUpperCase()} ${p.n}/${p.total}`]);
+          pageNames.push([`Page${pad(i + 1 + off)}`, `${p.item.name.toUpperCase()}${p.blank ? ' ' + p.title.toUpperCase() : ''} ${p.n}/${p.total}`]);
       });
       if (qaOn() && pages.length) {
           let qa = buildQAPages(pages, info, total);
@@ -1906,6 +2148,7 @@
           else { saveBlob(blob, name.split('/').pop()); await new Promise(r => setTimeout(r, 400)); }
       };
       try {
+          EXPORTING = true;
           let qaJpegs = [];
           for (let i = 0; i < jobs.length; i++) {
               btn.innerHTML = `Generating ${i + 1} of ${jobs.length}...`;
@@ -1930,6 +2173,7 @@
       } catch (e) {
           alert('Export failed: ' + e.message);
       } finally {
+          EXPORTING = false;
           btn.innerHTML = label;
       }
   }

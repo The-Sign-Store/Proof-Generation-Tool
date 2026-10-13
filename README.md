@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v1.8** · The Sign Store Online, Inc. · Design Department
+**Current version: v1.9** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -16,11 +16,15 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 
 ### Proof builder
 - **Data-driven:** every product, component, field, option, default, rule, drawing and design standard lives in the Google Sheet. You change the sheet, not the code.
-- **17 products and 23 modular components:** pole signs, channel letters, cabinets, monuments, banners, decals, ADA and more. You can mix products and stand-alone components in one package.
+- **19 products and 24 modular components:** pole signs, channel letters, cloud letters, cabinets, monuments, banners, decals, ADA and more. You can mix products and stand-alone components in one package.
 - **Conditional specs:** `Show_If` rules, required fields, and live color and material pickers. The pickers cover Oracal, Sherwin-Williams, PMS, ACM, acrylic, LED, trim cap and ADA pictograms.
 - **26 vector detail drawings:** mounting, letter construction, cabinets, footers/poles and panel finishing. Each drawing is added automatically when its specs match, with live values such as embed depth, return depth and trim cap.
 - **Editable section names:** rename any section, e.g. "Acrylic 2" to "Front Menu". The new name carries through to the proof sheet, cover contents and QA checklist.
 - **Special notes per section:** check **Add Special Notes** on any section and type. The notes print in a gold-edged **SPECIAL NOTES** column beside that section's table on the proof sheet. Unchecking hides them but keeps the text.
+- **Custom colors:** any color field takes a custom color by name plus CMYK or RGB; the other set is calculated and marked "(approx.)".
+- **Page control:** a "New page" toggle per section, and blank pages per product (sidebar and watermark, empty art board, editable title).
+- **Mixed letter sizes:** "+ Add Letters" on channel and cloud letters adds a letter set that copies the one above.
+- **Measurement lines:** draw red dimension lines over images on any page, type the value in inches, move and resize them; they export as editable SVG.
 - **Artwork placement:** add a screenshot or JPEG to any proof page with a button, by dropping it, or by pasting with Ctrl+V. You can move and resize it, and it is embedded in the SVG and PNG exports.
 - **Missing info flagged:** blank fields print as yellow **MISSING** tags. In the SVG, each tag has an empty matching text box underneath, ready to type in.
 
@@ -98,6 +102,23 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [1.9] – 2026-10-12
+#### Added
+- **Custom colors with CMYK and RGB:** choosing Custom on a color field (material, face, paint, vinyl, return, trim cap, LED and Rowmark colors) opens a panel for a color name plus CMYK and RGB values. Type either set and the other is calculated and marked "(approx.)"; the proof prints the name and both sets.
+- **New page toggle:** each section card has a "New page" checkbox that starts that section's table on a new proof page.
+- **Blank pages:** "+ Add Blank Page" under each product adds a page with the sidebar, watermark and an empty art board, for elevations, mockups or site photos. Each blank page has an editable title (default "Page") shown in its footer and in the cover's Package Contents.
+- **Standoffs:** ACM, PVC, Acrylic, HDU and ADA signs with standoff mounting now have STANDOFF MODEL (AL25-30A, AL16-25A or Custom), STANDOFF SIZE (filled in from the model, editable) and STANDOFF FINISH (Brushed Aluminum, Satin Aluminum, Black, Chrome, Gold or Custom). Halo-lit and front-lit channel letters keep their existing standoff options.
+- **Cloud letters:** new products Cloud Letters - Front Lit and Cloud Letters - Halo Lit use the same letter settings and detail drawings as their channel letter counterparts, plus a Cloud section (size, depth, material, color, lighting). Cloud is also available as a stand-alone component.
+- **Raceway size:** front-lit channel letters and front-lit cloud letters mounted on a raceway get a RACEWAY SIZE field (L x H x D).
+- **+ Add Letters:** on front-lit and halo-lit letters (including cloud letters), adds another letter set that copies the previous set's settings, for mixed letter sizes in one project. Every set stays editable.
+- **Measurement lines:** a Measure button on each page's toolbar. Click, drag and release to draw a red dimension line (hold Shift to keep it straight), type its value in inches, then move it or drag its ends. Lines export as editable SVG lines and text in a Measurements group.
+
+#### Changed
+- **SVG export:** added images are cropped to the art board instead of clipped, so CorelDRAW imports them as plain images rather than locked PowerClips.
+- **Mounting detail:** on ACM, PVC, Acrylic and HDU, the MOUNT DETAIL text box no longer appears for standoffs; the new standoff fields replace it.
+
+---
 
 ### [1.8] – 2026-10-08
 #### Added

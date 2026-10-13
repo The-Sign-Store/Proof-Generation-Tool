@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.8  (October 8, 2026)
+SIGN PROOF GENERATOR  v1.9  (October 12, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -32,6 +32,9 @@ WHAT IS IN THIS PACKAGE
    Sample_Page_*.png                        single exported pages
    Sample_Page_With_Artwork_Image.png       a page with a placed screenshot
    Sample_Page_Special_Notes.png            a section with special notes
+   Sample_Page_Measurement_Lines.png        a page with a measurement line
+   Sample_Custom_Color_CMYK_RGB.png         the custom color panel
+   Sample_Standoff_Fields.png               standoff model / size / finish
    CorelDRAW_Text_Test.svg                  open in CorelDRAW to check that
                                             inch marks, & and degree signs
                                             import as plain text
@@ -159,9 +162,9 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.8)
+WHAT THE APP DOES (v1.9)
 -----------------------------------------------------------------------------
-Step 1  Select: any mix of 17 products and 10 stand-alone components.
+Step 1  Select: any mix of 19 products and 11 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
         - Section names (red titles, e.g. "Acrylic 2") are editable: click
           and type "Front Menu". The name prints on the proof, cover and
@@ -169,6 +172,15 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
         - Special notes: check "Add Special Notes" at the bottom of any
           section and type; the notes print in a gold SPECIAL NOTES column
           beside that section's table on the proof (proof sheets only).
+        - New page: check "New page" on a section to start its table on a
+          new proof page. "+ Add Blank Page" under a product adds a page
+          with the sidebar and watermark but no table (title editable,
+          default "Page"; listed in the cover's Package Contents).
+        - Custom colors: Custom on a color field (or the "Custom color"
+          checkbox under a swatch picker) takes a name plus CMYK or RGB;
+          the other set is calculated and printed as "(approx.)".
+        - + Add Letters (channel and cloud letters): adds another letter
+          set copying the one above, for mixed letter sizes.
         - Detail drawings print bottom-right when specs match (uncheck any
           per product). Live values fill in (embed depth, return, trim cap).
         - Design Help (? button): plain-text standards + CorelDRAW how-to's
@@ -177,6 +189,10 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           page; drag to move, - / + to size. Kept until the page is closed.
           Click a page's bar to select it for Ctrl+V (gold outline); click
           it again, press Esc or click the background to deselect.
+        - Measure (page toolbar): click, drag and release to draw a red
+          dimension line (Shift = straight), type its value in inches; drag
+          the line or its ends to adjust, x to remove. Exported as editable
+          SVG lines + text. Kept until the page is closed, like images.
 Step 3  Customer info (customer and project are separate fields; check
         "Sub-customer" for a Sub-Customer Name: printed as "Customer -
         Sub-Customer" on every page and added to the file names after
@@ -205,12 +221,55 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
         text box underneath in the matching style: delete the tag, type.
         SVG text is Arial and editable; drawings are vector; the watermark
         is a flat image on its own layer.
+        Added images are cropped to the art board in the SVG (no clipping
+        paths), so CorelDRAW imports them as plain images, not PowerClips.
         Proof_Template switches: Cover_Page, Cover_Title, QA_Checklist,
         QA_Final_Checks (checks separated by |).
 
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.9  (2026-10-12)
+  Added
+    - Custom colors with CMYK and RGB: choosing Custom on a color field
+      (material, face, paint, vinyl, return, trim cap, LED and Rowmark
+      colors) opens a panel for a color name plus CMYK and RGB values. Type
+      either set and the other is calculated and marked "(approx.)"; the
+      proof prints the name and both sets.
+    - New page toggle: each section card has a "New page" checkbox that
+      starts that section's table on a new proof page.
+    - Blank pages: "+ Add Blank Page" under each product adds a page with the
+      sidebar, watermark and an empty art board, for elevations, mockups or
+      site photos. Each blank page has an editable title (default "Page")
+      shown in its footer and in the cover's Package Contents.
+    - Standoffs: ACM, PVC, Acrylic, HDU and ADA signs with standoff mounting
+      now have STANDOFF MODEL (AL25-30A, AL16-25A or Custom), STANDOFF SIZE
+      (filled in from the model, editable) and STANDOFF FINISH (Brushed
+      Aluminum, Satin Aluminum, Black, Chrome, Gold or Custom). Halo-lit and
+      front-lit channel letters keep their existing standoff options.
+    - Cloud letters: new products Cloud Letters - Front Lit and Cloud Letters
+      - Halo Lit use the same letter settings and detail drawings as their
+      channel letter counterparts, plus a Cloud section (size, depth,
+      material, color, lighting). Cloud is also available as a stand-alone
+      component.
+    - Raceway size: front-lit channel letters and front-lit cloud letters
+      mounted on a raceway get a RACEWAY SIZE field (L x H x D).
+    - + Add Letters: on front-lit and halo-lit letters (including cloud
+      letters), adds another letter set that copies the previous set's
+      settings, for mixed letter sizes in one project. Every set stays
+      editable.
+    - Measurement lines: a Measure button on each page's toolbar. Click, drag
+      and release to draw a red dimension line (hold Shift to keep it
+      straight), type its value in inches, then move it or drag its ends.
+      Lines export as editable SVG lines and text in a Measurements group.
+  Changed
+    - SVG export: added images are cropped to the art board instead of
+      clipped, so CorelDRAW imports them as plain images rather than locked
+      PowerClips.
+    - Mounting detail: on ACM, PVC, Acrylic and HDU, the MOUNT DETAIL text
+      box no longer appears for standoffs; the new standoff fields replace
+      it.
+
 v1.8  (2026-10-08)
   Added
     - Special notes per section: every section in the proof builder has an
