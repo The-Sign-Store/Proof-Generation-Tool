@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v1.9.3** · The Sign Store Online, Inc. · Design Department
+**Current version: v1.9.5** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -16,14 +16,14 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 
 ### Proof builder
 - **Data-driven:** every product, component, field, option, default, rule, drawing and design standard lives in the Google Sheet. You change the sheet, not the code.
-- **19 products and 26 modular components:** pole signs, channel letters, cloud letters, cabinets, monuments, banners, decals, ADA and more. You can mix products and stand-alone components in one package.
+- **19 products and 25 modular components:** pole signs, channel letters, cloud signs, cabinets, monuments, banners, decals, ADA and more. You can mix products and stand-alone components in one package.
 - **Conditional specs:** `Show_If` rules, required fields, and live color and material pickers. The pickers cover Oracal, Sherwin-Williams, PMS, ACM, acrylic, LED, trim cap and ADA pictograms.
 - **26 vector detail drawings:** mounting, letter construction, cabinets, footers/poles and panel finishing. Each drawing is added automatically when its specs match, with live values such as embed depth, return depth and trim cap.
 - **Editable section names:** rename any section, e.g. "Acrylic 2" to "Front Menu". The new name carries through to the proof sheet, cover contents and QA checklist.
 - **Special notes per section:** check **Add Special Notes** on any section and type. The notes print in a gold-edged **SPECIAL NOTES** column beside that section's table on the proof sheet. Unchecking hides them but keeps the text.
 - **Custom colors:** any color field takes a custom color by name plus CMYK or RGB; the other set is calculated and marked "(approx.)".
 - **Page control:** a "New page" toggle per section, and blank pages per product (sidebar and watermark, empty art board, editable title).
-- **Mixed letter sizes:** "+ Add Letters" on channel and cloud letters adds a Quantity / Letter Height / Text line inside the section; "+ Add Another ..." copies the whole section.
+- **Mixed letter sizes:** "+ Add Letters" on channel letters adds a Quantity / Letter Height / Text line inside the section; "+ Add Another ..." copies the whole section.
 - **Calculated fields:** e.g. EMC display size from 9.45" modules, and overall vs. cabinet depth (modules extend past the cabinet).
 - **Build Custom Table:** a custom product whose spec table you build on screen: type each row's title and description, or make the description a swatch, material, finish, size or pictogram picker; add sections, existing components and detail drawings.
 - **Measurement lines:** draw red dimension lines over images on any page, type the value in inches, move and resize them; they export as editable SVG.
@@ -104,6 +104,26 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [1.9.5] – 2026-10-13
+#### Added
+- **Multiple vinyl colors:** every vinyl color field has a **+ Add Color** button, like **+ Add Letters** on channel letters, so one vinyl proof can list all of its colors. Each added color has its own Oracal series, swatch picker, **-- Custom Input --** and **Custom** CMYK / RGB panel, and starts on the series chosen above it.
+- On the proof, QA checklist and CSV the colors print as numbered rows (e.g. VINYL COLOR 1, VINYL COLOR 2, VINYL COLOR 3), each with its color chip. An added color left unpicked prints as MISSING; **[x] Remove** takes one out and the rest renumber.
+- Works on every vinyl field, including Cut Vinyl Decal, channel letter face vinyl and vinyl rows in custom tables. **+ Add Another** on channel letter and custom sections copies the color list; a field that lists several colors widens to the full row.
+
+---
+
+### [1.9.4] – 2026-10-13
+#### Changed
+- **Cloud signs replace cloud letters:** the Cloud Letters products and the separate Cloud section are gone. In their place are two products of their own, **Cloud Sign - Front Lit** and **Cloud Sign - Halo Lit**, completely separate from channel letters. A customer can order a cloud sign without channel letters; for letters on a cloud, select both the channel letters and the cloud sign.
+- **Cloud sign specs:** a cloud sign has a typed **QUANTITY** and **CLOUD SIZE** (W x H) instead of letter count, letter height and text. Everything else matches the channel letters: face, face color and vinyl, return, return color, trim cap, LED, mounting and raceway size on the front lit sign; face, face graphics, return, backs, diffuser, standoffs and wall surface plus the illumination fields (photo cell defaults to Yes) on the halo lit sign. **+ Add Letters** stays on channel letters only.
+- **Drawings and help rules:** the front lit, halo lit, trim cap, raceway and flush mount drawings apply to cloud signs, as do the lit-sign Design Help rules. The letter-only rules (letter cap height, letter cut files, halo letter stroke) don't. The flush mount drawing is now titled "FLUSH MOUNT (LETTERS / CLOUD)".
+
+#### Added
+- **Dashboard icons:** every product and component card has a one-color icon showing the general shape of that sign type (letters, cloud, pole sign, monument, cabinet, EMC module grid, panels, banner, decal, ADA and more).
+- **Color families:** each card is outlined in its family color, with a legend above the list: blue for channel letters and cloud signs, purple for cabinets and digital, orange for pole, monument and ground signs, green for panels, pink for vinyl and banners, teal for ADA, and red for custom tables. Selected cards are tinted in their family color.
+
+---
 
 ### [1.9.3] – 2026-10-13
 #### Added

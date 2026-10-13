@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.9.3  (October 13, 2026)
+SIGN PROOF GENERATOR  v1.9.5  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -162,9 +162,9 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.9.3)
+WHAT THE APP DOES (v1.9.5)
 -----------------------------------------------------------------------------
-Step 1  Select: any mix of 19 products and 12 stand-alone components.
+Step 1  Select: any mix of 19 products and 10 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
         - Section names (red titles, e.g. "Acrylic 2") are editable: click
           and type "Front Menu". The name prints on the proof, cover and
@@ -179,7 +179,7 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
         - Custom colors: Custom on a color field (or the "Custom color"
           checkbox under a swatch picker) takes a name plus CMYK or RGB;
           the other set is calculated and printed as "(approx.)".
-        - + Add Letters (channel and cloud letters): adds a quantity /
+        - + Add Letters (channel letters): adds a quantity /
           letter height / text line inside the section, for mixed letter
           sizes. "+ Add Another ..." still copies the whole section.
         - Calculated fields (green, read-only), e.g. EMC display size from
@@ -191,6 +191,16 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           pictogram) and the table column. + Add Row, + Add Section,
           + Add Component (any existing component) and a detail drawings
           checklist per section. Kept with this package only.
+        - Cloud signs (front lit / halo lit) are their own products, with
+          a quantity and size instead of letters. Letters on a cloud:
+          select both the channel letters and the cloud sign.
+        - Dashboard: each product has an icon and a color family outline
+          (blue = channel letters and cloud signs, purple = cabinets and
+          digital, orange = pole / monument / ground, green = panels,
+          pink = vinyl and banners, teal = ADA, red = custom).
+        - + Add Color (vinyl fields): adds another vinyl color to the same
+          section, each with its own series, swatch, custom input or
+          CMYK / RGB. Prints as VINYL COLOR 1, 2, 3 ... on the proof.
         - Vinyl fields: "-- Custom Input --" at the end of the Oracal
           series list takes any vinyl typed in (other brands / colors).
         - Detail drawings print bottom-right when specs match (uncheck any
@@ -241,6 +251,53 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.9.5  (2026-10-13)
+  Added
+    - Multiple vinyl colors: every vinyl color field has a + Add Color
+      button, like + Add Letters on channel letters, so one vinyl proof can
+      list all of its colors. Each added color has its own Oracal series,
+      swatch picker, -- Custom Input -- and Custom CMYK / RGB panel, and
+      starts on the series chosen above it.
+    - On the proof, QA checklist and CSV the colors print as numbered rows
+      (e.g. VINYL COLOR 1, VINYL COLOR 2, VINYL COLOR 3), each with its color
+      chip. An added color left unpicked prints as MISSING; [x] Remove takes
+      one out and the rest renumber.
+    - Works on every vinyl field, including Cut Vinyl Decal, channel letter
+      face vinyl and vinyl rows in custom tables. + Add Another on channel
+      letter and custom sections copies the color list; a field that lists
+      several colors widens to the full row.
+
+v1.9.4  (2026-10-13)
+  Changed
+    - Cloud signs replace cloud letters: the Cloud Letters products and the
+      separate Cloud section are gone. In their place are two products of
+      their own, Cloud Sign - Front Lit and Cloud Sign - Halo Lit, completely
+      separate from channel letters. A customer can order a cloud sign
+      without channel letters; for letters on a cloud, select both the
+      channel letters and the cloud sign.
+    - Cloud sign specs: a cloud sign has a typed QUANTITY and CLOUD SIZE (W x
+      H) instead of letter count, letter height and text. Everything else
+      matches the channel letters: face, face color and vinyl, return, return
+      color, trim cap, LED, mounting and raceway size on the front lit sign;
+      face, face graphics, return, backs, diffuser, standoffs and wall
+      surface plus the illumination fields (photo cell defaults to Yes) on
+      the halo lit sign. + Add Letters stays on channel letters only.
+    - Drawings and help rules: the front lit, halo lit, trim cap, raceway and
+      flush mount drawings apply to cloud signs, as do the lit-sign Design
+      Help rules. The letter-only rules (letter cap height, letter cut files,
+      halo letter stroke) don't. The flush mount drawing is now titled "FLUSH
+      MOUNT (LETTERS / CLOUD)".
+  Added
+    - Dashboard icons: every product and component card has a one-color icon
+      showing the general shape of that sign type (letters, cloud, pole sign,
+      monument, cabinet, EMC module grid, panels, banner, decal, ADA and
+      more).
+    - Color families: each card is outlined in its family color, with a
+      legend above the list: blue for channel letters and cloud signs, purple
+      for cabinets and digital, orange for pole, monument and ground signs,
+      green for panels, pink for vinyl and banners, teal for ADA, and red for
+      custom tables. Selected cards are tinted in their family color.
+
 v1.9.3  (2026-10-13)
   Added
     - Build Custom Table: a new Custom area on the main screen, below

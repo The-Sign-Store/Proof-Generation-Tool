@@ -39,7 +39,6 @@ REGISTRY = [
  ("HALO_LETTERS", "Halo Letters", "No", "Yes", "Reverse / halo lit channel letters (one line of copy per block)."),
  ("BACKER_PANEL", "Backer Panel", "Yes", "No", "Panel behind letters (flat, framed or routed shape)."),
  ("ADA_SIGN", "ADA Sign", "No", "Yes", "Tactile / Braille ADA sign (one message per block)."),
- ("CLOUD", "Cloud", "Yes", "No", "Cloud (shaped backer) behind channel letters: size, depth, material, color, lighting."),
 ]
 
 F = {}
@@ -232,13 +231,6 @@ F["HALO_LETTERS"] = [
 ]
 
 # v1.9: cloud behind cloud letters (front lit / halo lit products reuse the channel letter components)
-F["CLOUD"] = [
- (C1, "CLOUD SIZE", "CLOUD SIZE", "dims", "", "W|H", "", "Yes", "", "Overall cloud size, inches"),
- (C1, "CLOUD DEPTH", "CLOUD DEPTH", "text", "", "", "", "Yes", "", 'e.g. 5" return'),
- (C2, "CLOUD MATERIAL", "MATERIAL", "select", "Fabricated Aluminum", "Fabricated Aluminum|ACM|PVC", "", "Yes", "", ""),
- (C2, "CLOUD COLOR", "CLOUD COLOR", "paint", "", "", "", "Yes", "", ""),
- (C3, "CLOUD LIGHTING", "CLOUD LIGHTING", "select", "Non-Lit", "Non-Lit|Lit", "", "Yes", "", ""),
-]
 
 F["BACKER_PANEL"] = [
  (C1, "BACKER SIZE", "DIMENSIONS", "dims", "120|36", "W|H", "", "Yes", "", ""),
@@ -317,13 +309,6 @@ ASSEMBLIES = [
  ("Reverse / Halo Lit Channel Letters", 3, "ILLUMINATION", "Illumination", "Required", "No", "PHOTO CELL=Yes"),
 
  ("ADA Signs", 1, "ADA_SIGN", "ADA Sign", "Required", "Yes", ""),
-
- ("Cloud Letters - Front Lit", 1, "CHANNEL_LETTERS_FL", "Letters", "Required", "Yes", ""),
- ("Cloud Letters - Front Lit", 2, "CLOUD", "Cloud", "Required", "No", ""),
-
- ("Cloud Letters - Halo Lit", 1, "HALO_LETTERS", "Letters", "Required", "Yes", ""),
- ("Cloud Letters - Halo Lit", 2, "CLOUD", "Cloud", "Required", "No", ""),
- ("Cloud Letters - Halo Lit", 3, "ILLUMINATION", "Illumination", "Required", "No", "PHOTO CELL=Yes"),
 ]
 
 FINISH_COLORS = [

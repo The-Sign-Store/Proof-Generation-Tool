@@ -174,7 +174,7 @@ add("MNT_RACEWAY", "Mounting", "RACEWAY MOUNT", "CHANNEL_LETTERS_FL", "MOUNTING=
     call(51.5, 40, 62, 41.5, "FACE") +
     call(53.8, 81, 62, 81.5, "TRIM CAP"))
 
-add("MNT_FLUSH_CL", "Mounting", "FLUSH MOUNT (LETTERS)", "CHANNEL_LETTERS_FL", "MOUNTING=Flush Mount",
+add("MNT_FLUSH_CL", "Mounting", "FLUSH MOUNT (LETTERS / CLOUD)", "CHANNEL_LETTERS_FL", "MOUNTING=Flush Mount",
     "Letters stud-mounted directly to the wall; wires pass through the wall to a remote power supply.",
     rect(1, 44, 7, 11, "#FFFFFF", HW, 0.8) + text(4.5, 51.5, "PS", HW, "middle", True, 4.2) +
     wall(9, 19) +
