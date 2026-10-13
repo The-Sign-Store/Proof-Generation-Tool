@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <base target="_top">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <?!= include('Stylesheet'); ?>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -18,7 +20,13 @@
       <span class="step-sep">&rsaquo;</span>
       <span class="step" id="stepper-customer" onclick="if(pkgItems.length) goCustomer()">3 &nbsp;Customer Info</span>
     </div>
-    <div class="topbar-right" id="page-count"></div>
+    <div class="topbar-right">
+      <span id="page-count"></span>
+      <span id="proof-status" class="proof-status" style="display:none;"></span>
+      <button type="button" class="btn-plain" onclick="newPackage()" title="Start a new, empty package">New</button>
+      <button type="button" class="btn-tonal" onclick="openLibrary()" title="Open a saved proof to edit it">Saved proofs</button>
+      <button type="button" class="btn-filled" id="save-btn" onclick="openSaveDialog()" title="Save this package to the shared Proof Library">Save</button>
+    </div>
   </div>
 
   <div id="loading">Loading Database from Google Sheets...</div>
@@ -31,7 +39,10 @@
           <h1>Build a Proof Package</h1>
           <p>Check every product and component this job needs. Each one gets its own proof page(s); the order you check them is the page order.</p>
         </div>
-        <input type="text" id="cat-search" placeholder="Search products & components..." oninput="filterCatalog(this.value)">
+        <div class="dash-tools">
+          <input type="search" id="cat-search" placeholder="Search products and components" oninput="filterCatalog(this.value)">
+          <button type="button" class="btn-tonal" onclick="openLibrary()">Open a saved proof</button>
+        </div>
       </div>
       <div class="cat-legend" id="cat-legend"></div>
       <h3>Products</h3>
@@ -120,6 +131,31 @@
         </span>
       </div>
       <pre id="help-text"></pre>
+    </div>
+  </div>
+
+  <!-- SAVE TO THE PROOF LIBRARY -->
+  <div id="save-modal" class="dialog-scrim" onclick="if (event.target === this) closeSaveDialog()">
+    <div class="dialog" role="dialog" aria-labelledby="save-h">
+      <h3 id="save-h">Save proof</h3>
+      <div class="dialog-sub" id="save-title"></div>
+      <p class="dialog-text" id="save-where"></p>
+      <label class="dialog-label" for="save-note">Revision note (optional)</label>
+      <input type="text" id="save-note" maxlength="120" placeholder="e.g. Customer changed the return color" onkeydown="if (event.key === 'Enter') saveProofNow()">
+      <label class="cf-check" id="save-new-row"><input type="checkbox" id="save-as-new"> Save as a new proof (a copy with its own revisions)</label>
+      <div class="dialog-actions">
+        <button type="button" class="btn-plain" onclick="closeSaveDialog()">Cancel</button>
+        <button type="button" class="btn-filled" id="save-go" onclick="saveProofNow()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROOF LIBRARY -->
+  <div id="library-modal" class="dialog-scrim" onclick="if (event.target === this) closeLibrary()">
+    <div class="dialog dialog-wide" role="dialog" aria-labelledby="lib-h">
+      <div class="dialog-head"><h3 id="lib-h">Saved proofs</h3><span class="close-btn" onclick="closeLibrary()">&times;</span></div>
+      <input type="search" id="lib-search" placeholder="Search by customer, project, ticket, designer or product" oninput="renderLibrary()">
+      <div id="lib-list"></div>
     </div>
   </div>
 

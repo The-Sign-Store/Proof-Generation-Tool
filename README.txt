@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.9.5  (October 13, 2026)
+SIGN PROOF GENERATOR  v2.0  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -63,6 +63,7 @@ SET UP FROM SCRATCH (about 10 minutes)
      Stylesheet   (HTML)    paste Stylesheet.html
      JavaScript   (HTML)    paste JavaScript.html
      Assets       (HTML)    paste Assets.html
+     ProofLibrary (Script)  paste ProofLibrary.gs   (+ > Script; saves / opens proofs)
    For each HTML file: + > HTML > type the name, select all, delete, paste.
 
 4. Check Assets pasted completely: its last two lines must be
@@ -75,6 +76,10 @@ SET UP FROM SCRATCH (about 10 minutes)
 6. Save (Ctrl+S). Deploy > New deployment > type Web app.
      Execute as: Me      Who has access: your company / as needed
    Authorize when asked (it only reads this spreadsheet).
+   From v2.0 it also asks for Google Drive: saved proofs go to a
+   "Proof Library" folder next to this sheet, listed in a Saved_Proofs tab.
+   Because the app runs as you (Execute as: Me), every designer can save and
+   open proofs without their own access to that folder.
    For testing, use Deploy > Test deployments (the /dev link always runs the
    latest saved code). The regular link only changes when you
    Manage deployments > Edit > Version: New version > Deploy.
@@ -162,7 +167,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.9.5)
+WHAT THE APP DOES (v2.0)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 19 products and 10 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -203,6 +208,15 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           CMYK / RGB. Prints as VINYL COLOR 1, 2, 3 ... on the proof.
         - Vinyl fields: "-- Custom Input --" at the end of the Oracal
           series list takes any vinyl typed in (other brands / colors).
+        - Save (top bar): stores the whole package (every section, value,
+          custom table, letter line, color, note, customer field, image and
+          measurement) in the shared Proof Library. Each save is a new
+          revision (Rev 1, Rev 2 ...); older revisions are kept. "Save as a
+          new proof" makes a copy with its own revisions.
+        - Saved proofs: search the library and open any revision to keep
+          editing. New starts an empty package.
+        - Dashboard: the color key above the cards is also a filter; click
+          families on / off (with the search box), "Show all" to reset.
         - Detail drawings print bottom-right when specs match (uncheck any
           per product). Live values fill in (embed depth, return, trim cap).
         - Design Help (? button): plain-text standards + CorelDRAW how-to's
@@ -251,6 +265,41 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v2.0  (2026-10-13)
+  Added
+    - Proof Library (saved, editable proofs): Save in the top bar stores the
+      whole package in a shared Proof Library folder in Google Drive, next to
+      the Google Sheet. That covers every product and section, field value,
+      custom table, letter line, vinyl color list, special note, blank page,
+      unchecked detail drawing, customer field, artwork image (with its size
+      and position) and measurement line. A Saved_Proofs tab in the sheet
+      lists every save.
+    - Revisions: each save of an opened proof becomes the next revision (Rev
+      1, Rev 2 ...) with an optional note; earlier revisions are never
+      overwritten. Save as a new proof makes a copy with its own revision
+      history.
+    - Saved proofs: a searchable list (customer, project, ticket, designer or
+      product) with a revision picker. Open rebuilds the package exactly as
+      saved so it can be edited and exported again. New starts an empty
+      package. Also on the dashboard as Open a saved proof.
+    - Images are stored once per proof and shared by all its revisions.
+      Proofs are saved as plain JSON, ready to move into a database later.
+    - Dashboard filter: the color key above the cards toggles sign families
+      on and off (several at once, combined with the search box); Show all
+      resets it. Sections with no matches hide.
+  Changed
+    - New look (Material style): light tonal surfaces, Roboto, pill buttons,
+      a segmented step control, outlined fields with a focus ring, rounded
+      dialogs, a snackbar for messages and a light grey canvas behind the
+      proof pages. Proof pages and exports are unchanged.
+    - Dashboard cards: an even outline in the family color all the way around
+      each card, with the product name and icon in the same color. Selected
+      cards are tinted and show their order number.
+  Setup
+    - New Apps Script file ProofLibrary (script). Approve the Google Drive
+      permission the first time someone saves. The web app must stay Execute
+      as: Me so every designer can use the library.
+
 v1.9.5  (2026-10-13)
   Added
     - Multiple vinyl colors: every vinyl color field has a + Add Color

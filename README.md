@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v1.9.5** · The Sign Store Online, Inc. · Design Department
+**Current version: v2.0** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -27,6 +27,8 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 - **Calculated fields:** e.g. EMC display size from 9.45" modules, and overall vs. cabinet depth (modules extend past the cabinet).
 - **Build Custom Table:** a custom product whose spec table you build on screen: type each row's title and description, or make the description a swatch, material, finish, size or pictogram picker; add sections, existing components and detail drawings.
 - **Measurement lines:** draw red dimension lines over images on any page, type the value in inches, move and resize them; they export as editable SVG.
+- **Proof Library:** Save stores the whole package in a shared Drive folder (every value, custom table, color, note, image and measurement); reopen any revision from **Saved proofs** and keep editing. Every save is a new revision.
+- **Material-style interface:** tonal surfaces, Roboto, a color key that filters the dashboard by sign family.
 - **Artwork placement:** add a screenshot or JPEG to any proof page with a button, by dropping it, or by pasting with Ctrl+V. You can move and resize it, and it is embedded in the SVG and PNG exports.
 - **Missing info flagged:** blank fields print as yellow **MISSING** tags. In the SVG, each tag has an empty matching text box underneath, ready to type in.
 
@@ -74,7 +76,7 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 ## Repository layout
 ```
 1_Google_Sheet/      Sign_Proof_Specifications_App_Data.xlsx  (the database)
-2_Apps_Script/       Code.gs, Index.html, Stylesheet.html, JavaScript.html,
+2_Apps_Script/       Code.gs, ProofLibrary.gs, Index.html, Stylesheet.html, JavaScript.html,
                      Assets.html, appsscript.json, ProofPages_CorelDRAW_Macro.bas
 3_Samples/           sample export zip, cover, proof pages (incl. special notes),
                      QA pages and PDF
@@ -85,7 +87,7 @@ README.txt           full setup guide
 
 ## Setup
 1. Upload the `.xlsx` to Google Drive, then choose **File › Save as Google Sheets**.
-2. In the sheet, open **Extensions › Apps Script**. Create `Code`, `Index`, `Stylesheet`, `JavaScript` and `Assets`, named exactly as shown, and paste in the matching files.
+2. In the sheet, open **Extensions › Apps Script**. Create `Code`, `ProofLibrary` (script files), `Index`, `Stylesheet`, `JavaScript` and `Assets` (HTML files), named exactly as shown, and paste in the matching files. Approve the Google Drive permission when asked; saved proofs go to a **Proof Library** folder next to the sheet.
 3. Check that the last line of `Assets` is `PROOF_ASSETS.loaded = true;`.
 4. Choose **Deploy › New deployment › Web app** with Execute as: *Me*. Use **Test deployments** (the `/dev` link) while you are testing.
 5. **CorelDRAW:** press Alt+F11, select **GlobalMacros**, then **File › Import** the `.bas` file and save. Add `ImportProofPackage` to a toolbar.
@@ -104,6 +106,23 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [2.0] – 2026-10-13
+#### Added
+- **Proof Library (saved, editable proofs):** **Save** in the top bar stores the whole package in a shared **Proof Library** folder in Google Drive, next to the Google Sheet. That covers every product and section, field value, custom table, letter line, vinyl color list, special note, blank page, unchecked detail drawing, customer field, artwork image (with its size and position) and measurement line. A **Saved_Proofs** tab in the sheet lists every save.
+- **Revisions:** each save of an opened proof becomes the next revision (Rev 1, Rev 2 ...) with an optional note; earlier revisions are never overwritten. **Save as a new proof** makes a copy with its own revision history.
+- **Saved proofs:** a searchable list (customer, project, ticket, designer or product) with a revision picker. **Open** rebuilds the package exactly as saved so it can be edited and exported again. **New** starts an empty package. Also on the dashboard as **Open a saved proof**.
+- Images are stored once per proof and shared by all its revisions. Proofs are saved as plain JSON, ready to move into a database later.
+- **Dashboard filter:** the color key above the cards toggles sign families on and off (several at once, combined with the search box); **Show all** resets it. Sections with no matches hide.
+
+#### Changed
+- **New look (Material style):** light tonal surfaces, Roboto, pill buttons, a segmented step control, outlined fields with a focus ring, rounded dialogs, a snackbar for messages and a light grey canvas behind the proof pages. Proof pages and exports are unchanged.
+- **Dashboard cards:** an even outline in the family color all the way around each card, with the product name and icon in the same color. Selected cards are tinted and show their order number.
+
+#### Setup
+- New Apps Script file **ProofLibrary** (script). Approve the Google Drive permission the first time someone saves. The web app must stay **Execute as: Me** so every designer can use the library.
+
+---
 
 ### [1.9.5] – 2026-10-13
 #### Added

@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.9.5  -  Proof Packages
+  //  SIGN PROOF GENERATOR v2.0  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,6 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
+  const APP_VERSION = '2.0';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -210,15 +211,25 @@
       return { icon: SIGN_ICONS[r ? r[1] : 'generic'], color: fam.color, family: r ? r[2] : 'other' };
   }
   function iconSvg(icon) { return `<svg class="cat-svg" viewBox="0 0 40 40" aria-hidden="true">${icon}</svg>`; }
+  // the color key doubles as a filter: toggle families on and off (none on = show everything)
+  let familyFilter = [];
   function renderLegend() {
       let el = document.getElementById('cat-legend'); if (!el) return;
-      el.innerHTML = Object.keys(SIGN_FAMILIES).filter(k => k !== 'other').map(k =>
-          `<span class="legend-chip" style="--cat:${SIGN_FAMILIES[k].color}"><i></i>${esc(SIGN_FAMILIES[k].name)}</span>`).join('');
+      el.innerHTML = Object.keys(SIGN_FAMILIES).filter(k => k !== 'other').map(k => {
+          let on = familyFilter.indexOf(k) !== -1;
+          return `<button type="button" class="legend-chip${on ? ' on' : ''}" style="--cat:${SIGN_FAMILIES[k].color}" aria-pressed="${on}" ` +
+                 `title="${on ? 'Stop filtering by' : 'Show only'} ${esc(SIGN_FAMILIES[k].name)}" onclick="toggleFamily('${k}')"><i></i>${esc(SIGN_FAMILIES[k].name)}</button>`;
+      }).join('') + (familyFilter.length ? `<button type="button" class="legend-clear" onclick="clearFamilies()">Show all</button>` : '');
   }
+  function toggleFamily(k) {
+      familyFilter = familyFilter.indexOf(k) === -1 ? familyFilter.concat(k) : familyFilter.filter(x => x !== k);
+      renderLegend(); applyCatalogFilter();
+  }
+  function clearFamilies() { familyFilter = []; renderLegend(); applyCatalogFilter(); }
 
   function renderDashboard() {
       let cat = catalog();
-      let card = c => { let look = signLook(c.name); return `<label class="cat-card" style="--cat:${look.color}" data-name="${esc(c.name.toLowerCase())}" id="card-${esc(c.key)}">
+      let card = c => { let look = signLook(c.name); return `<label class="cat-card" style="--cat:${look.color}" data-family="${look.family}" data-name="${esc(c.name.toLowerCase())}" id="card-${esc(c.key)}">
               <input type="checkbox" onchange="toggleSelect('${esc(c.key).replace(/'/g, "\\'")}', this.checked)">
               <span class="cat-icon">${iconSvg(look.icon)}</span>
               <div><div class="cat-name">${esc(c.name)}</div><div class="cat-desc">${esc(c.desc)}</div></div>
@@ -233,7 +244,7 @@
   // ---------- custom tables (main screen): name a custom product, then build its table on the specs step ----------
   function renderCustomCards() {
       let box = document.getElementById('cat-custom'); if (!box) return;
-      box.innerHTML = Object.keys(customProducts).map(key => `<div class="cat-card custom-card" style="--cat:${SIGN_FAMILIES.custom.color}" id="card-${key}" data-name="${esc(customProducts[key].name.toLowerCase())}">
+      box.innerHTML = Object.keys(customProducts).map(key => `<div class="cat-card custom-card" style="--cat:${SIGN_FAMILIES.custom.color}" data-family="custom" id="card-${key}" data-name="${esc(customProducts[key].name.toLowerCase())}">
               <input type="checkbox" onchange="toggleSelect('${key}', this.checked)">
               <span class="cat-icon">${iconSvg(SIGN_ICONS.custom)}</span>
               <div style="flex:1;"><input type="text" class="custom-name" id="cname-${key}" value="${esc(customProducts[key].name)}" maxlength="60"
@@ -275,9 +286,21 @@
       renderCustomCards(); updateSelectionBar();
   }
 
-  function filterCatalog(q) {
-      q = q.trim().toLowerCase();
-      document.querySelectorAll('.cat-card').forEach(c => { c.style.display = !q || c.dataset.name.indexOf(q) !== -1 ? 'flex' : 'none'; });
+  function filterCatalog() { applyCatalogFilter(); }
+  function applyCatalogFilter() {
+      let q = ((document.getElementById('cat-search') || {}).value || '').trim().toLowerCase();
+      document.querySelectorAll('.cat-card').forEach(c => {
+          let fam = !familyFilter.length || familyFilter.indexOf(c.dataset.family) !== -1;
+          c.style.display = fam && (!q || c.dataset.name.indexOf(q) !== -1) ? 'flex' : 'none';
+      });
+      // a section with nothing left to show hides with its heading; Custom shows when no filter is on or Custom is
+      ['cat-products', 'cat-components'].forEach(id => {
+          let grid = document.getElementById(id), any = [...grid.querySelectorAll('.cat-card')].some(c => c.style.display !== 'none');
+          grid.style.display = any ? '' : 'none';
+          if (grid.previousElementSibling && grid.previousElementSibling.tagName === 'H3') grid.previousElementSibling.style.display = any ? '' : 'none';
+      });
+      let cg = document.getElementById('cat-custom'), showCustom = !familyFilter.length || familyFilter.indexOf('custom') !== -1;
+      if (cg) { cg.style.display = showCustom ? '' : 'none'; if (cg.previousElementSibling) cg.previousElementSibling.style.display = showCustom ? '' : 'none'; }
   }
 
   function toggleSelect(key, on) {
@@ -329,7 +352,10 @@
       let kind = key.slice(0, 1) === 'P' ? 'product' : (key.slice(0, 1) === 'X' ? 'custom' : 'component');
       let ref = key.slice(3);
       let defs, name;
-      if (kind === 'custom') {
+      if (restoring) {                                         // reopening a saved proof: the saved sections, as saved
+          name = restoring.item.name;
+          defs = restoring.item.defs.map(d => Object.assign({}, d));
+      } else if (kind === 'custom') {
           name = (customProducts[key] || {}).name || 'Custom Product';
           defs = [newCustomDef(name, 0)];
       } else if (kind === 'product') {
@@ -364,7 +390,7 @@
       let groups = document.createElement('div');
       groups.id = `igroups-${iid}`;
       body.appendChild(groups);
-      defs.forEach((d, di) => addDefGroup(it, di));
+      defs.forEach((d, di) => { if (!d.removed) addDefGroup(it, di); });
       if (kind === 'custom') {
           let bar = document.createElement('div');
           bar.className = 'custom-controls';
@@ -623,6 +649,7 @@
       let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, letterLines: [], drawPick: [], colorLines: {}, colorSeq: 0, include: d.include,
                    enabled: d.include !== 'Optional-Off', overrides: parseOverrides(d.overrides), num };
       if (prevPart) { Object.keys(prevPart.colorLines).forEach(k => { part.colorLines[k] = prevPart.colorLines[k].slice(); }); part.colorSeq = prevPart.colorSeq; }
+      if (restoring) takeSavedPart(part);
       allParts.push(part);
 
       let zones = [];
@@ -2527,6 +2554,267 @@
       a.href = URL.createObjectURL(blob); a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  // =====================================================================
+  //  PROOF LIBRARY: save the whole package to Drive (ProofLibrary.gs) and reopen it to edit; every save is a new revision
+  // =====================================================================
+  const STATE_FORMAT = 1;
+  let currentProof = null;      // { proofId, rev, savedAt, label } once saved or opened
+  let restoring = null;         // while a saved proof is rebuilt: { item, parts, taken: {di: n} }
+  let libraryList = [];
+
+  // every element of a section whose id carries the section's uid, keyed with the uid swapped for "~"
+  function captureValues(root, uid) {
+      let out = {};
+      if (!root) return out;
+      root.querySelectorAll('[id]').forEach(el => {
+          if (el.id.indexOf(`${uid}_`) === -1) return;
+          let k = el.id.split(`${uid}_`).join('~_'), v = {};
+          if (el.type === 'checkbox' || el.type === 'radio') v.c = el.checked;
+          else if (/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) v.v = el.value;
+          if (el.style && el.style.display) v.d = el.style.display;
+          if (/^mtxt-/.test(el.id)) v.t = el.innerText;
+          if (/^mcol-/.test(el.id)) { v.bg = el.style.background; v.h = el.innerHTML; }
+          if (el.classList && el.classList.contains('cc-approx')) v.a = 1;
+          if (Object.keys(v).length) out[k] = v;
+      });
+      return out;
+  }
+  function applyValues(uid, values) {
+      Object.keys(values || {}).forEach(k => {
+          let el = document.getElementById(k.split('~_').join(`${uid}_`)), v = values[k]; if (!el) return;
+          if ('c' in v) el.checked = v.c;
+          if ('v' in v) el.value = v.v;
+          if ('d' in v) el.style.display = v.d;
+          if ('t' in v) el.innerText = v.t;
+          if ('bg' in v) el.style.background = v.bg;
+          if ('h' in v) el.innerHTML = v.h;
+          if (v.a) el.classList.add('cc-approx');
+      });
+  }
+  function imgHash(src) {                                     // FNV-1a over the data URL: same image = same file in Drive
+      let h = 0x811c9dc5;
+      for (let i = 0; i < src.length; i++) { h ^= src.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+      return h.toString(16).padStart(8, '0') + src.length.toString(16);
+  }
+
+  function captureState() {
+      let customComps = {};
+      Object.keys(appData.components).forEach(id => { if (appData.components[id].custom) customComps[id] = JSON.parse(JSON.stringify(appData.components[id])); });
+      let customer = {};
+      document.querySelectorAll('#customer-panel [id]').forEach(el => {
+          if (el.id === 'cf-rev') return;
+          if (el.type === 'checkbox') customer[el.id] = { c: el.checked };
+          else if (/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) customer[el.id] = { v: el.value };
+      });
+      let art = {}, images = {};
+      Object.keys(pageArt).forEach(key => {
+          art[key] = (pageArt[key] || []).map(a => {
+              let h = a.hash || (a.hash = imgHash(a.src));
+              images[h] = a.src;
+              return { img: h, w: a.w, h: a.h, scale: a.scale, dx: a.dx, dy: a.dy, name: a.name };
+          });
+      });
+      let state = {
+          format: STATE_FORMAT, app: APP_VERSION, savedAt: new Date().toISOString(),
+          seq: { itemSeq, customSeq, customCompSeq, blankSeq, lineSeq },
+          customProducts: JSON.parse(JSON.stringify(customProducts)), customComps,
+          items: pkgItems.map(it => ({ iid: it.iid, key: it.key, kind: it.kind, name: it.name, defs: it.defs.map(d => Object.assign({}, d)), blanks: it.blanks.map(b => Object.assign({}, b)) })),
+          parts: allParts.map(p => ({ iid: p.iid, di: p.di, custom: p.custom, notesOn: p.notesOn, notes: p.notes, newPage: p.newPage, enabled: p.enabled,
+                                      letterLines: p.letterLines.map(l => Object.assign({}, l)), drawPick: p.drawPick.slice(),
+                                      colorLines: JSON.parse(JSON.stringify(p.colorLines)), colorSeq: p.colorSeq,
+                                      values: captureValues(document.getElementById(`part-${p.uid}`), p.uid) })),
+          excludedDrawings: Object.assign({}, excludedDrawings), customer, art, measures: JSON.parse(JSON.stringify(pageMeasures))
+      };
+      return { state, images };
+  }
+
+  // called by addPart while restoring: give the new section its saved lists before its fields are drawn
+  function takeSavedPart(part) {
+      let n = restoring.taken[part.di] || 0;
+      restoring.taken[part.di] = n + 1;
+      let sp = restoring.parts.filter(p => p.di === part.di)[n];
+      if (!sp) return;
+      part.colorLines = JSON.parse(JSON.stringify(sp.colorLines || {})); part.colorSeq = sp.colorSeq || 0;
+      part.letterLines = (sp.letterLines || []).map(l => Object.assign({}, l));
+      part.drawPick = (sp.drawPick || []).slice();
+      part._saved = sp;
+  }
+
+  function artFromSrc(src, saved) {
+      return new Promise(resolve => {
+          let img = new Image();
+          img.onload = () => {
+              let c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+              c.getContext('2d').drawImage(img, 0, 0);
+              resolve(Object.assign({ src, canvas: c, hash: saved.img }, { w: saved.w || c.width, h: saved.h || c.height, scale: saved.scale || 1, dx: saved.dx || 0, dy: saved.dy || 0, name: saved.name || 'image' }));
+          };
+          img.onerror = () => resolve(null);
+          img.src = src;
+      });
+  }
+
+  function resetPackage() {
+      document.getElementById('items').innerHTML = '';
+      pkgItems = []; allParts = []; selection = [];
+      pageArt = {}; pageMeasures = {}; excludedDrawings = {}; activeArtKey = null; measureKey = null;
+      Object.keys(appData.components).forEach(id => { if (appData.components[id].custom) delete appData.components[id]; });
+      customProducts = {};
+      currentProof = null;
+  }
+
+  async function restoreState(st, images) {
+      if (!st || st.format !== STATE_FORMAT) throw new Error('This saved proof was made by a newer version of the app.');
+      resetPackage();
+      customProducts = JSON.parse(JSON.stringify(st.customProducts || {}));
+      Object.keys(st.customComps || {}).forEach(id => { appData.components[id] = JSON.parse(JSON.stringify(st.customComps[id])); });
+      customCompSeq = st.seq.customCompSeq || 0; customSeq = st.seq.customSeq || 0;
+      let missing = [];
+      st.items.forEach(si => {
+          if (si.kind !== 'custom' && !si.defs.some(d => appData.components[d.component])) { missing.push(si.name); return; }
+          itemSeq = Number(String(si.iid).replace(/\D/g, '')) - 1;                  // same item ids, so page images / measures line up
+          restoring = { item: si, parts: st.parts.filter(p => p.iid === si.iid), taken: {} };
+          let it;
+          try {
+              it = createItem(si.key);
+              si.defs.forEach((d, di) => {
+                  if (d.removed || !appData.components[d.component]) return;
+                  let n = restoring.parts.filter(p => p.di === di).length;
+                  for (let k = 1; k < n; k++) addPart(it, di);
+              });
+          } finally { restoring = null; }
+          it.blanks = (si.blanks || []).map(b => Object.assign({}, b)); renderBlanks(it);
+          selection.push(si.key);
+      });
+      itemSeq = Math.max(itemSeq, st.seq.itemSeq || 0); blankSeq = st.seq.blankSeq || blankSeq; lineSeq = Math.max(lineSeq, st.seq.lineSeq || 0);
+      allParts.forEach(part => {
+          let sp = part._saved; delete part._saved; if (!sp) return;
+          applyValues(part.uid, sp.values);
+          part.custom = sp.custom || ''; part.notesOn = !!sp.notesOn; part.notes = sp.notes || ''; part.newPage = !!sp.newPage; part.enabled = sp.enabled !== false;
+          let t = document.getElementById(`ptitle-${part.uid}`); if (t && part.custom) t.value = part.custom;
+          let nOn = document.getElementById(`pnote-on-${part.uid}`), nTx = document.getElementById(`pnote-${part.uid}`);
+          if (nOn) nOn.checked = part.notesOn; if (nTx) { nTx.value = part.notes; nTx.style.display = part.notesOn ? 'block' : 'none'; }
+          let np = document.getElementById(`pnew-${part.uid}`); if (np) np.checked = part.newPage;
+          let inc = document.getElementById(`pinc-${part.uid}`); if (inc) inc.checked = part.enabled;
+          let body = document.getElementById(`pbody-${part.uid}`); if (body) body.style.display = part.enabled ? 'block' : 'none';
+          renderLetterLines(part);
+      });
+      excludedDrawings = Object.assign({}, st.excludedDrawings || {});
+      Object.keys(st.customer || {}).forEach(id => {
+          let el = document.getElementById(id), v = st.customer[id]; if (!el) return;
+          if ('c' in v) el.checked = v.c; if ('v' in v) el.value = v.v;
+      });
+      document.getElementById('cf-sub-group').style.display = document.getElementById('cf-has-sub').checked ? 'flex' : 'none';
+      pageMeasures = JSON.parse(JSON.stringify(st.measures || {}));
+      for (let key of Object.keys(st.art || {})) {
+          let list = [];
+          for (let a of st.art[key]) { let src = images[a.img]; if (!src) continue; let ok = await artFromSrc(src, a); if (ok) list.push(ok); }
+          if (list.length) pageArt[key] = list;
+      }
+      renderCustomCards(); updateSelectionBar();
+      refreshAll();
+      return missing;
+  }
+
+  // ---------- save ----------
+  function proofLabel() {
+      let i = getCustomerInfo();
+      return [i.ticket, i.custName, i.project].filter(Boolean).join(' - ') || 'Untitled proof';
+  }
+  function openSaveDialog() {
+      if (!pkgItems.length) { toast('Add at least one product before saving.'); return; }
+      document.getElementById('save-title').innerText = proofLabel();
+      document.getElementById('save-where').innerText = currentProof
+          ? `Saves Rev ${currentProof.rev + 1} of this proof. Rev ${currentProof.rev} and earlier stay in the library.`
+          : 'Saves Rev 1 to the shared Proof Library.';
+      document.getElementById('save-new-row').style.display = currentProof ? 'flex' : 'none';
+      document.getElementById('save-as-new').checked = false;
+      document.getElementById('save-note').value = '';
+      document.getElementById('save-modal').style.display = 'flex';
+      document.getElementById('save-note').focus();
+  }
+  function closeSaveDialog() { document.getElementById('save-modal').style.display = 'none'; }
+  function saveProofNow() {
+      let asNew = document.getElementById('save-as-new').checked, note = document.getElementById('save-note').value.trim();
+      let cap = captureState(), info = getCustomerInfo();
+      let images = Object.keys(cap.images).map(h => ({ hash: h, data: cap.images[h].replace(/^data:[^,]*,/, ''), mime: 'image/jpeg' }));
+      let meta = { ticket: info.ticket, customer: info.name, sub: info.sub, project: info.project, designer: info.designer,
+                   products: pkgItems.map(i => i.name).join(', '), note, appVersion: APP_VERSION };
+      let btn = document.getElementById('save-go'); btn.disabled = true; btn.innerText = 'Saving…';
+      google.script.run
+          .withSuccessHandler(r => {
+              btn.disabled = false; btn.innerText = 'Save';
+              currentProof = { proofId: r.proofId, rev: r.rev, savedAt: r.savedAt, label: proofLabel() };
+              closeSaveDialog(); updateProofStatus();
+              toast(`Saved Rev ${r.rev}: ${currentProof.label}`);
+          })
+          .withFailureHandler(e => { btn.disabled = false; btn.innerText = 'Save'; alert('Could not save the proof: ' + (e && e.message || e)); })
+          .saveProof({ proofId: asNew || !currentProof ? null : currentProof.proofId, meta, state: JSON.stringify(cap.state), images });
+  }
+  function updateProofStatus() {
+      let el = document.getElementById('proof-status'); if (!el) return;
+      el.innerHTML = currentProof ? `<span class="ps-dot"></span>Rev ${currentProof.rev} <span class="ps-time">saved ${esc(currentProof.savedAt)}</span>` : '';
+      el.title = currentProof ? `${currentProof.label} (${currentProof.proofId})` : '';
+      el.style.display = currentProof ? 'inline-flex' : 'none';
+  }
+
+  // ---------- library ----------
+  function openLibrary() {
+      document.getElementById('library-modal').style.display = 'flex';
+      document.getElementById('lib-search').value = '';
+      document.getElementById('lib-list').innerHTML = '<div class="lib-empty">Loading saved proofs…</div>';
+      google.script.run
+          .withSuccessHandler(list => { libraryList = list || []; renderLibrary(); document.getElementById('lib-search').focus(); })
+          .withFailureHandler(e => { document.getElementById('lib-list').innerHTML = `<div class="lib-empty">Could not load the Proof Library: ${esc(e && e.message || e)}</div>`; })
+          .listProofs();
+  }
+  function closeLibrary() { document.getElementById('library-modal').style.display = 'none'; }
+  function renderLibrary() {
+      let q = document.getElementById('lib-search').value.trim().toLowerCase();
+      let list = libraryList.filter(p => !q || [p.ticket, p.customer, p.sub, p.project, p.designer, p.products].join(' ').toLowerCase().indexOf(q) !== -1);
+      let box = document.getElementById('lib-list');
+      if (!libraryList.length) { box.innerHTML = '<div class="lib-empty">No saved proofs yet. Build a package, then use Save in the top bar.</div>'; return; }
+      if (!list.length) { box.innerHTML = '<div class="lib-empty">No saved proofs match your search.</div>'; return; }
+      box.innerHTML = list.map((p, i) => `<div class="lib-row">
+            <div class="lib-main">
+              <div class="lib-title">${esc([p.customer + (p.sub ? ' - ' + p.sub : ''), p.project].filter(Boolean).join(' — ') || 'Untitled proof')}</div>
+              <div class="lib-meta">${p.ticket ? `<span class="chip">Ticket ${esc(p.ticket)}</span>` : ''}${p.designer ? `<span class="chip">${esc(p.designer)}</span>` : ''}<span class="lib-products">${esc(p.products)}</span></div>
+            </div>
+            <div class="lib-side">
+              <select class="lib-rev" id="lib-rev-${i}" title="Revision to open">${p.revs.map(r => `<option value="${r.rev}">Rev ${r.rev} – ${esc(r.savedAt)}${r.note ? ' – ' + esc(r.note) : ''}</option>`).join('')}</select>
+              <button type="button" class="btn-filled" onclick="openSavedProof('${esc(p.proofId)}', document.getElementById('lib-rev-${i}').value)">Open</button>
+            </div>
+          </div>`).join('');
+  }
+  function openSavedProof(proofId, rev) {
+      if (pkgItems.length && !confirm('Open this saved proof? Anything not saved in the current package will be lost.')) return;
+      document.getElementById('lib-list').innerHTML = '<div class="lib-empty">Opening…</div>';
+      google.script.run
+          .withSuccessHandler(async r => {
+              try {
+                  let missing = await restoreState(JSON.parse(r.state), r.images || {});
+                  let latest = (libraryList.find(p => p.proofId === r.proofId) || {}).latest || r.rev;
+                  currentProof = { proofId: r.proofId, rev: latest, savedAt: r.savedAt, label: proofLabel() };
+                  closeLibrary(); updateProofStatus(); showStep('specs');
+                  toast(`Opened Rev ${r.rev}: ${currentProof.label}` + (r.rev < latest ? ` (saving makes Rev ${latest + 1})` : ''));
+                  if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
+              } catch (e) { console.error(e); alert('Could not open this proof: ' + e.message); renderLibrary(); }
+          })
+          .withFailureHandler(e => { alert('Could not open this proof: ' + (e && e.message || e)); renderLibrary(); })
+          .loadProof(proofId, Number(rev) || 0);
+  }
+  document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (document.getElementById('save-modal').style.display === 'flex') closeSaveDialog();
+      if (document.getElementById('library-modal').style.display === 'flex') closeLibrary();
+  });
+  function newPackage() {
+      if (pkgItems.length && !confirm('Start a new package? Anything not saved in the current package will be lost.')) return;
+      resetPackage();
+      document.querySelectorAll('#customer-panel input, #customer-panel textarea').forEach(el => { if (el.id === 'cf-rev') return; if (el.type === 'checkbox') el.checked = false; else el.value = ''; });
+      document.getElementById('cf-sub-group').style.display = 'none';
+      renderCustomCards(); updateSelectionBar(); updateProofStatus(); showStep('select');
   }
 
   function toggleSubCustomer() {
