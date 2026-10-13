@@ -173,11 +173,12 @@ function syncDocs() {
 function writeMarkdown_(body, md, banner) {
   body.clear();
   const first = body.getParagraphs()[0];
-  first.setText(banner).setItalic(true).setFontSize(8).setForegroundColor('#888888');
+  first.setText(banner);                                         // setText returns nothing, so style separately
+  first.editAsText().setItalic(true).setFontSize(8).setForegroundColor('#888888');
   let inCode = false;
   md.replace(/\r/g, '').split('\n').forEach(line => {
     if (/^```/.test(line)) { inCode = !inCode; return; }
-    if (inCode) { body.appendParagraph(line || ' ').setFontFamily('Courier New').setFontSize(9).setItalic(false).setForegroundColor('#000000'); return; }
+    if (inCode) { body.appendParagraph(line || ' ').editAsText().setFontFamily('Courier New').setFontSize(9).setItalic(false).setForegroundColor('#000000'); return; }
     if (/^\s*$/.test(line)) return;
     if (/^-{3,}\s*$/.test(line)) { body.appendHorizontalRule(); return; }
     if (/^\|[\s:|-]+\|\s*$/.test(line)) return;                  // table separator row
