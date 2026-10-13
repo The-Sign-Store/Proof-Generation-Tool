@@ -305,6 +305,24 @@
   .lib-side { display: flex; gap: 8px; align-items: center; flex: none; }
   .lib-rev { width: 230px; border-radius: 18px; }
   .lib-empty { padding: 40px 8px; text-align: center; color: var(--on-surface-variant); font-size: 14px; }
+  .status-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 11.5px; font-weight: 500;
+                 vertical-align: 2px; white-space: nowrap; }
+  .st-draft { background: #ECEEF2; color: #4A5160; } .st-sent { background: #E1ECFB; color: #1A4FBF; }
+  .st-changes { background: #FDEBD8; color: #9A4A00; } .st-approved { background: #DFF2E5; color: #1E6B3A; } .st-cancelled { background: #F6E0DF; color: #8A1C17; }
+  .ps-draft { margin-left: 8px; color: var(--on-surface-variant); font-weight: 400; }
+  .lib-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
+  .lib-filter { width: auto; height: 30px; padding: 0 12px; border: 1px solid transparent; border-radius: 8px; font: 500 12px var(--font); cursor: pointer; }
+  .lib-filter small { opacity: .7; margin-left: 4px; }
+  .lib-filter.on { border-color: currentColor; box-shadow: 0 0 0 1px currentColor; }
+  .lib-section { font-size: 12px; font-weight: 500; color: var(--on-surface-variant); margin: 12px 4px 0; }
+  .lib-draft { background: #FFFBEF; border-radius: 10px; padding-left: 10px; padding-right: 10px; }
+  .lib-draftnote { margin-top: 6px; font-size: 12px; color: var(--gold); }
+  .lib-draftnote a { color: var(--primary); font-weight: 500; }
+  .lib-revbox { display: flex; flex-direction: column; gap: 4px; }
+  .lib-rev, .lib-status { width: 230px; height: 32px; border-radius: 16px; font-size: 12px; }
+  .lib-status { font-weight: 500; border-color: transparent; }
+  .restore-banner { align-items: center; gap: 12px; margin: -8px 0 18px; padding: 10px 12px 10px 16px; border-radius: 12px; background: #FFF4D6; color: #5C4300; font-size: 13.5px; }
+  .restore-banner span { flex: 1; }
   .chip { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--outline-variant);
           font-size: 12px; color: var(--on-surface-variant); background: var(--surface-low); }
 

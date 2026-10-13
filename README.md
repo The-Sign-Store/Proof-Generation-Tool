@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v2.1.2** · The Sign Store Online, Inc. · Design Department
+**Current version: v2.2** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -108,6 +108,18 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [2.2] – 2026-10-13
+#### Added
+- **Autosave:** about every 30 seconds after a change, the package is saved as a draft. Each proof has **one** draft file that is overwritten in place (a never-saved package gets one file in Proof Library/_Drafts), so no files pile up, and drafts never become versions: only **Save** makes v1, v2, v3 ... The top bar shows "Draft saved 2:14 PM".
+- **Unsaved changes are protected:** closing the tab with unsaved changes shows the browser's "Leave site?" warning; the next visit offers **Restore** for the unsaved work. Drafts are listed in **Saved proofs** (Open / Discard), and opening a proof that has autosaved changes offers them first. Saving a version clears its draft.
+- **Approval status:** every saved version has a status: **Draft**, **Sent to Customer**, **Changes Requested**, **Approved** or **Cancelled**. Choose it in the Save dialog or change it in Saved proofs without opening the proof; it shows as a colored chip in the library and the top bar, the library can be filtered by status, and the Saved_Proofs tab records who changed it and when (Status, Status_By, Status_At columns, added automatically to existing tabs).
+- **New from this:** a button in Saved proofs that starts a new proof from any version, keeping every product, section, spec, image and measurement line and clearing the customer info. Its first save is v1 of a new proof.
+
+#### Changed
+- **Versions instead of revisions:** saved proofs are numbered **v1, v2, v3 ...** everywhere in the app (top bar, Save dialog, Saved proofs, messages). The Saved_Proofs tab keeps its Rev column name so existing rows keep working. The Revision Date on the proof pages is unchanged.
+
+---
 
 ### [2.1.2] – 2026-10-13
 #### Changed

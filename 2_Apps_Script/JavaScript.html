@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v2.1.2  -  Proof Packages
+  //  SIGN PROOF GENERATOR v2.2  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '2.1.2';
+  const APP_VERSION = '2.2';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -62,6 +62,7 @@
       document.getElementById('cf-rev').value = todayStr();
       renderDashboard();
       showStep('select');
+      startAutosave();
   }
 
   // ---------- SMALL HELPERS ----------
@@ -2813,7 +2814,7 @@
       pageArt = {}; pageMeasures = {}; excludedDrawings = {}; activeArtKey = null; measureKey = null;
       Object.keys(appData.components).forEach(id => { if (appData.components[id].custom) delete appData.components[id]; });
       customProducts = {};
-      currentProof = null;
+      currentProof = null; currentDraft = null; draftUploaded = {};
   }
 
   async function restoreState(st, images) {
@@ -2870,6 +2871,9 @@
   }
 
   // ---------- save ----------
+  const STATUSES = ['Draft', 'Sent to Customer', 'Changes Requested', 'Approved', 'Cancelled'];
+  const STATUS_CLASS = { 'Draft': 'st-draft', 'Sent to Customer': 'st-sent', 'Changes Requested': 'st-changes', 'Approved': 'st-approved', 'Cancelled': 'st-cancelled' };
+  function statusChip(st) { st = st || 'Draft'; return `<span class="status-chip ${STATUS_CLASS[st] || 'st-draft'}">${esc(st)}</span>`; }
   function proofLabel() {
       let i = getCustomerInfo();
       return [i.ticket, i.custName, i.project].filter(Boolean).join(' - ') || 'Untitled proof';
@@ -2878,83 +2882,253 @@
       if (!pkgItems.length) { toast('Add at least one product before saving.'); return; }
       document.getElementById('save-title').innerText = proofLabel();
       document.getElementById('save-where').innerText = currentProof
-          ? `Saves Rev ${currentProof.rev + 1} of this proof. Rev ${currentProof.rev} and earlier stay in the library.`
-          : 'Saves Rev 1 to the shared Proof Library.';
+          ? `Saves v${currentProof.rev + 1} of this proof. v${currentProof.rev} and earlier stay in the library.`
+          : 'Saves v1 to the shared Proof Library.';
       document.getElementById('save-new-row').style.display = currentProof ? 'flex' : 'none';
       document.getElementById('save-as-new').checked = false;
       document.getElementById('save-note').value = '';
+      document.getElementById('save-status').innerHTML = STATUSES.map(x => `<option ${x === ((currentProof && currentProof.status) || 'Draft') ? 'selected' : ''}>${x}</option>`).join('');
       document.getElementById('save-modal').style.display = 'flex';
       document.getElementById('save-note').focus();
   }
   function closeSaveDialog() { document.getElementById('save-modal').style.display = 'none'; }
   function saveProofNow() {
       let asNew = document.getElementById('save-as-new').checked, note = document.getElementById('save-note').value.trim();
-      let cap = captureState(), info = getCustomerInfo();
+      let status = document.getElementById('save-status').value || 'Draft';
+      let cap = captureState(), info = getCustomerInfo(), snap = snapOf(cap.state);
       let images = Object.keys(cap.images).map(h => ({ hash: h, data: cap.images[h].replace(/^data:[^,]*,/, ''), mime: 'image/jpeg' }));
       let meta = { ticket: info.ticket, customer: info.name, sub: info.sub, project: info.project, designer: info.designer,
-                   products: pkgItems.map(i => i.name).join(', '), note, appVersion: APP_VERSION };
+                   products: pkgItems.map(i => i.name).join(', '), note, status, appVersion: APP_VERSION };
       let btn = document.getElementById('save-go'); btn.disabled = true; btn.innerText = 'Saving…';
+      let draftId = currentDraft && !currentDraft.proofId ? currentDraft.draftId : null;
       google.script.run
           .withSuccessHandler(r => {
               btn.disabled = false; btn.innerText = 'Save';
-              currentProof = { proofId: r.proofId, rev: r.rev, savedAt: r.savedAt, label: proofLabel() };
+              currentProof = { proofId: r.proofId, rev: r.rev, savedAt: r.savedAt, status: r.status, label: proofLabel() };
+              currentDraft = null; draftUploaded = {}; lastSavedSnap = snap; lastDraftSnap = snap; forgetLocalDraft();
               closeSaveDialog(); updateProofStatus();
-              toast(`Saved Rev ${r.rev}: ${currentProof.label}`);
+              toast(`Saved v${r.rev} (${r.status}): ${currentProof.label}`);
           })
           .withFailureHandler(e => { btn.disabled = false; btn.innerText = 'Save'; alert('Could not save the proof: ' + (e && e.message || e)); })
-          .saveProof({ proofId: asNew || !currentProof ? null : currentProof.proofId, meta, state: JSON.stringify(cap.state), images });
+          .saveProof({ proofId: asNew || !currentProof ? null : currentProof.proofId, draftId: asNew ? null : draftId, meta, state: JSON.stringify(cap.state), images });
   }
   function updateProofStatus() {
       let el = document.getElementById('proof-status'); if (!el) return;
-      el.innerHTML = currentProof ? `<span class="ps-dot"></span>Rev ${currentProof.rev} <span class="ps-time">saved ${esc(currentProof.savedAt)}</span>` : '';
-      el.title = currentProof ? `${currentProof.label} (${currentProof.proofId})` : '';
-      el.style.display = currentProof ? 'inline-flex' : 'none';
+      let html = '';
+      if (currentProof) html += `<span class="ps-dot"></span>v${currentProof.rev} ${statusChip(currentProof.status)} <span class="ps-time">saved ${esc(currentProof.savedAt)}</span>`;
+      if (currentDraft && currentDraft.savedAt) html += `<span class="ps-draft">Draft saved ${esc(String(currentDraft.savedAt).slice(11, 16))}</span>`;
+      el.innerHTML = html;
+      el.title = currentProof ? `${currentProof.label} (${currentProof.proofId})` : (currentDraft ? 'Not saved as a proof yet; autosaved as a draft' : '');
+      el.style.display = html ? 'inline-flex' : 'none';
+  }
+
+  // =====================================================================
+  //  AUTOSAVE: one draft per proof (or per never-saved package), overwritten in place every ~30 s after changes.
+  //  Only Save makes a revision. Closing with unsaved changes asks first.
+  // =====================================================================
+  const AUTOSAVE_MS = 30000;
+  let currentDraft = null;        // { key, draftId, proofId, savedAt }
+  let draftUploaded = {};         // image hashes already sent with this draft
+  let lastSavedSnap = '', lastDraftSnap = '', autosaveBusy = false, autosaveTimer = null;
+  function snapOf(state) { let st = Object.assign({}, state); delete st.savedAt; return JSON.stringify(st); }
+  function currentSnap() { return pkgItems.length ? snapOf(captureState().state) : ''; }
+  function hasUnsavedChanges() { return !!pkgItems.length && currentSnap() !== lastSavedSnap; }
+  function startAutosave() {
+      if (autosaveTimer) clearInterval(autosaveTimer);
+      autosaveTimer = setInterval(autosaveTick, AUTOSAVE_MS);
+      checkLocalDraft();
+  }
+  function autosaveTick() {
+      if (autosaveBusy || restoringNow || !pkgItems.length) return;
+      let cap = captureState(), snap = snapOf(cap.state);
+      if (snap === lastSavedSnap || snap === lastDraftSnap) return;         // nothing new since the last save / draft
+      autosaveBusy = true;
+      let images = Object.keys(cap.images).filter(h => !draftUploaded[h]).map(h => ({ hash: h, data: cap.images[h].replace(/^data:[^,]*,/, ''), mime: 'image/jpeg' }));
+      let req = { proofId: currentProof ? currentProof.proofId : null, draftId: currentDraft && !currentProof ? currentDraft.draftId : null,
+                  meta: { label: proofLabel(), products: pkgItems.map(i => i.name).join(', ') }, state: JSON.stringify(cap.state), images };
+      google.script.run
+          .withSuccessHandler(r => {
+              autosaveBusy = false; lastDraftSnap = snap; images.forEach(im => { draftUploaded[im.hash] = true; });
+              currentDraft = { key: r.key, draftId: r.draftId, proofId: req.proofId, savedAt: r.savedAt };
+              rememberLocalDraft(r.key); updateProofStatus();
+          })
+          .withFailureHandler(e => { autosaveBusy = false; console.warn('Autosave failed', e); })
+          .saveDraft(req);
+  }
+  window.addEventListener('beforeunload', e => {
+      if (!hasUnsavedChanges()) return;
+      autosaveTick();                                                      // try to catch the last changes in the draft
+      e.preventDefault(); e.returnValue = '';                              // the browser shows its "Leave site?" warning
+  });
+  // this browser remembers its last draft, to offer it back after a closed tab (best effort: storage can be blocked)
+  function rememberLocalDraft(key) { try { localStorage.setItem('spg_last_draft', key); } catch (e) { /* storage blocked */ } }
+  function forgetLocalDraft() { try { localStorage.removeItem('spg_last_draft'); } catch (e) { /* storage blocked */ } }
+  function checkLocalDraft() {
+      let key = null; try { key = localStorage.getItem('spg_last_draft'); } catch (e) { key = null; }
+      if (!key) return;
+      google.script.run.withSuccessHandler(list => {
+          let all = list || [], d = all.find(x => x.key === key);
+          if (!d) { forgetLocalDraft(); return; }
+          showRestoreBanner(d);
+      }).withFailureHandler(() => {}).listAllDrafts();
+  }
+  function showRestoreBanner(d) {
+      let el = document.getElementById('restore-banner'); if (!el) return;
+      el.innerHTML = `<span><b>Unsaved changes found</b> · ${esc(d.label || 'Untitled proof')} · autosaved ${esc(String(d.savedAt).slice(0, 16))}</span>` +
+          `<button type="button" class="btn-filled" onclick="openDraft('${esc(d.key)}')">Restore</button>` +
+          `<button type="button" class="btn-plain" onclick="dismissRestore()">Not now</button>`;
+      el.style.display = 'flex';
+  }
+  function dismissRestore() { let el = document.getElementById('restore-banner'); if (el) el.style.display = 'none'; forgetLocalDraft(); }
+
+  let restoringNow = false;
+  async function applyLoaded(r, after) {
+      restoringNow = true;
+      try { return await restoreState(JSON.parse(r.state), r.images || {}); }
+      finally { restoringNow = false; if (after) after(); }
+  }
+  function openDraft(key) {
+      if (pkgItems.length && hasUnsavedChanges() && !confirm('Open these autosaved changes? Unsaved work in the current package will be lost.')) return;
+      dismissRestore();
+      google.script.run
+          .withSuccessHandler(async r => {
+              try {
+                  let missing = await applyLoaded(r);
+                  let L = r.latest || {};
+                  currentProof = r.proofId ? { proofId: r.proofId, rev: L.rev || 0, savedAt: L.savedAt || '', status: L.status || 'Draft', label: proofLabel() } : null;
+                  currentDraft = { key: r.key, draftId: r.draftId, proofId: r.proofId, savedAt: r.savedAt };
+                  draftUploaded = {}; Object.keys(r.images || {}).forEach(h => { draftUploaded[h] = true; });
+                  lastSavedSnap = ''; lastDraftSnap = currentSnap();                // restored work is not a saved revision yet
+                  rememberLocalDraft(r.key);
+                  closeLibrary(); updateProofStatus(); showStep('specs');
+                  toast(`Restored unsaved changes from ${String(r.savedAt).slice(0, 16)}. Use Save to keep them as a version.`);
+                  if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
+              } catch (e) { console.error(e); alert('Could not open the draft: ' + e.message); }
+          })
+          .withFailureHandler(e => alert('Could not open the draft: ' + (e && e.message || e)))
+          .loadDraft(key);
+  }
+  function discardDraftUI(key) {
+      if (!confirm('Discard these autosaved changes? This cannot be undone.')) return;
+      google.script.run.withSuccessHandler(() => {
+          if (currentDraft && currentDraft.key === key) { currentDraft = null; updateProofStatus(); }
+          forgetLocalDraft(); openLibrary();
+      }).withFailureHandler(e => alert('Could not discard: ' + (e && e.message || e))).discardDraft(key);
   }
 
   // ---------- library ----------
+  let libraryDrafts = [], libFilter = '';
   function openLibrary() {
       document.getElementById('library-modal').style.display = 'flex';
       document.getElementById('lib-search').value = '';
       document.getElementById('lib-list').innerHTML = '<div class="lib-empty">Loading saved proofs…</div>';
       google.script.run
-          .withSuccessHandler(list => { libraryList = list || []; renderLibrary(); document.getElementById('lib-search').focus(); })
+          .withSuccessHandler(list => {
+              libraryList = list || [];
+              google.script.run.withSuccessHandler(d => { libraryDrafts = d || []; renderLibrary(); document.getElementById('lib-search').focus(); })
+                  .withFailureHandler(() => { libraryDrafts = []; renderLibrary(); }).listDrafts();
+          })
           .withFailureHandler(e => { document.getElementById('lib-list').innerHTML = `<div class="lib-empty">Could not load the Proof Library: ${esc(e && e.message || e)}</div>`; })
           .listProofs();
   }
   function closeLibrary() { document.getElementById('library-modal').style.display = 'none'; }
+  function setLibFilter(st) { libFilter = libFilter === st ? '' : st; renderLibrary(); }
   function renderLibrary() {
       let q = document.getElementById('lib-search').value.trim().toLowerCase();
-      let list = libraryList.filter(p => !q || [p.ticket, p.customer, p.sub, p.project, p.designer, p.products].join(' ').toLowerCase().indexOf(q) !== -1);
+      let match = p => !q || [p.ticket, p.customer, p.sub, p.project, p.designer, p.products, p.label].join(' ').toLowerCase().indexOf(q) !== -1;
+      let list = libraryList.filter(p => match(p) && (!libFilter || p.status === libFilter));
+      let drafts = libFilter ? [] : libraryDrafts.filter(match);
+      document.getElementById('lib-filters').innerHTML = STATUSES.map(st => {
+          let n = libraryList.filter(p => p.status === st).length;
+          return `<button type="button" class="lib-filter ${STATUS_CLASS[st]}${libFilter === st ? ' on' : ''}" onclick="setLibFilter('${st}')">${st} <small>${n}</small></button>`;
+      }).join('') + (libFilter ? `<button type="button" class="legend-clear" onclick="setLibFilter('')">Show all</button>` : '');
       let box = document.getElementById('lib-list');
-      if (!libraryList.length) { box.innerHTML = '<div class="lib-empty">No saved proofs yet. Build a package, then use Save in the top bar.</div>'; return; }
-      if (!list.length) { box.innerHTML = '<div class="lib-empty">No saved proofs match your search.</div>'; return; }
-      box.innerHTML = list.map((p, i) => `<div class="lib-row">
+      if (!libraryList.length && !libraryDrafts.length) { box.innerHTML = '<div class="lib-empty">No saved proofs yet. Build a package, then use Save in the top bar.</div>'; return; }
+      let html = '';
+      if (drafts.length) html += `<div class="lib-section">Unsaved drafts (autosaved, not saved as a proof yet)</div>` + drafts.map(d => `<div class="lib-row lib-draft">
+            <div class="lib-main"><div class="lib-title">${esc(d.label || 'Untitled proof')}</div>
+              <div class="lib-meta"><span class="chip">Autosaved ${esc(String(d.savedAt).slice(0, 16))}</span><span class="lib-products">${esc(d.products)}</span></div></div>
+            <div class="lib-side"><button type="button" class="btn-plain" onclick="discardDraftUI('${esc(d.key)}')">Discard</button>
+              <button type="button" class="btn-filled" onclick="openDraft('${esc(d.key)}')">Open</button></div></div>`).join('');
+      if (!list.length) html += '<div class="lib-empty">No saved proofs match.</div>';
+      html += list.map(p => {
+          let i = libraryList.indexOf(p), cur = p.revs[0] || {};
+          return `<div class="lib-row">
             <div class="lib-main">
-              <div class="lib-title">${esc([p.customer + (p.sub ? ' - ' + p.sub : ''), p.project].filter(Boolean).join(' — ') || 'Untitled proof')}</div>
+              <div class="lib-title">${statusChip(p.status)} ${esc([p.customer + (p.sub ? ' - ' + p.sub : ''), p.project].filter(Boolean).join(' — ') || 'Untitled proof')}</div>
               <div class="lib-meta">${p.ticket ? `<span class="chip">Ticket ${esc(p.ticket)}</span>` : ''}${p.designer ? `<span class="chip">${esc(p.designer)}</span>` : ''}<span class="lib-products">${esc(p.products)}</span></div>
+              ${p.draft ? `<div class="lib-draftnote">Unsaved changes autosaved ${esc(String(p.draft.savedAt).slice(0, 16))} · <a href="#" onclick="openDraft('${esc(p.draft.key)}'); return false;">Restore</a> · <a href="#" onclick="discardDraftUI('${esc(p.draft.key)}'); return false;">Discard</a></div>` : ''}
             </div>
             <div class="lib-side">
-              <select class="lib-rev" id="lib-rev-${i}" title="Revision to open">${p.revs.map(r => `<option value="${r.rev}">Rev ${r.rev} – ${esc(r.savedAt)}${r.note ? ' – ' + esc(r.note) : ''}</option>`).join('')}</select>
+              <div class="lib-revbox">
+                <select class="lib-rev" id="lib-rev-${i}" title="Version" onchange="libRevChanged(${i})">${p.revs.map(r => `<option value="${r.rev}">v${r.rev} – ${esc(r.savedAt)}${r.note ? ' – ' + esc(r.note) : ''}</option>`).join('')}</select>
+                <select class="lib-status ${STATUS_CLASS[cur.status] || ''}" id="lib-st-${i}" title="Approval status of this version (${esc(cur.statusBy || '')} ${esc(cur.statusAt || '')})" onchange="changeStatus(${i}, this.value)">${STATUSES.map(x => `<option ${x === (cur.status || 'Draft') ? 'selected' : ''}>${x}</option>`).join('')}</select>
+              </div>
+              <button type="button" class="btn-tonal" title="Start a new proof with these products, specs, images and measurements; customer info is cleared" onclick="newFromProof('${esc(p.proofId)}', document.getElementById('lib-rev-${i}').value)">New from this</button>
               <button type="button" class="btn-filled" onclick="openSavedProof('${esc(p.proofId)}', document.getElementById('lib-rev-${i}').value)">Open</button>
             </div>
-          </div>`).join('');
+          </div>`;
+      }).join('');
+      box.innerHTML = html;
+  }
+  function libRevChanged(i) {
+      let p = libraryList[i], rev = Number(document.getElementById(`lib-rev-${i}`).value), r = p.revs.find(x => x.rev === rev) || {};
+      let sel = document.getElementById(`lib-st-${i}`); sel.value = r.status || 'Draft'; sel.className = `lib-status ${STATUS_CLASS[r.status] || ''}`;
+  }
+  function changeStatus(i, status) {
+      let p = libraryList[i], rev = Number(document.getElementById(`lib-rev-${i}`).value);
+      google.script.run
+          .withSuccessHandler(r => {
+              let rv = p.revs.find(x => x.rev === r.rev); if (rv) Object.assign(rv, { status: r.status, statusBy: r.statusBy, statusAt: r.statusAt });
+              if (r.rev === p.latest) p.status = r.status;
+              if (currentProof && currentProof.proofId === p.proofId && r.rev === currentProof.rev) { currentProof.status = r.status; updateProofStatus(); }
+              renderLibrary(); toast(`v${r.rev} marked ${r.status}`);
+          })
+          .withFailureHandler(e => { alert('Could not change the status: ' + (e && e.message || e)); renderLibrary(); })
+          .setProofStatus(p.proofId, rev, status);
   }
   function openSavedProof(proofId, rev) {
-      if (pkgItems.length && !confirm('Open this saved proof? Anything not saved in the current package will be lost.')) return;
+      let p = libraryList.find(x => x.proofId === proofId);
+      if (p && p.draft && confirm(`This proof has unsaved changes autosaved ${String(p.draft.savedAt).slice(0, 16)}.\n\nOK = open those changes\nCancel = open the saved v${rev}`)) { openDraft(p.draft.key); return; }
+      if (pkgItems.length && hasUnsavedChanges() && !confirm('Open this saved proof? Unsaved work in the current package will be lost.')) return;
       document.getElementById('lib-list').innerHTML = '<div class="lib-empty">Opening…</div>';
       google.script.run
           .withSuccessHandler(async r => {
               try {
-                  let missing = await restoreState(JSON.parse(r.state), r.images || {});
-                  let latest = (libraryList.find(p => p.proofId === r.proofId) || {}).latest || r.rev;
-                  currentProof = { proofId: r.proofId, rev: latest, savedAt: r.savedAt, label: proofLabel() };
+                  let missing = await applyLoaded(r);
+                  let latest = (p || {}).latest || r.rev, rv = p ? (p.revs.find(x => x.rev === r.rev) || {}) : {};
+                  currentProof = { proofId: r.proofId, rev: latest, savedAt: r.savedAt, status: rv.status || 'Draft', label: proofLabel() };
+                  currentDraft = p && p.draft ? { key: p.draft.key, draftId: '', proofId: r.proofId, savedAt: '' } : null;
+                  draftUploaded = {}; lastSavedSnap = currentSnap(); lastDraftSnap = lastSavedSnap;
                   closeLibrary(); updateProofStatus(); showStep('specs');
-                  toast(`Opened Rev ${r.rev}: ${currentProof.label}` + (r.rev < latest ? ` (saving makes Rev ${latest + 1})` : ''));
+                  toast(`Opened v${r.rev}: ${currentProof.label}` + (r.rev < latest ? ` (saving makes v${latest + 1})` : ''));
                   if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
               } catch (e) { console.error(e); alert('Could not open this proof: ' + e.message); renderLibrary(); }
           })
           .withFailureHandler(e => { alert('Could not open this proof: ' + (e && e.message || e)); renderLibrary(); })
           .loadProof(proofId, Number(rev) || 0);
+  }
+  // a new proof from a saved one: everything kept (products, specs, images, measurements), customer info cleared
+  function newFromProof(proofId, rev) {
+      if (pkgItems.length && hasUnsavedChanges() && !confirm('Start a new proof from this one? Unsaved work in the current package will be lost.')) return;
+      document.getElementById('lib-list').innerHTML = '<div class="lib-empty">Copying…</div>';
+      google.script.run
+          .withSuccessHandler(async r => {
+              try {
+                  let missing = await applyLoaded(r);
+                  clearCustomerFields();
+                  currentProof = null; currentDraft = null; draftUploaded = {}; lastSavedSnap = ''; lastDraftSnap = '';
+                  closeLibrary(); updateProofStatus(); showStep('customer'); refreshAll();
+                  toast('New proof started from a copy. Customer info is cleared; Save makes its own v1.');
+                  if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
+              } catch (e) { console.error(e); alert('Could not copy this proof: ' + e.message); renderLibrary(); }
+          })
+          .withFailureHandler(e => { alert('Could not copy this proof: ' + (e && e.message || e)); renderLibrary(); })
+          .loadProof(proofId, Number(rev) || 0);
+  }
+  function clearCustomerFields() {
+      document.querySelectorAll('#customer-panel input, #customer-panel textarea').forEach(el => { if (el.id === 'cf-rev') return; if (el.type === 'checkbox') el.checked = false; else el.value = ''; });
+      document.getElementById('cf-sub-group').style.display = 'none';
   }
   document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
@@ -2963,10 +3137,8 @@
       if (document.getElementById('library-modal').style.display === 'flex') closeLibrary();
   });
   function newPackage() {
-      if (pkgItems.length && !confirm('Start a new package? Anything not saved in the current package will be lost.')) return;
-      resetPackage();
-      document.querySelectorAll('#customer-panel input, #customer-panel textarea').forEach(el => { if (el.id === 'cf-rev') return; if (el.type === 'checkbox') el.checked = false; else el.value = ''; });
-      document.getElementById('cf-sub-group').style.display = 'none';
+      if (pkgItems.length && hasUnsavedChanges() && !confirm('Start a new package? Unsaved work in the current package will be lost (its autosaved draft stays in Saved proofs).')) return;
+      resetPackage(); clearCustomerFields(); lastSavedSnap = ''; lastDraftSnap = ''; forgetLocalDraft();
       renderCustomCards(); updateSelectionBar(); updateProofStatus(); showStep('select');
   }
 
