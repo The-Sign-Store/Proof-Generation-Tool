@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v1.9  -  Proof Packages
+  //  SIGN PROOF GENERATOR v1.9.3  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -18,6 +18,7 @@
   let modalItems = [], modalTarget = null;
   let renderTimer = null;
   let step = 'select';
+  let customProducts = {}, customSeq = 0, customCompSeq = 0;   // 'X::n' -> {name}: custom tables built on screen (this package only)
   let excludedDrawings = {};   // 'iid|DRAWING_ID' -> true when unchecked in the Specs panel
 
   const CUSTOM_PAINT = "Custom Paint (SW / PMS)";
@@ -145,7 +146,52 @@
               <span class="cat-order"></span></label>`;
       document.getElementById('cat-products').innerHTML = cat.products.map(card).join('');
       document.getElementById('cat-components').innerHTML = cat.comps.map(card).join('');
+      renderCustomCards();
       updateSelectionBar();
+  }
+
+  // ---------- custom tables (main screen): name a custom product, then build its table on the specs step ----------
+  function renderCustomCards() {
+      let box = document.getElementById('cat-custom'); if (!box) return;
+      box.innerHTML = Object.keys(customProducts).map(key => `<div class="cat-card custom-card" id="card-${key}" data-name="${esc(customProducts[key].name.toLowerCase())}">
+              <input type="checkbox" onchange="toggleSelect('${key}', this.checked)">
+              <div style="flex:1;"><input type="text" class="custom-name" id="cname-${key}" value="${esc(customProducts[key].name)}" maxlength="60"
+                     title="Product name on the proof and the cover" oninput="renameCustomProduct('${key}', this.value)">
+                <div class="cat-desc">Custom table: your own titles and descriptions, with swatches, materials and detail drawings</div></div>
+              <span class="cat-order"></span><span class="part-remove custom-x" title="Remove this custom product" onclick="removeCustomProduct('${key}')">&times;</span></div>`).join('') +
+          `<button type="button" class="custom-new" id="custom-new" onclick="addCustomProduct()"><b>+ Build Custom Table</b>` +
+          `<span>A product with a completely custom spec table: type each title and description, and use color swatches, materials, finishes and detail drawings</span></button>`;
+  }
+  function addCustomProduct() {
+      let key = 'X::' + (++customSeq);
+      customProducts[key] = { name: 'Custom Product' + (Object.keys(customProducts).length ? ' ' + (Object.keys(customProducts).length + 1) : '') };
+      selection.push(key);
+      renderCustomCards(); updateSelectionBar();
+      let el = document.getElementById(`cname-${key}`); if (el) { el.focus(); el.select(); }
+  }
+  function renameCustomProduct(key, v) {
+      let c = customProducts[key]; if (!c) return;
+      c.name = String(v || '').trim() || 'Custom Product';
+      let card = document.getElementById(`card-${key}`); if (card) card.dataset.name = c.name.toLowerCase();
+      let it = pkgItems.find(x => x.key === key);
+      if (it) {
+          let d0 = it.defs[0];
+          if (d0 && d0.title === it.name) {                       // first section follows the product name until renamed itself
+              d0.title = c.name;
+              allParts.filter(p => p.iid === it.iid && p.di === 0).forEach(p => { p.title = c.name; });
+              let b = document.getElementById(`madd-${it.iid}-0`); if (b) b.innerHTML = `+ Add Another ${esc(c.name)}`;
+              syncPartTitles();
+          }
+          it.name = c.name;
+          let h = document.getElementById(`iname-${it.iid}`); if (h) h.innerText = c.name;
+          [`cname-${key}`, `iname-in-${it.iid}`].forEach(id => { let el = document.getElementById(id); if (el && el !== document.activeElement) el.value = c.name; });
+          schedulePreview();
+      }
+  }
+  function removeCustomProduct(key) {
+      delete customProducts[key];
+      selection = selection.filter(k => k !== key);
+      renderCustomCards(); updateSelectionBar();
   }
 
   function filterCatalog(q) {
@@ -199,10 +245,13 @@
   // =====================================================================
   function createItem(key) {
       let iid = 'i' + (++itemSeq);
-      let kind = key.slice(0, 1) === 'P' ? 'product' : 'component';
+      let kind = key.slice(0, 1) === 'P' ? 'product' : (key.slice(0, 1) === 'X' ? 'custom' : 'component');
       let ref = key.slice(3);
       let defs, name;
-      if (kind === 'product') {
+      if (kind === 'custom') {
+          name = (customProducts[key] || {}).name || 'Custom Product';
+          defs = [newCustomDef(name, 0)];
+      } else if (kind === 'product') {
           name = ref;
           defs = (appData.assemblies[ref] || []).map(d => Object.assign({}, d));
       } else {
@@ -217,7 +266,7 @@
       panel.className = 'item-panel';
       panel.id = `item-${iid}`;
       panel.innerHTML = `<div class="item-header" onclick="toggleItem('${iid}')">
-                            <span class="item-name">${esc(name)}</span>
+                            <span class="item-name" id="iname-${iid}">${esc(name)}</span>
                             <span><span class="item-pages" id="ipages-${iid}"></span><span class="item-caret" id="icaret-${iid}">\u25BE</span></span>
                          </div>
                          <div class="item-body" id="ibody-${iid}"></div>`;
@@ -225,21 +274,26 @@
       let body = panel.querySelector('.item-body');
       let ddBox = document.createElement('div');
       ddBox.className = 'item-drawings'; ddBox.id = `idraw-${iid}`; ddBox.style.display = 'none';
-      defs.forEach((d, di) => {
-          let group = document.createElement('div');
-          group.id = `mgroup-${iid}-${di}`;
-          body.appendChild(group);
-          if (!appData.components[d.component]) { group.innerHTML = `<div class="part-card" style="color:#c1272d;">Unknown Component_ID: ${esc(d.component)}</div>`; return; }
-          addPart(it, di);
-          if (d.repeatable) {
-              let btn = document.createElement('button'), clone = CLONE_COMPONENTS.indexOf(d.component) !== -1;
-              btn.type = 'button'; btn.className = 'swatch-btn add-part-btn'; btn.id = `madd-${iid}-${di}`;
-              btn.innerHTML = clone ? '+ Add Letters' : `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
-              if (clone) btn.title = 'Adds another letter set (e.g. a different letter height) with the same settings as the one above; edit what differs';
-              btn.onclick = function () { addPart(it, di, clone); refreshAll(); };
-              group.appendChild(btn);
-          }
-      });
+      if (kind === 'custom') {
+          let nm = document.createElement('div');
+          nm.className = 'custom-item-name';
+          nm.innerHTML = `<label>PRODUCT NAME</label><input type="text" id="iname-in-${iid}" value="${esc(name)}" maxlength="60" oninput="renameCustomProduct('${key}', this.value)">`;
+          body.appendChild(nm);
+      }
+      let groups = document.createElement('div');
+      groups.id = `igroups-${iid}`;
+      body.appendChild(groups);
+      defs.forEach((d, di) => addDefGroup(it, di));
+      if (kind === 'custom') {
+          let bar = document.createElement('div');
+          bar.className = 'custom-controls';
+          let opts = Object.values(appData.components).filter(c => !c.custom).sort((a, b) => a.name.localeCompare(b.name))
+              .map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+          bar.innerHTML = `<button type="button" class="swatch-btn add-part-btn" onclick="addCustomSection('${iid}')" title="Another custom table section with its own name and rows">+ Add Section</button>` +
+                          `<select class="custom-add-comp" onchange="addComponentToItem('${iid}', this.value); this.value = '';" title="Add an existing component (poles, illumination, footer...) to this product">` +
+                          `<option value="">+ Add Component...</option>${opts}</select>`;
+          body.appendChild(bar);
+      }
       body.appendChild(ddBox);
       let blankBox = document.createElement('div');
       blankBox.className = 'item-blanks'; blankBox.id = `iblank-${iid}`;
@@ -250,6 +304,150 @@
       blankBtn.onclick = function () { addBlank(it); };
       body.appendChild(blankBtn);
       return it;
+  }
+
+  function addDefGroup(it, di) {
+      let d = it.defs[di], iid = it.iid;
+      let group = document.createElement('div');
+      group.id = `mgroup-${iid}-${di}`;
+      document.getElementById(`igroups-${iid}`).appendChild(group);
+      if (!appData.components[d.component]) { group.innerHTML = `<div class="part-card" style="color:#c1272d;">Unknown Component_ID: ${esc(d.component)}</div>`; return; }
+      addPart(it, di);
+      if (d.repeatable) {
+          let btn = document.createElement('button'), clone = CLONE_COMPONENTS.indexOf(d.component) !== -1 || !!appData.components[d.component].custom;
+          btn.type = 'button'; btn.className = 'swatch-btn add-part-btn'; btn.id = `madd-${iid}-${di}`;
+          btn.innerHTML = `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
+          if (clone) btn.title = 'Adds another full section with the same settings as the one above; edit what differs';
+          btn.onclick = function () { addPart(it, di, clone); refreshAll(); };
+          group.appendChild(btn);
+      }
+  }
+
+  // =====================================================================
+  //  CUSTOM TABLES: each section is a component made on screen; every row = a title + a description
+  // =====================================================================
+  const CUSTOM_TYPES = [
+      { k: 'text', n: 'Text', type: 'text' },
+      { k: 'dims2', n: 'Size W x H', type: 'dims', options: 'W|H' },
+      { k: 'dims3', n: 'Size W x H x D', type: 'dims', options: 'W|H|D' },
+      { k: 'paint', n: 'Paint color (SW / PMS)', type: 'paint' },
+      { k: 'finish', n: 'Finish', type: 'finish' },
+      { k: 'vinyl', n: 'Vinyl (Oracal)', type: 'vinyl' },
+      { k: 'ACM', n: 'ACM color', type: 'db', options: 'ACM' },
+      { k: 'ACRYLIC', n: 'Acrylic color', type: 'db', options: 'ACRYLIC' },
+      { k: 'PVC', n: 'PVC color', type: 'db', options: 'PVC' },
+      { k: 'CORO', n: 'Coroplast color', type: 'db', options: 'CORO' },
+      { k: 'TRIMCAP', n: 'Trim cap color', type: 'db', options: 'TRIMCAP' },
+      { k: 'COIL', n: 'Return / coil color', type: 'db', options: 'COIL' },
+      { k: 'LED', n: 'LED color', type: 'db', options: 'LED' },
+      { k: 'rowmark', n: 'Rowmark (ADA)', type: 'rowmark' },
+      { k: 'pictogram', n: 'ADA pictogram', type: 'pictogram' }
+  ];
+  function customTypeOptions(t) {
+      if (t.k === 'finish') return (appData.colors_finish || []).map(c => c.name).filter(Boolean).join('|') || 'Black|White|Bronze|Brushed Aluminum';
+      if (t.k === 'vinyl') {
+          let ser = [];
+          (appData.colors_oracal || []).forEach(c => { let v = String(c.series).replace(/\.0$/, '').trim(); if (v && ser.indexOf(v) === -1) ser.push(v); });
+          return ser.join('|');
+      }
+      return t.options || '';
+  }
+  function customField(k, title, col, def) {
+      let t = CUSTOM_TYPES.find(x => x.k === k) || CUSTOM_TYPES[0], lab = String(title || '').trim().toUpperCase();
+      return { zone: 'COLUMN ' + (col || 1), variable: lab, label: lab, type: t.type, ck: t.k, def: def || '', options: customTypeOptions(t),
+               showIf: '', required: !!lab, notes: '', hideValues: '', custom: true };
+  }
+  function newCustomDef(title, di) {
+      let id = 'CUSTOM_' + (++customCompSeq);
+      appData.components[id] = { id, name: title, description: 'Custom table', tool: false, repeatable: true, custom: true,
+          fields: [customField('text', 'QUANTITY', 1, '1'), customField('dims2', 'SIZE', 1), customField('text', '', 2), customField('text', '', 2)] };
+      return { component: id, title, include: 'Required', repeatable: true, overrides: '', pageGroup: di + 1 };
+  }
+  function addCustomSection(iid) {
+      let it = pkgItems.find(x => x.iid === iid); if (!it) return;
+      let n = it.defs.filter(d => !d.removed && appData.components[d.component] && appData.components[d.component].custom).length + 1;
+      it.defs.push(newCustomDef('Section ' + n, it.defs.length));
+      addDefGroup(it, it.defs.length - 1);
+      refreshAll();
+  }
+  function addComponentToItem(iid, compId) {
+      let it = pkgItems.find(x => x.iid === iid), c = appData.components[compId]; if (!it || !c) return;
+      it.defs.push({ component: compId, title: c.name, include: 'Required', repeatable: c.repeatable, overrides: '', pageGroup: it.defs.length + 1 });
+      addDefGroup(it, it.defs.length - 1);
+      refreshAll();
+  }
+  function customRowHtml(part, f, fi) {
+      let fid = `${part.uid}_${fi}`, cid = part.comp, col = Number(String(f.zone).replace(/\D/g, '')) || 1;
+      return `<div class="cr-row" id="cr-${fid}">
+                <div class="cr-head">
+                  <input type="text" class="cr-title" id="crt-${fid}" value="${esc(f.label)}" placeholder="Title (e.g. FACE)" maxlength="40" spellcheck="false"
+                         title="Row title on the proof" oninput="setCustomTitle('${cid}', ${fi}, this.value)">
+                  <select class="cr-type" id="crk-${fid}" title="Kind of description" onchange="setCustomType('${cid}', ${fi}, this.value)">` +
+                    CUSTOM_TYPES.map(t => `<option value="${t.k}" ${t.k === f.ck ? 'selected' : ''}>${esc(t.n)}</option>`).join('') + `</select>
+                  <select class="cr-col" id="crc-${fid}" title="Column on the proof table" onchange="setCustomCol('${cid}', ${fi}, this.value)">` +
+                    [1, 2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === col ? 'selected' : ''}>Col ${n}</option>`).join('') + `</select>
+                  <span class="part-remove cr-x" title="Remove this row" onclick="removeCustomRow('${cid}', ${fi})">&times;</span>
+                </div>` + renderField(part, f, fi) + `</div>`;
+  }
+  function customDrawingsHtml(part) {
+      let list = (appData.drawings || []).slice().sort((a, b) => a.order - b.order);
+      return `<details class="cr-draw"><summary>Detail drawings (<span id="crdn-${part.uid}">${part.drawPick.length}</span> picked)</summary><div class="cr-draw-list">` +
+          list.map(d => `<label class="dd-chip"><input type="checkbox" id="crd-${part.uid}-${esc(d.id)}" ${part.drawPick.indexOf(d.id) !== -1 ? 'checked' : ''} ` +
+                        `onchange="pickCustomDrawing('${part.uid}', '${esc(d.id)}', this.checked)"> ${esc(d.title)}</label>`).join('') + `</div></details>`;
+  }
+  function pickCustomDrawing(uid, id, on) {
+      let p = allParts.find(x => x.uid === uid); if (!p) return;
+      p.drawPick = p.drawPick.filter(x => x !== id); if (on) p.drawPick.push(id);
+      let n = document.getElementById(`crdn-${uid}`); if (n) n.innerText = p.drawPick.length;
+      schedulePreview();
+  }
+  function customParts(cid) { return allParts.filter(p => p.comp === cid); }
+  function placeholders(part, fi) {
+      let el = document.getElementById(`mf-${part.uid}_${fi}`); if (el && el.tagName === 'INPUT' && el.type === 'text') el.placeholder = 'Description';
+  }
+  function addCustomRow(uid) {
+      let part = allParts.find(x => x.uid === uid); if (!part) return;
+      let comp = appData.components[part.comp], last = comp.fields.filter(f => !f.removed).pop();
+      comp.fields.push(customField('text', '', last ? Number(String(last.zone).replace(/\D/g, '')) || 1 : 1));
+      let fi = comp.fields.length - 1;
+      customParts(part.comp).forEach(p => {
+          let box = document.getElementById(`crows-${p.uid}`); if (!box) return;
+          box.insertAdjacentHTML('beforeend', customRowHtml(p, comp.fields[fi], fi)); placeholders(p, fi);
+      });
+      let t = document.getElementById(`crt-${uid}_${fi}`); if (t) t.focus();
+      refreshAll();
+  }
+  function setCustomTitle(cid, fi, v) {
+      let f = appData.components[cid].fields[fi], lab = String(v || '').trim().toUpperCase();
+      f.label = f.variable = lab; f.required = !!lab;
+      customParts(cid).forEach(p => { let el = document.getElementById(`crt-${p.uid}_${fi}`); if (el && el !== document.activeElement) el.value = lab; });
+      refreshAll();
+  }
+  function setCustomCol(cid, fi, n) {
+      appData.components[cid].fields[fi].zone = 'COLUMN ' + n;
+      customParts(cid).forEach(p => { let el = document.getElementById(`crc-${p.uid}_${fi}`); if (el) el.value = n; });
+      refreshAll();
+  }
+  function setCustomType(cid, fi, k) {
+      let f = appData.components[cid].fields[fi], t = CUSTOM_TYPES.find(x => x.k === k) || CUSTOM_TYPES[0];
+      Object.assign(f, { type: t.type, ck: t.k, options: customTypeOptions(t), def: '' });
+      customParts(cid).forEach(p => {
+          let row = document.getElementById(`cr-${p.uid}_${fi}`); if (!row) return;
+          row.outerHTML = customRowHtml(p, f, fi); placeholders(p, fi);
+      });
+      refreshAll();
+  }
+  function removeCustomRow(cid, fi) {
+      appData.components[cid].fields[fi].removed = true;
+      customParts(cid).forEach(p => { let row = document.getElementById(`cr-${p.uid}_${fi}`); if (row) row.remove(); });
+      refreshAll();
+  }
+  // table columns in order; custom tables sort by column number and skip removed rows
+  function compZones(comp) {
+      let zones = [];
+      comp.fields.forEach(f => { if (!f.removed && zones.indexOf(f.zone) === -1) zones.push(f.zone); });
+      if (comp.custom) zones.sort((a, b) => (Number(String(a).replace(/\D/g, '')) || 0) - (Number(String(b).replace(/\D/g, '')) || 0));
+      return zones;
   }
 
   // ---------- blank pages: sidebar + watermark, empty art board, editable title (default "Page") ----------
@@ -273,7 +471,7 @@
   }
 
   // channel letter components: "+ Add Letters" copies the previous letter set's settings into the new one
-  const CLONE_COMPONENTS = ['CHANNEL_LETTERS_FL', 'HALO_LETTERS'];
+  const CLONE_COMPONENTS = ['CHANNEL_LETTERS_FL', 'HALO_LETTERS', 'CLOUD_LETTERS_FL', 'CLOUD_LETTERS_HALO'];
   function copyPartValues(fromUid, toUid) {
       let src = document.getElementById(`part-${fromUid}`), dst = document.getElementById(`part-${toUid}`);
       if (!src || !dst) return;
@@ -289,13 +487,57 @@
       });
   }
 
+  // ---------- extra letter lines (QTY / LETTER HEIGHT / TEXT) inside one channel letter section ----------
+  let lineSeq = 0;
+  function hasLetterLines(comp) {
+      let v = comp.fields.map(f => f.variable.toUpperCase());
+      return v.indexOf('TEXT') !== -1 && v.indexOf('LETTER HEIGHT') !== -1 && comp.fields.some(f => f.type === 'autoqty');
+  }
+  function letterCount(t) { return String(t || '').replace(/\s/g, '').length; }
+  function addLetterLine(uid) {
+      let p = allParts.find(x => x.uid === uid); if (!p) return;
+      let last = p.letterLines[p.letterLines.length - 1];
+      p.letterLines.push({ id: 'L' + (++lineSeq), height: last ? last.height : getRaw(p, 'LETTER HEIGHT'), text: '' });
+      renderLetterLines(p); schedulePreview();
+      let box = document.getElementById(`pline-text-${p.letterLines[p.letterLines.length - 1].id}`); if (box) box.focus();
+  }
+  function removeLetterLine(uid, id) { let p = allParts.find(x => x.uid === uid); if (!p) return; p.letterLines = p.letterLines.filter(l => l.id !== id); renderLetterLines(p); schedulePreview(); }
+  function setLetterLine(uid, id, key, v) {
+      let p = allParts.find(x => x.uid === uid), l = p && p.letterLines.find(x => x.id === id); if (!l) return;
+      l[key] = v;
+      let q = document.getElementById(`pline-qty-${id}`); if (q) q.value = letterCount(l.text);
+      schedulePreview();
+  }
+  function renderLetterLines(p) {
+      let box = document.getElementById(`plines-${p.uid}`); if (!box) return;
+      box.innerHTML = p.letterLines.map(l => `<div class="zone-row letter-line">
+            <div class="form-group"><label>QUANTITY</label><input type="number" id="pline-qty-${l.id}" value="${letterCount(l.text)}" readonly style="background:#f0f0f0;" title="Counted from TEXT"></div>
+            <div class="form-group"><label>LETTER HEIGHT *</label><input type="number" value="${esc(l.height)}" oninput="setLetterLine('${p.uid}', '${l.id}', 'height', this.value)"></div>
+            <div class="flex-break"></div>
+            <div class="form-group wide-field"><label>TEXT * <span class="part-remove" onclick="removeLetterLine('${p.uid}', '${l.id}')">[x] Remove</span></label>
+              <input type="text" id="pline-text-${l.id}" value="${esc(l.text)}" oninput="setLetterLine('${p.uid}', '${l.id}', 'text', this.value)"></div>
+          </div>`).join('');
+  }
+  // proof rows for the extra lines, right after the section's own TEXT row
+  function letterLineItems(part, zone) {
+      let out = [];
+      (part.letterLines || []).forEach(l => {
+          let h = String(l.height || '').replace(/"/g, '').trim(), t = String(l.text || '').trim();
+          out.push(h ? { zone, label: 'QTY / HEIGHT', variable: 'QUANTITY', type: 'autoqty', val: `${letterCount(t)} @ ${h}"`, hex: '' }
+                     : { zone, label: 'QTY / HEIGHT', variable: 'QUANTITY', type: 'autoqty', val: 'Enter LETTER HEIGHT', hex: '', warn: true, warnLabel: 'MISSING' });
+          out.push(t ? { zone, label: 'TEXT', variable: 'TEXT', type: 'text', val: `"${t}"`, hex: '' }
+                     : { zone, label: 'TEXT', variable: 'TEXT', type: 'text', val: 'Enter TEXT', hex: '', warn: true, warnLabel: 'MISSING' });
+      });
+      return out;
+  }
+
   function addPart(it, di, clone) {
       let d = it.defs[di];
       let comp = appData.components[d.component];
       let num = allParts.filter(p => p.iid === it.iid && p.di === di).length + 1;
       let uid = 'p' + (++partSeq);
       let optional = d.include !== 'Required';
-      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, include: d.include,
+      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, letterLines: [], drawPick: [], include: d.include,
                    enabled: d.include !== 'Optional-Off', overrides: parseOverrides(d.overrides), num };
       allParts.push(part);
 
@@ -310,14 +552,26 @@
                     <span>
                       <label class="part-toggle" title="Start this section's table on a new proof page"><input type="checkbox" id="pnew-${uid}" onchange="togglePartNewPage('${uid}')"> New page</label>
                       ${optional && num === 1 ? `<label class="part-toggle"><input type="checkbox" id="pinc-${uid}" ${part.enabled ? 'checked' : ''} onchange="togglePart('${uid}')"> Include</label>` : ''}
-                      ${num > 1 ? `<span class="part-remove" onclick="removePart('${uid}')">[x] Remove</span>` : ''}
+                      ${num > 1 || it.kind === 'custom' ? `<span class="part-remove" onclick="removePart('${uid}')">[x] Remove</span>` : ''}
                     </span>
                   </div>
                   <div class="part-body" id="pbody-${uid}" style="display:${part.enabled ? 'block' : 'none'};">`;
+      let lettersZone = hasLetterLines(comp) ? comp.fields.find(f => f.variable.toUpperCase() === 'TEXT').zone : null;
+      if (comp.custom) {
+          html += `<div class="zone-group custom-rows"><div class="cr-legend"><span>TITLE</span><span>DESCRIPTION TYPE</span><span>COLUMN</span></div><div id="crows-${uid}">`;
+          comp.fields.forEach((f, fi) => { if (!f.removed) html += customRowHtml(part, f, fi); });
+          html += `</div><button type="button" class="swatch-btn add-letters-btn" onclick="addCustomRow('${uid}')" title="Another title + description row">+ Add Row</button></div>`;
+          html += customDrawingsHtml(part);
+          zones = [];
+      }
       zones.forEach(z => {
           html += `<div class="zone-group"><div class="zone-row">`;
           comp.fields.forEach((f, fi) => { if (f.zone === z) html += renderField(part, f, fi); });
-          html += `</div></div>`;
+          html += `</div>`;
+          if (z === lettersZone)
+              html += `<div class="letter-lines" id="plines-${uid}"></div>
+                       <button type="button" class="swatch-btn add-letters-btn" onclick="addLetterLine('${uid}')" title="Another line of letters in this section (e.g. a different letter height); all other specs are shared">+ Add Letters</button>`;
+          html += `</div>`;
       });
       html += `<div class="part-notes">
                  <label class="part-toggle"><input type="checkbox" id="pnote-on-${uid}" onchange="togglePartNotes('${uid}')"> Add Special Notes</label>
@@ -332,9 +586,17 @@
       let group = document.getElementById(`mgroup-${it.iid}-${di}`);
       let addBtn = document.getElementById(`madd-${it.iid}-${di}`);
       if (addBtn) group.insertBefore(card, addBtn); else group.appendChild(card);
+      if (comp.custom) comp.fields.forEach((f, fi) => { if (!f.removed) placeholders(part, fi); });
       if (clone) {
           let prev = allParts.filter(p => p.iid === it.iid && p.di === di && p.uid !== uid).pop();
-          if (prev) copyPartValues(prev.uid, uid);
+          if (prev) {
+              copyPartValues(prev.uid, uid);
+              part.drawPick = prev.drawPick.slice();
+              part.drawPick.forEach(id => { let c = document.getElementById(`crd-${uid}-${id}`); if (c) c.checked = true; });
+              let n = document.getElementById(`crdn-${uid}`); if (n) n.innerText = part.drawPick.length;
+              part.letterLines = prev.letterLines.map(l => Object.assign({}, l, { id: 'L' + (++lineSeq) }));
+              renderLetterLines(part);
+          }
       }
   }
 
@@ -390,7 +652,13 @@
 
   function removePart(uid) {
       let el = document.getElementById(`part-${uid}`); if (el) el.remove();
+      let gone = allParts.find(p => p.uid === uid);
       allParts = allParts.filter(p => p.uid !== uid);
+      if (gone && !allParts.some(p => p.iid === gone.iid && p.di === gone.di)) {      // last section of a custom product's group
+          let it = pkgItems.find(x => x.iid === gone.iid);
+          if (it) it.defs[gone.di].removed = true;
+          let g = document.getElementById(`mgroup-${gone.iid}-${gone.di}`); if (g) g.remove();
+      }
       refreshAll();
   }
 
@@ -464,7 +732,8 @@
   function ccToggle(fid) {
       let on = document.getElementById(`mccon-${fid}`).checked;
       document.getElementById(`mcc-${fid}`).style.display = on ? 'block' : 'none';
-      let btn = document.getElementById(`mbtn-${fid}`); if (btn) btn.style.display = on ? 'none' : 'flex';
+      let btn = document.getElementById(`mbtn-${fid}`), ser = document.getElementById(`mser-${fid}`);
+      if (btn) btn.style.display = on || (ser && ser.value === 'CUSTOM') ? 'none' : 'flex';
       refreshAll();
   }
   function ccLayout() {
@@ -473,7 +742,7 @@
       });
   }
   function ccSwitch(fid) {
-      return `<label class="cc-toggle"><input type="checkbox" id="mccon-${fid}" onchange="ccToggle('${fid}')"> Custom color (CMYK / RGB)</label>` + ccPanel(fid, false);
+      return `<label class="cc-toggle" title="Custom color by name + CMYK / RGB"><input type="checkbox" id="mccon-${fid}" onchange="ccToggle('${fid}')"> Custom</label>` + ccPanel(fid, false);
   }
 
   function renderField(part, f, fi) {
@@ -489,6 +758,8 @@
               html += `<input type="number" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`; break;
           case 'autoqty':
               html += `<input type="number" id="mf-${fid}" value="${esc(def)}" readonly style="background:#f0f0f0;" title="Counted from TEXT">`; break;
+          case 'calc':
+              html += `<input type="text" id="mf-${fid}" value="" readonly class="calc-field" title="Calculated from the fields in this section">`; break;
           case 'fullcolor':
               html += `<div class="fullcolor-chip">Full Color Digital</div><input type="hidden" id="mf-${fid}" value="Full Color Digital">`; break;
           case 'select': case 'color':
@@ -520,9 +791,11 @@
           case 'vinyl': {
               let series = opts.length ? opts : ['751RA'];
               let defSeries = series.indexOf(def) !== -1 ? def : series[0];
-              html += `<select id="mser-${fid}" style="margin-bottom:5px;" onchange="clearSwatch('${fid}')">`;
+              html += `<select id="mser-${fid}" style="margin-bottom:5px;" onchange="vinylSeriesChanged('${fid}')">`;
               series.forEach(s => html += `<option value="${esc(s)}" ${s === defSeries ? 'selected' : ''}>Oracal ${esc(s)}</option>`);
-              html += `</select>` + swatchBtn(fid, `openVinylModal('${fid}')`, '', '') + ccSwitch(fid);
+              html += `<option value="CUSTOM">-- Custom Input --</option></select>
+                       <input type="text" id="mc-${fid}" placeholder="Vinyl brand, series and color (e.g. 3M 3630-33 Red)" style="display:none; margin-bottom:5px;" oninput="refreshAll()">` +
+                      swatchBtn(fid, `openVinylModal('${fid}')`, '', '') + ccSwitch(fid);
               break;
           }
           case 'db': {
@@ -538,6 +811,16 @@
               html += `<input type="text" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`;
       }
       return html + `</div>`;
+  }
+
+  // vinyl: "-- Custom Input --" in the series list = type any vinyl (other brands / colors not in the list)
+  function vinylSeriesChanged(fid) {
+      let custom = document.getElementById(`mser-${fid}`).value === 'CUSTOM';
+      document.getElementById(`mc-${fid}`).style.display = custom ? 'block' : 'none';
+      let cc = document.getElementById(`mccon-${fid}`);
+      document.getElementById(`mbtn-${fid}`).style.display = custom || (cc && cc.checked) ? 'none' : 'flex';
+      clearSwatch(fid);
+      if (custom) document.getElementById(`mc-${fid}`).focus();
   }
 
   function paintBrandChanged(fid) {
@@ -630,7 +913,7 @@
   function getRaw(part, varName) {
       if (String(varName).trim().toUpperCase() === 'COMPONENT') return part.comp;   // Match_Rule: COMPONENT=ID|ID
       let fields = appData.components[part.comp].fields;
-      let fi = fields.findIndex(f => f.variable.toUpperCase() === varName.toUpperCase());
+      let fi = fields.findIndex(f => !f.removed && f.variable && f.variable.toUpperCase() === String(varName).toUpperCase());
       if (fi === -1) return '';
       if (visibleOnly) { let g = document.getElementById(`mg-${part.uid}_${fi}`); if (g && g.style.display === 'none') return ''; }
       let f = fields[fi], fid = `${part.uid}_${fi}`;
@@ -657,6 +940,26 @@
       });
   }
 
+  // ---------- calculated fields: Options = "W={MODULES WIDE}*9.45|H={MODULES HIGH}*9.45" or "={A}+{B}" (inches) ----------
+  function calcNumber(v) { let n = Math.round(v * 100) / 100; return String(n); }
+  function calcText(part, f) {
+      let out = [];
+      for (let term of splitOpts(f.options)) {
+          let eq = term.indexOf('='), label = eq > 0 ? term.slice(0, eq).trim() : '', expr = term.slice(eq + 1);
+          let bad = false;
+          expr = expr.replace(/\{([^{}]+)\}/g, (all, name) => {
+              let n = parseFloat(String(getRaw(part, name.trim())).replace(/[^0-9.\-]/g, ''));
+              if (isNaN(n)) bad = true;
+              return '(' + n + ')';
+          });
+          if (bad || !/^[0-9.+\-*\/() ]+$/.test(expr)) return '';
+          let v; try { v = Function('"use strict"; return (' + expr + ');')(); } catch (e) { return ''; }
+          if (typeof v !== 'number' || !isFinite(v)) return '';
+          out.push(`${calcNumber(v)}"${label}`);
+      }
+      return out.join(' x ');
+  }
+
   function refreshAll() {
       allParts.forEach(part => {
           let fields = appData.components[part.comp].fields;
@@ -667,6 +970,11 @@
               if (el && t !== '') el.value = t.replace(/\s/g, '').length;
           });
           fields.forEach((f, fi) => {
+              if (f.type !== 'calc') return;
+              let el = document.getElementById(`mf-${part.uid}_${fi}`); if (el) el.value = calcText(part, f);
+          });
+          fields.forEach((f, fi) => {
+              if (f.removed) return;
               let fid = `${part.uid}_${fi}`;
               let g = document.getElementById(`mg-${fid}`);
               if (g) g.style.display = evalShowIf(part, f.showIf) ? 'flex' : 'none';
@@ -718,7 +1026,20 @@
               break;
           }
           case 'fullcolor': r.val = 'Full Color Digital'; r.gradient = true; break;
+          case 'calc': r.val = calcText(part, f); if (!r.val && f.required) { r.val = 'Enter the values above'; r.warn = true; } break;
+          case 'number': {                        // Options on a number field = its unit, e.g. " -> 1.5"
+              let v = String(byId(`mf-${fid}`).value).trim();
+              r.val = v && f.options ? v + String(f.options).trim() : v;
+              break;
+          }
           case 'vinyl': case 'db': case 'rowmark':
+              if (f.type === 'vinyl' && byId(`mser-${fid}`).value === 'CUSTOM') {
+                  let typed = byId(`mc-${fid}`).value.trim(), cc = byId(`mccon-${fid}`) && byId(`mccon-${fid}`).checked ? ccValue(fid, false) : null;
+                  r.val = [typed, cc && cc.val ? cc.val.replace(/^Custom(: )?/, '').replace(/^ \u00B7 /, '') : ''].filter(Boolean).join(' \u00B7 ');
+                  r.hex = cc ? cc.hex : '';
+                  if (!r.val && f.required) { r.val = 'Enter Vinyl'; r.warn = true; }
+                  break;
+              }
               if (byId(`mccon-${fid}`) && byId(`mccon-${fid}`).checked) { Object.assign(r, ccValue(fid, f.required)); break; }
               r.val = byId(`mpv-${fid}`).value; r.hex = byId(`mhex-${fid}`).value;
               if (!r.val && f.required) { r.val = 'Select Swatch'; r.warn = true; }
@@ -750,6 +1071,7 @@
       let comp = appData.components[part.comp];
       let items = [];
       comp.fields.forEach((f, fi) => {
+          if (f.removed) return;
           let g = document.getElementById(`mg-${part.uid}_${fi}`);
           if (g && g.style.display === 'none') return;
           let d = getDisplay(part, f, fi);
@@ -763,6 +1085,10 @@
           if (h && !h.warn) { q.val = `${q.val} @ ${h.val.replace(/"/g, '')}"`; q.label = 'QTY / HEIGHT'; items = items.filter(i => i !== h); }
       }
       items.forEach(i => { if (i.variable === 'TEXT' && !i.warn) i.val = `"${i.val}"`; });
+      if ((part.letterLines || []).length) {
+          let ti = items.findIndex(i => i.variable === 'TEXT'), zone = ti !== -1 ? items[ti].zone : (items[0] || {}).zone;
+          items.splice(ti === -1 ? items.length : ti + 1, 0, ...letterLineItems(part, zone));
+      }
       if (part.comp === 'ADA_SIGN') {
           let bg = items.find(i => i.variable === 'BACKGROUND COLOR'), fg = items.find(i => i.variable === 'TACTILE COLOR');
           if (bg && fg && bg.hex && fg.hex) {
@@ -800,6 +1126,7 @@
 
   function drawingsForPart(part) {
       if (String(TEMPLATE.Detail_Drawings || 'On').toUpperCase() === 'OFF') return [];
+      if (appData.components[part.comp].custom) return (appData.drawings || []).filter(d => (part.drawPick || []).indexOf(d.id) !== -1);
       return (appData.drawings || []).filter(d => (!d.components.length || d.components.indexOf(part.comp) !== -1) && matchRule(part, d.rule));
   }
 
@@ -833,7 +1160,7 @@
       let fields = appData.components[part.comp].fields;
       return String(svg).replace(/\{([^{}]+)\}/g, (all, inner) => {
           let bar = inner.indexOf('|'), name = (bar === -1 ? inner : inner.slice(0, bar)).trim(), fb = bar === -1 ? '' : inner.slice(bar + 1);
-          let fi = fields.findIndex(f => f.variable.toUpperCase() === name.toUpperCase()), v = '';
+          let fi = fields.findIndex(f => !f.removed && f.variable && f.variable.toUpperCase() === name.toUpperCase()), v = '';
           if (fi !== -1) {
               let g = document.getElementById(`mg-${part.uid}_${fi}`);
               if (!g || g.style.display !== 'none') { let d = getDisplay(part, fields[fi], fi); if (!d.warn) v = String(d.val || '').toUpperCase(); }
@@ -901,8 +1228,7 @@
           let blocks = [];
           allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => {
               let items = collectPartItems(part);
-              let zones = [];
-              appData.components[part.comp].fields.forEach(f => { if (zones.indexOf(f.zone) === -1) zones.push(f.zone); });
+              let zones = compZones(appData.components[part.comp]);
               let cols = zones.map(z => items.filter(i => i.zone === z)).filter(c => c.length);
               if (!cols.length) return;
               blocks.push({ part, title: partLabel(part), cols, notes: partNotes(part), newPage: part.newPage,
@@ -1474,7 +1800,11 @@
   // Package contents: one bold row per product / component, then its sections as indented sub-rows
   // cover only: quantity tag from the QUANTITY field(s): "(x2) Main Menu Boards"; blank quantity = no tag
   function qtyTag(parts) {
-      let raw = parts.map(p => getRaw(p, 'QUANTITY').trim()).filter(v => v !== '');
+      let raw = parts.map(p => {
+          let v = getRaw(p, 'QUANTITY').trim();
+          if (!(p.letterLines || []).length || !/^\d+$/.test(v || '0')) return v;
+          return String(Number(v || 0) + p.letterLines.reduce((a, l) => a + letterCount(l.text), 0));
+      }).filter(v => v !== '');
       if (!raw.length) return '';
       if (raw.every(v => /^\d+$/.test(v))) return `(x${raw.reduce((a, v) => a + Number(v), 0)})`;
       return raw.length === 1 ? `(x${raw[0]})` : '';
@@ -1873,7 +2203,7 @@
                `<rect x="${f(-w / 2)}" y="${f(-h / 2)}" width="${f(w)}" height="${f(h)}" fill="#FFFFFF"/>` +
                `<text x="0" y="${f(size * 0.36)}" font-family="Arial" font-size="${size}" font-weight="bold" fill="${txt ? MEAS_RED : '#999999'}" text-anchor="middle">${xText(shown)}</text></g>`;
       }
-      if (!EXPORTING) {                        // on-screen only: wide grab area + end handles
+      if (!EXPORTING && measureKey === key) {  // on-screen, Measure mode only: wide grab area + end handles
           o += `<line data-meas-hit="${key}|${i}|line" x1="${f(m.x1)}" y1="${f(m.y1)}" x2="${f(m.x2)}" y2="${f(m.y2)}" stroke="rgba(0,0,0,0)" stroke-width="12" style="cursor:move"/>` +
                `<circle data-meas-hit="${key}|${i}|p1" cx="${f(m.x1)}" cy="${f(m.y1)}" r="4" fill="#FFFFFF" stroke="${MEAS_RED}" stroke-width="1.2" style="cursor:crosshair"/>` +
                `<circle data-meas-hit="${key}|${i}|p2" cx="${f(m.x2)}" cy="${f(m.y2)}" r="4" fill="#FFFFFF" stroke="${MEAS_RED}" stroke-width="1.2" style="cursor:crosshair"/>`;
@@ -1882,7 +2212,8 @@
   }
   function drawMeasures(page) {
       let key = artKey(page), list = pageMeasures[key] || [];
-      return list.length ? `<g id="Measurements">` + list.map((m, i) => measureSVG(m, key, i)).join('') + `</g>` : '';
+      let inert = !EXPORTING && measureKey !== key ? ' pointer-events="none"' : '';
+      return list.length ? `<g id="Measurements"${inert}>` + list.map((m, i) => measureSVG(m, key, i)).join('') + `</g>` : '';
   }
   function patchMeasure(key, i) {             // redraw one line in place (keeps focus in the toolbar box)
       let g = document.querySelector(`#sheets g[data-meas="${key}|${i}"]`), m = (pageMeasures[key] || [])[i];
