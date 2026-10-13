@@ -1,7 +1,8 @@
 # Publishes a GitHub Release (with the packet zip) for every commit on main whose
 # message starts with a version, e.g. "v1.9: what changed". Already-released
 # versions are skipped, so this is safe to run any number of times.
-# The Drive sync script copies new releases into the "Sign Generation Tool" folder.
+# Then it tells the Drive sync script (.github/drive-sync) to copy new release zips
+# into the "Sign Generation Tool" Drive folder straight away (it also checks hourly).
 name: Release versions
 
 on:
@@ -15,6 +16,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      DRIVE_SYNC_URL: ${{ secrets.DRIVE_SYNC_URL }}
+      DRIVE_SYNC_KEY: ${{ secrets.DRIVE_SYNC_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,3 +28,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/release_versions.sh
+
+      - name: Copy new release zips to Google Drive
+        if: ${{ env.DRIVE_SYNC_URL != '' && env.DRIVE_SYNC_KEY != '' }}
+        continue-on-error: true      # Drive trouble never blocks a release; the hourly sync catches up
+        run: |
+          # Apps Script answers a POST with a redirect to the result; -L follows it.
+          out=$(curl -sS -L --max-time 330 --data "" "${DRIVE_SYNC_URL}?key=${DRIVE_SYNC_KEY}")
+          echo "$out"
+          echo "$out" | grep -q '"ok":true' || { echo "::warning::Drive sync did not confirm: $out"; exit 1; }
