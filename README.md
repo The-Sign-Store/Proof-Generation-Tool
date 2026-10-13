@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v1.9.2** · The Sign Store Online, Inc. · Design Department
+**Current version: v1.9.3** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -25,6 +25,7 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 - **Page control:** a "New page" toggle per section, and blank pages per product (sidebar and watermark, empty art board, editable title).
 - **Mixed letter sizes:** "+ Add Letters" on channel and cloud letters adds a Quantity / Letter Height / Text line inside the section; "+ Add Another ..." copies the whole section.
 - **Calculated fields:** e.g. EMC display size from 9.45" modules, and overall vs. cabinet depth (modules extend past the cabinet).
+- **Build Custom Table:** a custom product whose spec table you build on screen: type each row's title and description, or make the description a swatch, material, finish, size or pictogram picker; add sections, existing components and detail drawings.
 - **Measurement lines:** draw red dimension lines over images on any page, type the value in inches, move and resize them; they export as editable SVG.
 - **Artwork placement:** add a screenshot or JPEG to any proof page with a button, by dropping it, or by pasting with Ctrl+V. You can move and resize it, and it is embedded in the SVG and PNG exports.
 - **Missing info flagged:** blank fields print as yellow **MISSING** tags. In the SVG, each tag has an empty matching text box underneath, ready to type in.
@@ -103,6 +104,22 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [1.9.3] – 2026-10-13
+#### Added
+- **Build Custom Table:** a new **Custom** area on the main screen, below Products and Components. Click **+ Build Custom Table**, name the product (e.g. "Pylon Topper"), and it is added to the package like any other product. The name can be changed on the main screen or on the specs step.
+- **Title + description rows:** each row of a custom table has a title you type (printed as the label on the proof) and a description. A new table starts with QUANTITY, SIZE and two blank rows; **+ Add Row** adds more and × removes one. Fully blank rows are left off the proof, and a row with a title but no description prints as MISSING.
+- **Description types:** text, size (W x H or W x H x D), paint (Sherwin-Williams / PMS / custom CMYK and RGB), finish, Oracal vinyl, ACM, acrylic, PVC, Coroplast, trim cap, return / coil and LED colors, Rowmark and ADA pictogram. They use the same swatch pickers and custom color panel as the rest of the app.
+- **Columns:** each row has a column picker (Col 1 to 6) that sets where it prints in the proof table.
+- **Sections and components:** **+ Add Section** adds another custom table to the same product, **+ Add Component...** adds any existing component (poles, illumination, footer, EMC and more), and **+ Add Another** copies a custom section with its values. Sections can be removed.
+- **Detail drawings:** each custom section has a **Detail drawings** checklist of all detail drawings; checked ones print on that section's proof page.
+- **Custom vinyl:** every vinyl field's Oracal series dropdown has a **-- Custom Input --** choice with a text box for any vinyl not in the list (e.g. 3M 3630-33 Red). The **Custom** checkbox can add CMYK / RGB values to it.
+- Custom tables work with everything else: New page, blank pages, special notes, quantity tags on the cover, measurement lines, the QA checklist and CSV, and the SVG / PNG export.
+
+#### Notes
+- Custom tables are kept with the current package only, like images and measurement lines. Index.html changed in this version (the new Custom area).
+
+---
 
 ### [1.9.2] – 2026-10-13
 #### Added

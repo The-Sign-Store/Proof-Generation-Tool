@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v1.9.2  (October 13, 2026)
+SIGN PROOF GENERATOR  v1.9.3  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -162,7 +162,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v1.9.2)
+WHAT THE APP DOES (v1.9.3)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 19 products and 12 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -184,6 +184,15 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           sizes. "+ Add Another ..." still copies the whole section.
         - Calculated fields (green, read-only), e.g. EMC display size from
           modules wide x high at 9.45", and overall / cabinet depth.
+        - Build Custom Table (main screen, under Custom): a product with
+          your own spec table. Each row is a title + description; pick
+          the description type (text, size, paint, finish, vinyl, ACM /
+          acrylic / PVC / coro / trim cap / coil / LED color, Rowmark,
+          pictogram) and the table column. + Add Row, + Add Section,
+          + Add Component (any existing component) and a detail drawings
+          checklist per section. Kept with this package only.
+        - Vinyl fields: "-- Custom Input --" at the end of the Oracal
+          series list takes any vinyl typed in (other brands / colors).
         - Detail drawings print bottom-right when specs match (uncheck any
           per product). Live values fill in (embed depth, return, trim cap).
         - Design Help (? button): plain-text standards + CorelDRAW how-to's
@@ -232,6 +241,43 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v1.9.3  (2026-10-13)
+  Added
+    - Build Custom Table: a new Custom area on the main screen, below
+      Products and Components. Click + Build Custom Table, name the product
+      (e.g. "Pylon Topper"), and it is added to the package like any other
+      product. The name can be changed on the main screen or on the specs
+      step.
+    - Title + description rows: each row of a custom table has a title you
+      type (printed as the label on the proof) and a description. A new table
+      starts with QUANTITY, SIZE and two blank rows; + Add Row adds more and
+      × removes one. Fully blank rows are left off the proof, and a row with
+      a title but no description prints as MISSING.
+    - Description types: text, size (W x H or W x H x D), paint
+      (Sherwin-Williams / PMS / custom CMYK and RGB), finish, Oracal vinyl,
+      ACM, acrylic, PVC, Coroplast, trim cap, return / coil and LED colors,
+      Rowmark and ADA pictogram. They use the same swatch pickers and custom
+      color panel as the rest of the app.
+    - Columns: each row has a column picker (Col 1 to 6) that sets where it
+      prints in the proof table.
+    - Sections and components: + Add Section adds another custom table to the
+      same product, + Add Component... adds any existing component (poles,
+      illumination, footer, EMC and more), and + Add Another copies a custom
+      section with its values. Sections can be removed.
+    - Detail drawings: each custom section has a Detail drawings checklist of
+      all detail drawings; checked ones print on that section's proof page.
+    - Custom vinyl: every vinyl field's Oracal series dropdown has a --
+      Custom Input -- choice with a text box for any vinyl not in the list
+      (e.g. 3M 3630-33 Red). The Custom checkbox can add CMYK / RGB values to
+      it.
+    - Custom tables work with everything else: New page, blank pages, special
+      notes, quantity tags on the cover, measurement lines, the QA checklist
+      and CSV, and the SVG / PNG export.
+  Notes
+    - Custom tables are kept with the current package only, like images and
+      measurement lines. Index.html changed in this version (the new Custom
+      area).
+
 v1.9.2  (2026-10-13)
   Added
     - Cloud letter components: Cloud Letters - Front Lit and Cloud Letters -
