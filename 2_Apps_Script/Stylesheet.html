@@ -341,7 +341,8 @@
   .sheet-tools { flex-wrap: nowrap; overflow-x: auto; }                                         /* one line: the hint shortens instead */
   .sheet-tools > * { flex: none; }
   .sheet-tools > .st-hint { flex: 0 1 auto; min-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .st-dl { margin-left: auto; background: #1A4FBF; color: #fff; padding: 0 14px; }           /* far right, deep blue */
+  .st-dls { margin-left: auto; display: inline-flex; gap: 6px; flex: none; }                    /* far right */
+  .st-dl { background: #1A4FBF; color: #fff; padding: 0 14px; }                                  /* deep blue */
   .st-dl:hover { background: #143E99; filter: none; }
   .st-dl::before { content: '\2193'; margin-right: 6px; font-weight: 700; }
   .st-measure.on { background: #E00000; color: #fff; }

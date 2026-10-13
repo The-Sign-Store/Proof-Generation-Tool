@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v2.1  (October 13, 2026)
+SIGN PROOF GENERATOR  v2.1.1  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -167,7 +167,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v2.1)
+WHAT THE APP DOES (v2.1.1)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 19 products and 11 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -217,8 +217,9 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           editing. New starts an empty package.
         - Dashboard: the color key above the cards is also a filter; click
           families on / off (with the search box), "Show all" to reset.
-        - Download SVG (right end of each page's bar, incl. cover and QA):
-          that one page as an SVG, same file and name as in the zip.
+        - Download page / Download table (right end of each page's bar):
+          that one page as an SVG (same file and name as in the zip), or
+          just its spec table, cropped, at true size (pages with a table).
         - Every product / component section has "+ Add Another".
         - Custom colors: type CMYK, RGB or HEX; "Closest matches" lists the
           3 nearest Sherwin-Williams, Pantone (and Oracal on vinyl) colors
@@ -275,6 +276,17 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v2.1.1  (2026-10-13)
+  Changed
+    - Download page / Download table: the single Download SVG button is now
+      two deep blue buttons at the right end of each page's bar.
+      - Download page saves the whole page as an SVG, identical to and named
+        like the file in the package zip (also on the cover and QA pages).
+      - Download table saves only that page's spec table with its product
+        label, as an SVG cropped to the table at true size (1 unit = 0.01"),
+        named ... - p02 - table.svg. It appears on every page that has a spec
+        table.
+
 v2.1  (2026-10-13)
   Added
     - Monument Letters: a new component (blue Letters family, with its own

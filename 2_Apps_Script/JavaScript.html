@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v2.1  -  Proof Packages
+  //  SIGN PROOF GENERATOR v2.1.1  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '2.1';
+  const APP_VERSION = '2.1.1';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -2435,7 +2435,9 @@
                  `<input type="text" id="meas-${key}-${j}" value="${esc(m.label)}" placeholder="inches" onclick="event.stopPropagation()" ` +
                  `oninput="setMeasureLabel('${key}', ${j}, this.value)">` +
                  b(`removeMeasure('${key}', ${j})`, '&times;', 'Remove this measurement') + `</span>`).join('') +
-             `<button type="button" class="st-btn st-dl" title="Download this page as one SVG file" onclick="event.stopPropagation(); downloadPageSVG('page', ${pageNo - 1 - (coverOn() ? 1 : 0)})">Download SVG</button></div>`;
+             `<span class="st-dls"><button type="button" class="st-btn st-dl" title="This page as one SVG file" onclick="event.stopPropagation(); downloadPageSVG('page', ${pageNo - 1 - (coverOn() ? 1 : 0)})">Download page</button>` +
+             (p.blocks.length ? `<button type="button" class="st-btn st-dl" title="Only this page's spec table (with its product label), as an SVG at true size" onclick="event.stopPropagation(); downloadPageSVG('table', ${pageNo - 1 - (coverOn() ? 1 : 0)})">Download table</button>` : '') +
+             `</span></div>`;
   }
 
   // =====================================================================
@@ -2593,7 +2595,7 @@
           let strip = svg => svg.replace(/^<\?xml[^>]*>\s*/, '');
           let off = coverOn() && pages.length ? 1 : 0, total = pages.length + off, html = '';
           let bar = (title, kind, i) => `<div class="sheet-bar"><span class="st-title">${title}</span>` +
-              `<button type="button" class="st-btn st-dl" title="Download this page as one SVG file" onclick="downloadPageSVG('${kind}', ${i})">Download SVG</button></div>`;
+              `<span class="st-dls"><button type="button" class="st-btn st-dl" title="This page as one SVG file" onclick="downloadPageSVG('${kind}', ${i})">Download page</button></span></div>`;
           if (off) html += bar('Page 1 \u00B7 Cover', 'cover', 0) + `<div class="sheet">${strip(buildCoverSVG(pages, info, total))}</div>`;
           html += pages.map((p, i) => artToolbar(p, i + 1 + off) +
               `<div class="sheet${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildSheetSVG(p, i + 1 + off, total, info))}</div>`).join('');
@@ -2674,11 +2676,26 @@
           EXPORTING = true;
           if (kind === 'cover') { svg = buildCoverSVG(pages, info, total); file = `${base} - p01`; }
           else if (kind === 'qa') { svg = buildQAPages(pages, info, total)[i]; file = `${base} - qa${pad(i + 1)}`; }
+          else if (kind === 'table') { svg = buildTableSVG(pages[i]); file = `${base} - p${pad(i + 1 + off)} - table`; }
           else { svg = buildSheetSVG(pages[i], i + 1 + off, total, info); file = `${base} - p${pad(i + 1 + off)}`; }
       } finally { EXPORTING = false; }
       if (!svg) return;
       saveBlob(new Blob([svg], { type: 'image/svg+xml' }), file + '.svg');
       toast(`Downloaded ${file}.svg`);
+  }
+
+  // just a page's spec table (with its product badge), cropped to the table; same drawing as on the page, 1 unit = 0.01"
+  function buildTableSVG(page) {
+      if (!page || !page.blocks.length) return '';
+      const AB = PG.AB, lay = fitTable(page), x = AB.x + 26, bottom = AB.y + AB.h - 30;
+      let bs = 12 * Math.max(lay.s, 0.8), top = bottom - lay.h - bs * 1.9, pad = 4;
+      let vx = x - pad, vy = top - pad, vw = lay.w + 2 * pad, vh = bottom - top + 2 * pad;
+      const XML_HEAD = '<' + '?xml version="1.0" encoding="UTF-8"?' + '>\n';
+      return XML_HEAD + '<svg xmlns="http:' + '/' + '/www.w3.org/2000/svg" xmlns:xlink="http:' + '/' + '/www.w3.org/1999/xlink" ' +
+             `width="${(vw / 100).toFixed(3)}in" height="${(vh / 100).toFixed(3)}in" viewBox="${vx.toFixed(2)} ${vy.toFixed(2)} ${vw.toFixed(2)} ${vh.toFixed(2)}">` +
+             `<defs><linearGradient id="fullcolor" x1="0" y1="0" x2="1" y2="0">` +
+             ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#8b00ff'].map((c, k) => `<stop offset="${(k / 6).toFixed(3)}" stop-color="${c}"/>`).join('') +
+             `</linearGradient></defs>` + drawTable(page, lay, x, bottom) + `</svg>`;
   }
 
   function saveBlob(blob, name) {
