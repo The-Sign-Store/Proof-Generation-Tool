@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v2.3  -  Proof Packages
+  //  SIGN PROOF GENERATOR v2.3.1  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '2.3';
+  const APP_VERSION = '2.3.1';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -35,7 +35,12 @@
       let el = document.getElementById('loading');
       if (el) { el.style.display = 'block'; el.innerHTML = '<span style="color:#c1272d;">Could not start the Proof Generator:</span><br><span style="font-weight:normal;font-size:14px;">' + esc(msg) + '</span>'; }
   }
-  window.addEventListener('error', e => showLoadError((e.message || 'Script error') + (e.lineno ? ' (line ' + e.lineno + ')' : '')));
+  let appRunning = false;   // true once initApp finished: later errors get a notice, not the start-up error screen
+  window.addEventListener('error', e => {
+      let msg = (e.message || 'Script error') + (e.lineno ? ' (line ' + e.lineno + ')' : '');
+      if (appRunning) { showAppNotice('Something went wrong: ' + msg + '. If the app stops responding, reload this tab.'); return; }
+      showLoadError(msg);
+  });
   window.onload = function () {
       let slow = setTimeout(() => showLoadError('Still waiting for the Google Sheet after 30 seconds. Check Apps Script > Executions for a getAppData error.'), 30000);
       google.script.run
@@ -63,6 +68,8 @@
       renderDashboard();
       showStep('select');
       startAutosave();
+      startVersionCheck();
+      appRunning = true;
   }
 
   // ---------- SMALL HELPERS ----------
@@ -2933,6 +2940,47 @@
   function snapOf(state) { let st = Object.assign({}, state); delete st.savedAt; return JSON.stringify(st); }
   function currentSnap() { return pkgItems.length ? snapOf(captureState().state) : ''; }
   function hasUnsavedChanges() { return !!pkgItems.length && currentSnap() !== lastSavedSnap; }
+  // ---------- APP NOTICES + NEW-VERSION CHECK (v2.3.1) ----------
+  // A tab left open keeps the code it loaded with. Every 15 minutes, and when the tab comes back into view,
+  // it asks the server which version is live; if it differs, a notice offers a reload (autosaving first).
+  const VERSION_CHECK_MS = 15 * 60 * 1000;
+  let versionTimer = null, lastVersionCheck = 0, updateNoticeFor = '', reloadingForUpdate = false;
+  function showAppNotice(html, actions) {
+      let el = document.getElementById('app-notice');
+      if (!el) return;
+      el.innerHTML = '<span>' + html + '</span>' + (actions || '') +
+          '<button type="button" class="an-close" title="Dismiss" onclick="hideAppNotice()">&times;</button>';
+      el.style.display = 'flex';
+  }
+  function hideAppNotice() { let el = document.getElementById('app-notice'); if (el) el.style.display = 'none'; }
+  function showUpdateNotice(live) {
+      updateNoticeFor = live || 'stale';
+      showAppNotice(live ? 'Version v' + esc(live) + ' of the Proof Generator is live (this tab has v' + esc(APP_VERSION) + '). Reload to use it; your work is saved as a draft first.'
+                         : 'This tab is running an older copy of the Proof Generator, so autosave has stopped. Reload the tab to continue; use Save first if you have unsaved work.',
+                    '<button type="button" class="an-btn" onclick="reloadForUpdate()">Reload now</button>');
+  }
+  function reloadForUpdate() {
+      let go = () => { reloadingForUpdate = true; location.reload(); };
+      if (!hasUnsavedChanges() || typeof google.script.run.saveDraft !== 'function') { reloadingForUpdate = !hasUnsavedChanges(); location.reload(); return; }
+      autosaveTick();                                    // save the latest work as a draft; the reloaded tab offers Restore
+      let wait = setInterval(() => { if (!autosaveBusy) { clearInterval(wait); go(); } }, 200);
+  }
+  function checkLiveVersion() {
+      if (APP_VERSION === 'dev' || updateNoticeFor) return;
+      if (typeof google.script.run.getLiveVersion !== 'function') return;   // server code older than v2.3.1
+      lastVersionCheck = Date.now();
+      google.script.run
+          .withSuccessHandler(v => { if (v && /^\d/.test(v) && v !== APP_VERSION && !updateNoticeFor) showUpdateNotice(v); })
+          .withFailureHandler(() => { /* offline or asleep: try again next time */ })
+          .getLiveVersion();
+  }
+  function startVersionCheck() {
+      if (versionTimer) clearInterval(versionTimer);
+      versionTimer = setInterval(checkLiveVersion, VERSION_CHECK_MS);
+      document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && Date.now() - lastVersionCheck > 5 * 60 * 1000) checkLiveVersion();
+      });
+  }
   function startAutosave() {
       if (autosaveTimer) clearInterval(autosaveTimer);
       autosaveTimer = setInterval(autosaveTick, AUTOSAVE_MS);
@@ -2940,6 +2988,9 @@
   }
   function autosaveTick() {
       if (autosaveBusy || restoringNow || !pkgItems.length) return;
+      if (typeof google.script.run.saveDraft !== 'function') {               // this tab's copy of the server code is out of date
+          clearInterval(autosaveTimer); autosaveTimer = null; showUpdateNotice(null); return;
+      }
       let cap = captureState(), snap = snapOf(cap.state);
       if (snap === lastSavedSnap || snap === lastDraftSnap) return;         // nothing new since the last save / draft
       autosaveBusy = true;
@@ -2956,7 +3007,7 @@
           .saveDraft(req);
   }
   window.addEventListener('beforeunload', e => {
-      if (!hasUnsavedChanges()) return;
+      if (reloadingForUpdate || !hasUnsavedChanges()) return;
       autosaveTick();                                                      // try to catch the last changes in the draft
       e.preventDefault(); e.returnValue = '';                              // the browser shows its "Leave site?" warning
   });

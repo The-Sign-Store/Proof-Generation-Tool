@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v2.3  (October 13, 2026)
+SIGN PROOF GENERATOR  v2.3.1  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -194,7 +194,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v2.3)
+WHAT THE APP DOES (v2.3.1)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 19 products and 11 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -314,6 +314,25 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v2.3.1  (2026-10-14)
+  Fixed
+    - A tab left open across an update no longer shows "Could not start the
+      Proof Generator". That screen is now only for real start-up failures.
+      An error after the app is running shows a small notice at the bottom
+      instead, and the app stays usable.
+    - Stale tabs stop autosaving cleanly. If an open tab's copy of the app no
+      longer matches the server (for example after an update), autosave stops
+      and the notice asks you to reload, instead of throwing a saveDraft
+      error.
+  Added
+    - New-version notice: open tabs check every 15 minutes, and when you come
+      back to the tab, whether a newer version is live. If one is, a notice
+      offers Reload now: your work is saved as a draft first, and the
+      reloaded tab offers to restore it.
+    - New server function getLiveVersion (Updater), cached for 10 minutes;
+      Update from GitHub clears the cache so tabs see the new version at
+      their next check.
+
 v2.3  (2026-10-13)
   Added
     - Proof Generator menu in the Google Sheet (new Apps Script file
