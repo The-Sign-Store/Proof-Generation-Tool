@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v2.3.1  -  Proof Packages
+  //  SIGN PROOF GENERATOR v2.3.2  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '2.3.1';
+  const APP_VERSION = '2.3.2';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -2680,7 +2680,7 @@
 
   // one page as a single SVG file, built exactly like the package export (same name it has inside the zip)
   function downloadPageSVG(kind, i) {
-      let pages = packagePages(), info = getCustomerInfo(), base = exportBase(info);
+      let pages = packagePages(), info = getCustomerInfo(), base = shortBase(info, exportBase(info));   // same short name as inside the zip
       let off = coverOn() && pages.length ? 1 : 0, total = pages.length + off, pad = n => String(n).padStart(2, '0');
       let svg, file;
       try {
@@ -3209,6 +3209,15 @@
       return b;
   }
 
+  // short name for the files inside the zip: the ticket number, or the first words of the job name when there is none
+  function shortBase(info, base) {
+      let t = String(info.ticket == null ? '' : info.ticket).replace(/[\\\/:*?"<>|\t\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
+      if (t) return t.slice(0, 24).trim();
+      let b = base;
+      if (b.length > 24) { b = b.slice(0, 24); let cut = b.lastIndexOf(' '); if (cut > 10) b = b.slice(0, cut); b = b.replace(/[^A-Za-z0-9)\]]+$/, ''); }
+      return b || 'Proof';
+  }
+
   // package_info.txt: plain key=value lines read by the CorelDRAW ImportProofPackage macro
   function packageInfoText(info, total, pageNames) {
       let clean = v => String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim();
@@ -3227,6 +3236,9 @@
       let pages = packagePages();
       let base = exportBase(info), pageNames = [];
       let zip = (typeof JSZip !== 'undefined') ? new JSZip() : null;
+      // files INSIDE the zip get a short name (the zip and the folder Windows unpacks it to keep the full name):
+      // the full name twice in one path broke Windows' 260-character limit on QA_Checklist files
+      let fb = zip ? shortBase(info, base) : base;
       // Ask where to save BEFORE generating (the browser only allows the Save As window right after the click).
       // Chrome / Edge only; inside the Apps Script frame it is often blocked, then the normal download is used.
       let fileHandle = null;
@@ -3245,15 +3257,15 @@
       let jobs = [];
       // names: "<Ticket - Customer - Project> - p01" ... and "- qa01" ... (pageNames go to package_info.txt for CorelDRAW)
       let pad = n => String(n).padStart(2, '0');
-      if (off) { jobs.push({ dir: '', file: `${base} - p01`, svg: () => buildCoverSVG(pages, info, total) }); pageNames.push(['Page01', 'COVER']); }
+      if (off) { jobs.push({ dir: '', file: `${fb} - p01`, svg: () => buildCoverSVG(pages, info, total) }); pageNames.push(['Page01', 'COVER']); }
       pages.forEach((p, i) => {
-          jobs.push({ dir: '', file: `${base} - p${pad(i + 1 + off)}`, svg: () => buildSheetSVG(p, i + 1 + off, total, info) });
+          jobs.push({ dir: '', file: `${fb} - p${pad(i + 1 + off)}`, svg: () => buildSheetSVG(p, i + 1 + off, total, info) });
           pageNames.push([`Page${pad(i + 1 + off)}`, `${p.item.name.toUpperCase()}${p.blank ? ' ' + p.title.toUpperCase() : ''} ${p.n}/${p.total}`]);
       });
       if (qaOn() && pages.length) {
           let qa = buildQAPages(pages, info, total);
           qa.forEach((svg, i) => {
-              jobs.push({ dir: 'QA_Checklist/', file: `${base} - qa${pad(i + 1)}`, svg: () => svg, pw: 2550, ph: 3300 });
+              jobs.push({ dir: 'QA_Checklist/', file: `${fb} - qa${pad(i + 1)}`, svg: () => svg, pw: 2550, ph: 3300 });
               pageNames.push([`QA${pad(i + 1)}`, `QA CHECKLIST ${i + 1}/${qa.length}`]);
           });
       }
@@ -3274,8 +3286,8 @@
               await save(`${j.dir}SVG/${j.file}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
               await save(`${j.dir}PNG/${j.file}.png`, png);
           }
-          if (qaJpegs.length) await save(`QA_Checklist/PRINT - ${base} - QA checklist.pdf`, jpegPagesToPdf(qaJpegs, `${base} - QA checklist`));
-          if (qaOn() && pages.length) await save(`QA_Checklist/${base} - QA checklist.csv`, new Blob([buildQACsv(pages, info)], { type: 'text/csv' }));
+          if (qaJpegs.length) await save(`QA_Checklist/PRINT - ${fb} - QA checklist.pdf`, jpegPagesToPdf(qaJpegs, `${base} - QA checklist`));
+          if (qaOn() && pages.length) await save(`QA_Checklist/${fb} - QA checklist.csv`, new Blob([buildQACsv(pages, info)], { type: 'text/csv' }));
           // job details for the CorelDRAW macro (names the .cdr: Ticket - Customer - Project)
           await save('package_info.txt', new Blob([packageInfoText(info, total, pageNames)], { type: 'text/plain' }));
           if (zip) {

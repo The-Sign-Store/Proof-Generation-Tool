@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v2.3.1  (October 13, 2026)
+SIGN PROOF GENERATOR  v2.3.2  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -194,7 +194,7 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v2.3.1)
+WHAT THE APP DOES (v2.3.2)
 -----------------------------------------------------------------------------
 Step 1  Select: any mix of 19 products and 11 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
@@ -287,10 +287,8 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
         Apps Script the browser usually blocks that window, so the zip goes
         to Downloads. Chrome > Settings > Downloads > "Ask where to save each
         file before downloading" makes every download ask):
-          File names: "Ticket - Customer - [Sub-Customer -] Project - p01"
-          (Sub-Customer only when its box is checked; shortened to 80
-          characters if needed), e.g.
-            47391 - Macon Housing Authority - Central City Apartments - p01.svg
+          File names inside the zip: "Ticket - p01" (no ticket: the first
+          words of the customer name), e.g.  47391 - p01.svg
           SVG/  PNG/                p01 = cover (logo, customer, project,
                                     project info, package contents, project
                                     notes, company contact info), p02 ... =
@@ -301,7 +299,9 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
           QA_Checklist/"... - QA checklist.csv"   (Excel / Sheets)
           package_info.txt          ticket, customer, project, file location,
                                     page names (read by the CorelDRAW macro)
-          The zip itself is "Ticket - Customer - Project.zip".
+          The zip itself is "Ticket - Customer - [Sub-Customer -] Project.zip"
+          (shortened to 80 characters if needed); the short file names keep
+          unpacked paths under Windows' 260-character limit.
         Every yellow MISSING tag in an SVG is its own group with an empty
         text box underneath in the matching style: delete the tag, type.
         SVG text is Arial and editable; drawings are vector; the watermark
@@ -314,6 +314,25 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v2.3.2  (2026-10-14)
+  Fixed
+    - QA checklist files no longer fail to unpack on Windows ("Error
+      0x80010135: Path too long"). Every file in the zip repeated the full
+      job name, which was already in the folder name, so the QA_Checklist
+      files (the PDF, PNGs and SVGs) could pass Windows' 260-character path
+      limit, especially when copied straight out of the zip in File Explorer.
+  Changed
+    - Shorter file names inside the zip: files now start with the ticket
+      number (or the first words of the job name when there is no ticket),
+      e.g. PNG/47601 - p02.png, QA_Checklist/PRINT - 47601 - QA
+      checklist.pdf. The zip itself keeps the full name, e.g. 47601 - Center
+      Parc Covington - Monument Cabinet Replacement.zip, and so does the
+      folder Windows unpacks it to. The CorelDRAW macro works unchanged (it
+      reads the - p02 / - qa01 endings and the page names in
+      package_info.txt).
+    - Download page / Download table use the same short names as the zip
+      (47601 - p02.svg, 47601 - p02 - table.svg).
+
 v2.3.1  (2026-10-14)
   Fixed
     - A tab left open across an update no longer shows "Could not start the
