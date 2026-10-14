@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v2.3** · The Sign Store Online, Inc. · Design Department
+**Current version: v2.3.1** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -109,6 +109,17 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [2.3.1] – 2026-10-14
+#### Fixed
+- **A tab left open across an update no longer shows "Could not start the Proof Generator".** That screen is now only for real start-up failures. An error after the app is running shows a small notice at the bottom instead, and the app stays usable.
+- **Stale tabs stop autosaving cleanly.** If an open tab's copy of the app no longer matches the server (for example after an update), autosave stops and the notice asks you to reload, instead of throwing a saveDraft error.
+
+#### Added
+- **New-version notice:** open tabs check every 15 minutes, and when you come back to the tab, whether a newer version is live. If one is, a notice offers **Reload now**: your work is saved as a draft first, and the reloaded tab offers to restore it.
+- New server function getLiveVersion (Updater), cached for 10 minutes; Update from GitHub clears the cache so tabs see the new version at their next check.
+
+---
 
 ### [2.3] – 2026-10-13
 #### Added

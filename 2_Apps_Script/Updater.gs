@@ -23,7 +23,13 @@ const BACKUPS_KEPT = 3;            // per tab; older backups are deleted
 const WORKBOOK_NAME = 'Sign_Proof_Specifications_App_Data';
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Proof Generator')
+  let ui;
+  try { ui = SpreadsheetApp.getUi(); }
+  catch (e) {   // run from the script editor: there is no sheet window to add a menu to
+    console.log('The Proof Generator menu is added when the Google Sheet opens. Reload the sheet to see it.');
+    return;
+  }
+  ui.createMenu('Proof Generator')
     .addItem('Update from GitHub', 'updateFromGitHub')
     .addItem('Import workbook from Drive', 'importWorkbook')
     .addSeparator()
@@ -44,6 +50,14 @@ function installedCodeVersion_() {
     const m = HtmlService.createHtmlOutputFromFile('JavaScript').getContent().match(/const APP_VERSION = '([^']+)'/);
     return m ? m[1] : 'unknown';
   } catch (e) { return 'unknown'; }
+}
+/** v2.3.1: the version open proof tool tabs compare themselves with (cached 10 minutes; only reads JavaScript.html). */
+function getLiveVersion() {
+  const cache = CacheService.getScriptCache(), hit = cache.get('LIVE_VERSION');
+  if (hit) return hit;
+  const v = installedCodeVersion_();
+  cache.put('LIVE_VERSION', v, 600);
+  return v;
 }
 function dataVersion_() { return PropertiesService.getScriptProperties().getProperty('DATA_VERSION') || 'unknown'; }
 function label_(v) { return /^\d/.test(v) ? 'v' + v : v; }
@@ -242,6 +256,7 @@ function updateCode_(rel, installed) {
     });
     if (!changed.length) return ['Apps Script code: already up to date.'];
     scriptApi_('put', '/content', { files: list });
+    CacheService.getScriptCache().remove('LIVE_VERSION');   // open proof tool tabs see the new version at their next check
     const ver = scriptApi_('post', '/versions', { description: 'v' + rel.version + ' (Update from GitHub)' });
     const deps = (scriptApi_('get', '/deployments').deployments || []).filter(d =>
       d.deploymentConfig && d.deploymentConfig.versionNumber && (d.entryPoints || []).some(e => e.entryPointType === 'WEB_APP'));
