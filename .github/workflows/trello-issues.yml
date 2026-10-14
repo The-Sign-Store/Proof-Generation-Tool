@@ -1,0 +1,43 @@
+# Mirrors GitHub Issues onto the Trello board: a new issue becomes a card in the Inbox column,
+# edits update the card, closing moves it to Done, reopening moves it back.
+# Run it by hand (Actions > Trello issue sync > Run workflow) once to add cards for issues opened before.
+# One-time setup: .github/trello/SETUP.md
+name: Trello issue sync
+
+on:
+  issues:
+    types: [opened, edited, closed, reopened]
+  workflow_dispatch:
+
+permissions:
+  issues: read
+
+concurrency:
+  group: trello-issue-${{ github.event.issue.number || 'backfill' }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      TRELLO_KEY: ${{ secrets.TRELLO_KEY }}
+      TRELLO_TOKEN: ${{ secrets.TRELLO_TOKEN }}
+      TRELLO_BOARD: ${{ vars.TRELLO_BOARD }}
+      TRELLO_INBOX_LIST: ${{ vars.TRELLO_INBOX_LIST }}
+      TRELLO_DONE_LIST: ${{ vars.TRELLO_DONE_LIST }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync the issue's card
+        if: github.event_name == 'issues'
+        env:            # passed as variables, never pasted into the script (issue text is untrusted)
+          ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: bash .github/trello/sync_issue.sh
+      - name: Add cards for every open issue (manual run)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          MODE: backfill
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/trello/sync_issue.sh
