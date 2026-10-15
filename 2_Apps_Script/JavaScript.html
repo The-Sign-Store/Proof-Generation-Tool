@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v3.0  -  Proof Packages
+  //  SIGNSTUDIO v4.0  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '3.0';
+  const APP_VERSION = '4.0';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -57,6 +57,7 @@
   window.onclick = function (e) { if (e.target === document.getElementById('swatch-modal')) closeModal(); };
 
   function initApp(data) {
+      try { let bl = document.getElementById('brand-logo'); if (bl && PROOF_ASSETS.navLogo) bl.src = PROOF_ASSETS.navLogo; } catch (e) {}
       appData = data;
       if (typeof PROOF_ASSETS === 'undefined' || !PROOF_ASSETS.loaded) throw new Error('The "Assets" HTML file is missing or incomplete in Apps Script. Re-paste Assets.html into a file named Assets.');
       if (!data.assemblies || !Object.keys(data.assemblies).length) throw new Error('No products found. Check that the Product_Assembly tab exists in this Google Sheet.');
@@ -114,10 +115,11 @@
   // =====================================================================
   //  STEP NAVIGATION
   // =====================================================================
-  // ---------- v3: a start screen, then three tabs (Tables, Proof pages, Production) ----------
-  const TABS = ['tables', 'proof', 'production'];
-  const TAB_EXPORT = { tables: 'xb-tables', proof: 'generate-btn', production: 'prod-btn' };   // the open tab's export is marked in the Export menu
+  // ---------- staging: a start screen, then two tabs (Design, Production) ----------
+  const TABS = ['design', 'production'];
+  const TAB_EXPORT = { design: 'generate-btn', production: 'prod-btn' };   // the open tab's export is marked in the Export menu
   function showTab(t) {
+      if (t === 'tables' || t === 'proof' || t === 'select' || t === 'specs' || t === 'customer') t = 'design';   // older names
       step = t;
       let start = t === 'start', byId = id => document.getElementById(id);
       byId('step-start').style.display = start ? 'flex' : 'none';
@@ -132,16 +134,98 @@
       });
       closeExportMenu();
       updateProjectLabel();
+      updateStepper();
+      let ppan = document.getElementById('page-panel'), tpan = document.getElementById('tab-' + t);
+      if (ppan && tpan && !start && ppan.parentElement !== tpan) { tpan.appendChild(ppan); activeArtKey = null; selArt = null; measureKey = null; }
+      if (!start) lastPhase = t;
+      let lb = document.getElementById('lib-top-btn'); if (lb) lb.style.display = start ? '' : 'none';
       if (!start) { updateTablesSummary(); renderPreview(); }
       window.scrollTo(0, 0);
   }
+  // ---------- staging: the 3-step guide under the top bar, and the back chevron ----------
+  let lastPhase = 'design', exportedPhase = {};
+  function updateStepper() {
+      let phase = step === 'production' ? 'production' : (step === 'design' ? 'design' : lastPhase);
+      let pt = document.querySelector('#sp-proof .sp-t'); if (pt) pt.innerText = phase === 'production' ? 'Production proof' : 'Design proof';
+      let set = (id, on, done) => { let el = document.getElementById(id); if (!el) return; el.classList.toggle('on', on); el.classList.toggle('done', done);
+                                    el.querySelector('.sp-n').innerHTML = done ? '&#10003;' : el.dataset.n; };
+      let sp = document.getElementById('stepper'); if (sp) sp.classList.toggle('phase-prod', phase === 'production' && step !== 'start');
+      set('sp-start', step === 'start', step !== 'start');
+      set('sp-proof', step !== 'start', false);
+      set('sp-export', false, step !== 'start' && !!exportedPhase[phase]);
+      let back = document.getElementById('nav-back'); if (back) back.style.visibility = step === 'start' ? 'hidden' : 'visible';
+  }
+  function goBack() { if (step === 'production') showTab('design'); else if (step === 'design') goStart(); }
+  function stepProof() { stepTo(step === 'start' ? lastPhase : step); }
+  // "Approve and export": the package of the phase you are in
+  function approveExport() {
+      if (step === 'start') { stepProof(); return; }
+      if (!packagePages().length) { toast('Add a product first.'); return; }
+      openReview();
+  }
+  function exportBtn() {
+      let m = document.getElementById('review-modal');
+      return m && m.style.display === 'flex' ? document.getElementById('rv-go') : document.getElementById('export-btn');
+  }
+  // ---------- Approve and export: every page as it will be exported, large ----------
+  function openReview() {
+      closeExportMenu();
+      let prod = step === 'production';
+      document.getElementById('rv-title').innerText = prod ? 'Approve and export: Production package' : 'Approve and export: Design package';
+      document.getElementById('rv-go').innerText = prod ? 'Export Production Package' : 'Export Design Package';
+      document.getElementById('rv-go').classList.toggle('prod', prod);
+      document.getElementById('rv-opts').style.display = 'none';
+      document.getElementById('review-modal').style.display = 'flex';
+      document.getElementById('sp-export').classList.add('on');
+      renderReview();
+      document.getElementById('rv-go').focus();
+  }
+  function closeReview() {
+      document.getElementById('review-modal').style.display = 'none';
+      document.getElementById('sp-export').classList.remove('on');
+  }
+  function renderReview() {
+      let prod = step === 'production', pages = packagePages(), info = getCustomerInfo(), cards = [];
+      let keepSel = selArt, keepMeasure = measureKey; selArt = null; measureKey = null;          // no handles in the preview
+      try {
+          if (prod) {
+              let qa = qaOn() ? buildQAPages(pages, info, summaryTotal(pages)) : [];
+              qa.forEach((svg, i) => cards.push({ svg, label: `QA sheet ${i + 1} / ${qa.length}`, portrait: true }));
+              pages.forEach((p, i) => cards.push({ svg: buildProductionSVG(p, i + 1, pages.length, info), label: `Production proof ${i + 1} / ${pages.length} · ${prName(p.item)}` }));
+              cards.push({ svg: buildSnapshotSVG(pages, info), label: 'Production snapshot' });
+              buildDeptSheets(pages, info).forEach(d => cards.push({ svg: d.svg, label: `${d.name} department sheet` }));
+          } else {
+              let cover = withCover, off = cover ? 1 : 0, total = summaryTotal(pages);
+              {
+                  if (cover) cards.push({ svg: buildTitlePageSVG(info, 1, total), label: `Page 1 · Cover` });
+                  pages.forEach((p, i) => cards.push({ svg: buildSheetSVG(p, i + 1 + off, total, info), label: `Page ${i + 1 + off} · ${prName(p.item)}${p.blank ? ' · ' + p.title : ''}${p.total > 1 ? ` (${p.n}/${p.total})` : ''}` }));
+                  cards.push({ svg: buildCoverSVG(pages, info, total), label: `Page ${total} · Proof Summary` });
+              }
+          }
+      } finally { selArt = keepSel; measureKey = keepMeasure; }
+      document.getElementById('rv-grid').innerHTML = cards.map(c =>
+          `<figure class="rv-card${c.portrait ? ' portrait' : ''}"><div class="rv-thumb">${inlineSvg(c.svg)}</div><figcaption>${esc(c.label)}</figcaption></figure>`).join('');
+      let miss = cards.reduce((n, c) => n + (c.svg.match(/id="MISSING_/g) || []).length, 0);
+      document.getElementById('rv-count').innerHTML = `${cards.length} page${cards.length === 1 ? '' : 's'} · ${prod ? 'SVG + PNG + one PDF' : 'SVG + PNG'}` +
+          (miss ? ` · <b class="rv-miss">${miss} MISSING tag${miss === 1 ? '' : 's'} still on the pages</b>` : '');
+  }
+  async function reviewExport() {
+      let prod = step === 'production', ok = prod ? await generateProduction() : await generatePackage();
+      if (ok) closeReview();
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { let m = document.getElementById('review-modal'); if (m && m.style.display === 'flex') closeReview(); } });
+  function stepTo(t) {
+      if (step === 'start' && !pkgItems.length && !currentProof) { toast('Create a project (or open a saved one) first.'); let f = document.getElementById('hf-name'); if (f) f.focus(); return; }
+      showTab(t);
+  }
   // older names (saved-proof code paths, tests)
-  function showStep(s) { showTab({ select: 'tables', specs: 'tables', customer: 'proof' }[s] || s); }
-  function goSelect() { showTab('tables'); }
-  function goCustomer() { showTab('proof'); }
-  function goSpecs() { showTab('tables'); }
+  function showStep(s) { showTab(s); }
+  function goSelect() { showTab('design'); }
+  function goCustomer() { showTab('design'); }
+  function goSpecs() { showTab('design'); }
   function goStart() { showTab('start'); loadStartList(); }
   function updateProjectLabel() {
+      let st = document.getElementById('save-title'); if (st && document.getElementById('save-modal').style.display === 'flex') st.innerText = proofLabel();
       let el = document.getElementById('project-label'); if (!el) return;
       if (step === 'start') { el.innerHTML = ''; return; }
       let v = id => ((document.getElementById(id) || {}).value || '').trim();
@@ -185,9 +269,24 @@
       box.innerHTML = html;
   }
   function startNewProject() {
-      if (pkgItems.length && hasUnsavedChanges() && !confirm('Start a new project? Unsaved work in the current project will be lost (its autosaved draft stays in Saved projects).')) return;
-      resetPackage(); clearCustomerFields(); lastSavedSnap = ''; lastDraftSnap = ''; forgetLocalDraft();
-      renderCustomCards(); updateSelectionBar(); updateProofStatus(); showTab('tables');
+      if (pkgItems.length && hasUnsavedChanges() && !confirm('Start a new project? Unsaved work in the current project will be lost (its autosaved draft stays in Saved projects).')) return false;
+      resetPackage(); clearCustomerFields(); lastSavedSnap = ''; lastDraftSnap = ''; forgetLocalDraft(); pageOrder = []; exportedPhase = {}; lastPhase = 'design';
+      renderCustomCards(); updateSelectionBar(); updateProofStatus(); showTab('design');
+      return true;
+  }
+  // home: the job info typed there becomes the project's job info (edit it later in Save Project)
+  const HOME_FIELDS = ['name', 'sub', 'project', 'location', 'sales', 'designer', 'inv', 'ticket', 'orig', 'path', 'notes'];
+  function createProject() {
+      let v = {}; HOME_FIELDS.forEach(k => { let el = document.getElementById('hf-' + k); v[k] = el ? el.value : ''; });
+      let hasSub = !!(document.getElementById('hf-has-sub') || {}).checked;
+      if (startNewProject() === false) return;
+      HOME_FIELDS.forEach(k => { let el = document.getElementById('cf-' + k); if (el) el.value = v[k]; });
+      document.getElementById('cf-has-sub').checked = hasSub && !!v.sub;
+      document.getElementById('cf-sub-group').style.display = hasSub && v.sub ? 'flex' : 'none';
+      HOME_FIELDS.forEach(k => { let el = document.getElementById('hf-' + k); if (el) el.value = ''; });
+      let hs = document.getElementById('hf-has-sub'); if (hs) { hs.checked = false; document.getElementById('hf-sub-wrap').style.display = 'none'; }
+      updateProjectLabel(); renderPreview();
+      toast('Project created. Pick products on the left; job info is under Save Project.');
   }
 
   // =====================================================================
@@ -317,13 +416,13 @@
       box.innerHTML = Object.keys(customProducts).map(key => `<label class="cat-card custom-card" style="--cat:${SIGN_FAMILIES.custom.color}" data-family="custom" id="card-${key}" data-name="${esc(customProducts[key].name.toLowerCase())}">
               <input type="checkbox" onchange="toggleSelect('${key}', this.checked)">
               <span class="cat-icon">${iconSvg(SIGN_ICONS.custom)}</span>
-              <span class="cat-name" id="cname-${key}">${esc(customProducts[key].name)}</span>
+              <span class="cat-name" id="cname-${key}">${esc(customProducts[key].name || 'Unnamed custom product')}</span>
               <span class="cat-order"></span></label>`).join('') +
           `<button type="button" class="custom-new" id="custom-new" onclick="addCustomProduct()"><span class="cn-plus">+</span> Build a custom table</button>`;
   }
   function addCustomProduct() {
       let key = 'X::' + (++customSeq);
-      customProducts[key] = { name: 'Custom Product' + (Object.keys(customProducts).length ? ' ' + (Object.keys(customProducts).length + 1) : '') };
+      customProducts[key] = { name: '' };                           // named by the designer; prints MISSING until then
       selection.push(key);
       renderCustomCards(); syncPackage();
       let it = pkgItems.find(x => x.key === key), el = it && document.getElementById(`iname-in-${it.iid}`);
@@ -331,20 +430,13 @@
   }
   function renameCustomProduct(key, v) {
       let c = customProducts[key]; if (!c) return;
-      c.name = String(v || '').trim() || 'Custom Product';
+      c.name = String(v || '').trim();
       let card = document.getElementById(`card-${key}`); if (card) card.dataset.name = c.name.toLowerCase();
-      let cn = document.getElementById(`cname-${key}`); if (cn) cn.innerText = c.name;
+      let cn = document.getElementById(`cname-${key}`); if (cn) cn.innerText = c.name || 'Unnamed custom product';
       let it = pkgItems.find(x => x.key === key);
       if (it) {
-          let d0 = it.defs[0];
-          if (d0 && d0.title === it.name) {                       // first section follows the product name until renamed itself
-              d0.title = c.name;
-              allParts.filter(p => p.iid === it.iid && p.di === 0).forEach(p => { p.title = c.name; });
-              let b = document.getElementById(`madd-${it.iid}-0`); if (b) b.innerHTML = `+ Add Another ${esc(c.name)}`;
-              syncPartTitles();
-          }
           it.name = c.name;
-          let h = document.getElementById(`iname-${it.iid}`); if (h) h.innerText = c.name;
+          let h = document.getElementById(`iname-${it.iid}`); if (h) { if (h.tagName === 'INPUT') { if (h !== document.activeElement) h.value = c.name; } else h.innerText = c.name; }
           let ic = document.getElementById(`iname-in-${it.iid}`); if (ic && ic !== document.activeElement) ic.value = c.name;
           schedulePreview();
       }
@@ -380,7 +472,7 @@
       if (on) selection.push(key);
       if (!on && key.indexOf('X::') === 0) { delete customProducts[key]; renderCustomCards(); }
       syncPackage();
-      if (on) { let n = pkgItems.find(x => x.key === key), el = n && document.getElementById(`item-${n.iid}`); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+      // staging: no scrolling to the new specs, so several products can be picked in a row from the list
   }
 
   function updateSelectionBar() {
@@ -412,7 +504,7 @@
       updateSelectionBar();
       refreshAll();
   }
-  function buildPackage() { syncPackage(); if (step === 'start') showTab('tables'); }
+  function buildPackage() { syncPackage(); if (step === 'start') showTab('design'); }
 
   // =====================================================================
   //  STEP 2: BUILDER (items -> parts -> fields)
@@ -426,8 +518,8 @@
           name = restoring.item.name;
           defs = restoring.item.defs.map(d => Object.assign({}, d));
       } else if (kind === 'custom') {
-          name = (customProducts[key] || {}).name || 'Custom Product';
-          defs = [newCustomDef(name, 0)];
+          name = (customProducts[key] || {}).name || '';
+          defs = [newCustomDef('', 0)];                         // staging: the boxes under a custom product are custom components, named by the designer
       } else if (kind === 'product') {
           name = ref;
           defs = (appData.assemblies[ref] || []).map(d => Object.assign({}, d));
@@ -446,7 +538,10 @@
       panel.style.setProperty('--cat', look.color);
       panel.innerHTML = `<div class="item-header" onclick="toggleItem('${iid}')">
                             <span class="item-bar"></span>
-                            <span class="item-name" id="iname-${iid}">${esc(name)}</span>
+                            ${kind === 'custom'
+                              ? `<input type="text" class="item-name item-name-input" id="iname-${iid}" value="${esc(name)}" maxlength="60" spellcheck="false" placeholder="Name this product" title="Click to rename this custom product"
+                                        onclick="event.stopPropagation()" onkeydown="event.stopPropagation(); if (event.key === 'Enter') this.blur()" oninput="renameCustomProduct('${key}', this.value)">`
+                              : `<span class="item-name" id="iname-${iid}">${esc(name)}</span>`}
                             <span class="item-fam">${esc((SIGN_FAMILIES[look.family] || SIGN_FAMILIES.other).name)}</span>
                             <span class="item-pages" id="ipages-${iid}"></span>
                             <span class="item-acts">
@@ -462,7 +557,7 @@
       if (kind === 'custom') {
           let nm = document.createElement('div');
           nm.className = 'custom-item-name';
-          nm.innerHTML = `<label>PRODUCT NAME</label><input type="text" id="iname-in-${iid}" value="${esc(name)}" maxlength="60" oninput="renameCustomProduct('${key}', this.value)">`;
+          nm.innerHTML = `<label>PRODUCT NAME</label><input type="text" id="iname-in-${iid}" value="${esc(name)}" maxlength="60" placeholder="Name this product (prints on the proof)" oninput="renameCustomProduct('${key}', this.value)">`;
           body.appendChild(nm);
       }
       let groups = document.createElement('div');
@@ -474,7 +569,7 @@
           bar.className = 'custom-controls';
           let opts = Object.values(appData.components).filter(c => !c.custom).sort((a, b) => a.name.localeCompare(b.name))
               .map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
-          bar.innerHTML = `<button type="button" class="swatch-btn add-part-btn" onclick="addCustomSection('${iid}')" title="Another custom table section with its own name and rows">+ Add Section</button>` +
+          bar.innerHTML = `<button type="button" class="swatch-btn add-part-btn" onclick="addCustomSection('${iid}')" title="Another custom component (its own name and rows) under this custom product">+ Add Custom Component</button>` +
                           `<select class="custom-add-comp" onchange="addComponentToItem('${iid}', this.value); this.value = '';" title="Add an existing component (poles, illumination, footer...) to this product">` +
                           `<option value="">+ Add Component...</option>${opts}</select>`;
           body.appendChild(bar);
@@ -484,8 +579,8 @@
       blankBox.className = 'item-blanks'; blankBox.id = `iblank-${iid}`;
       body.appendChild(blankBox);
       let blankBtn = document.createElement('button');
-      blankBtn.type = 'button'; blankBtn.className = 'swatch-btn add-part-btn'; blankBtn.innerHTML = '+ Add Blank Page';
-      blankBtn.title = 'A proof page with the sidebar filled in and an empty art board (for elevations, mockups, site photos)';
+      blankBtn.type = 'button'; blankBtn.className = 'swatch-btn add-part-btn x-subtle blank-btn'; blankBtn.innerHTML = '+ Add Blank Page';
+      blankBtn.title = 'A proof page with the sidebar filled in and an empty art board (elevations, mockups, site photos)';
       blankBtn.onclick = function () { addBlank(it); };
       body.appendChild(blankBtn);
       return it;
@@ -501,7 +596,7 @@
       {                                                         // every product / component section can be added again
           let btn = document.createElement('button'), clone = CLONE_COMPONENTS.indexOf(d.component) !== -1 || !!appData.components[d.component].custom;
           btn.type = 'button'; btn.className = 'swatch-btn add-part-btn'; btn.id = `madd-${iid}-${di}`;
-          btn.innerHTML = `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
+          btn.innerHTML = appData.components[d.component].custom && (!d.title || UNNAMED.test(d.title)) ? '+ Add Another Component' : `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
           if (clone) btn.title = 'Adds another full section with the same settings as the one above; edit what differs';
           btn.onclick = function () { addPart(it, di, clone); refreshAll(); };
           group.appendChild(btn);
@@ -551,7 +646,7 @@
   function addCustomSection(iid) {
       let it = pkgItems.find(x => x.iid === iid); if (!it) return;
       let n = it.defs.filter(d => !d.removed && appData.components[d.component] && appData.components[d.component].custom).length + 1;
-      it.defs.push(newCustomDef('Section ' + n, it.defs.length));
+      it.defs.push(newCustomDef('', it.defs.length));
       addDefGroup(it, it.defs.length - 1);
       refreshAll();
   }
@@ -725,22 +820,26 @@
       let uid = 'p' + (++partSeq);
       let optional = d.include !== 'Required';
       let prevPart = clone ? allParts.filter(p => p.iid === it.iid && p.di === di).pop() : null;
-      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, letterLines: [], drawPick: [], colorLines: {}, colorSeq: 0, fmode: {}, fcustom: {}, include: d.include,
+      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, letterLines: [], drawPick: [], colorLines: {}, colorSeq: 0, xcolors: [], xcolorSeq: 0, xfields: [], xfieldSeq: 0, fmode: {}, fcustom: {}, include: d.include,
                    enabled: d.include !== 'Optional-Off' || num > 1, overrides: parseOverrides(d.overrides), num };   // an added copy is always included
-      if (prevPart) { Object.keys(prevPart.colorLines).forEach(k => { part.colorLines[k] = prevPart.colorLines[k].slice(); }); part.colorSeq = prevPart.colorSeq; }
+      if (prevPart) { Object.keys(prevPart.colorLines).forEach(k => { part.colorLines[k] = prevPart.colorLines[k].slice(); }); part.colorSeq = prevPart.colorSeq;
+                      part.xcolors = (prevPart.xcolors || []).slice(); part.xcolorSeq = prevPart.xcolorSeq || 0;
+                      part.xfields = (prevPart.xfields || []).slice(); part.xfieldSeq = prevPart.xfieldSeq || 0; }
       if (restoring) takeSavedPart(part);
       allParts.push(part);
 
       let zones = [];
       comp.fields.forEach(f => { if (zones.indexOf(f.zone) === -1) zones.push(f.zone); });
-      let html = `<div class="part-header">
+      let firstOfItem = !allParts.some(p => p.iid === it.iid && p.uid !== uid);
+      let html = (firstOfItem ? '' : `<div class="page-join" id="pjoin-${uid}"><input type="checkbox" id="pnew-${uid}" style="display:none" onchange="togglePartNewPage('${uid}')">` +
+                 `<button type="button" class="pj-btn" onclick="toggleJoin('${uid}')" title="Keep this table on the same page as the one above (when it fits), or start it on its own page"></button></div>`) +
+                 `<div class="part-header">
                     <input type="text" class="part-title-input" id="ptitle-${uid}" maxlength="40" spellcheck="false"
                            title="Section name on the proof - click to rename (e.g. Front Menu)"
-                           value="${esc(partDefault(part))}" placeholder="${esc(partDefault(part))}"
+                           value="${esc(partDefault(part))}" placeholder="${esc(partDefault(part) || (comp.custom ? 'Name this component' : ''))}"
                            oninput="renamePart('${uid}', this.value)" onblur="renameDone('${uid}')"
                            onkeydown="if (event.key === 'Enter') this.blur()">
                     <span>
-                      <label class="part-toggle" title="Start this section's table on a new proof page"><input type="checkbox" id="pnew-${uid}" onchange="togglePartNewPage('${uid}')"> New page</label>
                       ${optional && num === 1 ? `<label class="part-toggle"><input type="checkbox" id="pinc-${uid}" ${part.enabled ? 'checked' : ''} onchange="togglePart('${uid}')"> Include</label>` : ''}
                       ${num > 1 || it.kind === 'custom' ? `<span class="part-remove" onclick="removePart('${uid}')">[x] Remove</span>` : ''}
                     </span>
@@ -750,7 +849,7 @@
       if (comp.custom) {
           html += `<div class="zone-group custom-rows"><div class="cr-legend"><span>TITLE</span><span>DESCRIPTION TYPE</span><span>COLUMN</span></div><div id="crows-${uid}">`;
           comp.fields.forEach((f, fi) => { if (!f.removed) html += customRowHtml(part, f, fi); });
-          html += `</div><button type="button" class="swatch-btn add-letters-btn" onclick="addCustomRow('${uid}')" title="Another title + description row">+ Add Row</button></div>`;
+          html += `</div><button type="button" class="swatch-btn add-letters-btn x-subtle" onclick="addCustomRow('${uid}')" title="Another title + description row">+ Add More Info</button></div>`;
           html += customDrawingsHtml(part);
           zones = [];
       }
@@ -763,9 +862,13 @@
                        <button type="button" class="swatch-btn add-letters-btn" onclick="addLetterLine('${uid}')" title="Another line of letters in this section (e.g. a different letter height); all other specs are shared">+ Add Letters</button>`;
           html += `</div>`;
       });
+      html += `<div class="xfields" id="pxf-${uid}">${part.xfields.map((k, n) => xfieldHtml(part, k, n)).join('')}</div>`;
+      html += `<div class="xcolors"><div class="color-lines" id="pxc-${uid}">${part.xcolors.map((k, n) => xcolorHtml(part, k, n)).join('')}</div>` +
+              `<div class="x-adds">` + (comp.custom ? '' : `<button type="button" class="swatch-btn add-color-btn" onclick="addXField('${uid}')" title="A row of your own for this table: a title and a value, in the column you pick">+ Add More Info</button>`) +
+              `<button type="button" class="swatch-btn add-color-btn" onclick="addXColor('${uid}')" title="Another color for this section (paint, PMS, Oracal vinyl or custom); each prints as its own row and on the color chart">+ Add Color</button>` +
+              `<label class="swatch-btn notes-toggle" title="Installation or production notes printed in a column beside this table (click again to remove)"><input type="checkbox" id="pnote-on-${uid}" onchange="togglePartNotes('${uid}')"> + Add Special Notes</label></div></div>`;
       html += `<div class="part-removed" id="prem-${uid}" style="display:none;"></div>`;
       html += `<div class="part-notes">
-                 <label class="part-toggle"><input type="checkbox" id="pnote-on-${uid}" onchange="togglePartNotes('${uid}')"> Add Special Notes</label>
                  <textarea id="pnote-${uid}" class="part-notes-text" style="display:none;" rows="3"
                            placeholder="Installation or production notes for this section..." oninput="setPartNotes('${uid}', this.value)"></textarea>
                </div>`;
@@ -774,6 +877,7 @@
       card.className = 'part-card';
       card.id = `part-${uid}`;
       card.innerHTML = html;
+      setTimeout(() => renderJoin(uid), 0);
       let group = document.getElementById(`mgroup-${it.iid}-${di}`);
       let addBtn = document.getElementById(`madd-${it.iid}-${di}`);
       if (addBtn) group.insertBefore(card, addBtn); else group.appendChild(card);
@@ -794,11 +898,17 @@
   }
 
   // ---------- section names: default "Acrylic" / "Acrylic 1", "Acrylic 2" ..., editable by the user ----------
+  // staging: custom products / components have no default name; until named they print a yellow MISSING tag
+  const UNNAMED = /^custom (product|component|section)?( ?\d+)?$/i;
+  function isCustomComp(part) { let c = appData.components[part.comp]; return !!(c && c.custom); }
+  function prName(it) { let n = String((it && it.name) || '').trim(); return !n || (it.kind === 'custom' && UNNAMED.test(n)) ? 'MISSING: PRODUCT NAME' : n; }
   function partDefault(part) {
+      if (isCustomComp(part) && (!String(part.title || '').trim() || UNNAMED.test(part.title))) return '';
       let sib = allParts.filter(p => p.iid === part.iid && p.di === part.di);
       return sib.length > 1 ? `${part.title} ${sib.indexOf(part) + 1}` : part.title;
   }
-  function partLabel(part) { return (part.custom || '').trim() || partDefault(part); }
+  function partName(part) { return (part.custom || '').trim() || partDefault(part); }                  // what the field shows
+  function partLabel(part) { return partName(part) || 'MISSING: COMPONENT NAME'; }                     // what prints
   function renamePart(uid, v) {
       let p = allParts.find(x => x.uid === uid); if (!p) return;
       v = String(v || '').trim();
@@ -807,15 +917,27 @@
   }
   function renameDone(uid) {
       let p = allParts.find(x => x.uid === uid), el = document.getElementById(`ptitle-${uid}`);
-      if (p && el) el.value = partLabel(p);
+      if (p && el) el.value = partName(p);
   }
   function syncPartTitles() {
       allParts.forEach(p => {
           let el = document.getElementById(`ptitle-${p.uid}`); if (!el) return;
           let d = partDefault(p);
-          el.placeholder = d;
+          el.placeholder = d || (isCustomComp(p) ? 'Name this component' : '');
           if (!p.custom && document.activeElement !== el) el.value = d;
       });
+  }
+
+  // staging: "same page / new page" connector between sections
+  function toggleJoin(uid) {
+      let cb = document.getElementById(`pnew-${uid}`); if (!cb) return;
+      cb.checked = !cb.checked; togglePartNewPage(uid); renderJoin(uid);
+  }
+  function renderJoin(uid) {
+      let cb = document.getElementById(`pnew-${uid}`), b = document.querySelector(`#pjoin-${uid} .pj-btn`); if (!cb || !b) return;
+      b.classList.toggle('split', cb.checked);
+      b.innerHTML = cb.checked ? '<span class="pj-ic">&#8597;</span> New page <span class="pj-alt">&middot; click to combine</span>'
+                               : '<span class="pj-ic">&#8645;</span> Same page <span class="pj-alt">&middot; click to split</span>';
   }
 
   // ---------- special notes per section (printed in a gold column beside that section's table) ----------
@@ -871,7 +993,7 @@
 
   function paintBlock(fid) {
       return `<select id="mb-${fid}" style="margin-bottom:5px;" onchange="paintBrandChanged('${fid}')">
-                <option value="SW">Sherwin Williams</option><option value="PMS">PMS</option><option value="CUSTOM">Custom Color (CMYK / RGB)</option>
+                <option value="SW">Sherwin Williams</option><option value="PMS">PMS</option><option value="CUSTOM">Custom Color (CMYK / RGB / HEX)</option>
               </select>
               ${swatchBtn(fid, `openPaintModal('${fid}')`, '', '')}
               ${ccPanel(fid, false)}`;
@@ -879,20 +1001,55 @@
 
   // ---------- custom color: name + CMYK + RGB; whichever set is typed, the other is calculated (approx.) ----------
   const CC_CMYK = ['c', 'm', 'y', 'k'], CC_RGB = ['r', 'g', 'b'];
+  const CC_HINT = { cmyk: 'C M Y K  (e.g. 100 60 0 10)', rgb: 'R G B  (e.g. 0 102 178)', hex: '#RRGGBB' };
   function ccPanel(fid, show) {
-      let box = (k, max, set) => `<input type="number" min="0" max="${max}" step="1" id="mcc${k}-${fid}" placeholder="${k.toUpperCase()}" title="${k.toUpperCase()} (0-${max})" oninput="ccInput('${fid}', '${set}')">`;
+      let hid = k => `<input type="hidden" id="mcc${k}-${fid}" value="">`;
       return `<div class="cc-panel" id="mcc-${fid}" style="display:${show ? 'block' : 'none'};">
-                <input type="text" id="mccn-${fid}" class="cc-name" placeholder="Color name (e.g. Client brand blue)" oninput="refreshAll()">
-                <div class="cc-row"><span class="cc-lab">CMYK</span>${CC_CMYK.map(k => box(k, 100, 'cmyk')).join('')}</div>
-                <div class="cc-row"><span class="cc-lab">RGB</span>${CC_RGB.map(k => box(k, 255, 'rgb')).join('')}<span class="cc-swatch" id="mccsw-${fid}"></span></div>
-                <div class="cc-row"><span class="cc-lab">HEX</span><input type="text" id="mcchex-${fid}" class="cc-hex" maxlength="7" placeholder="#RRGGBB" title="Hex color (sets RGB)" oninput="ccHexInput('${fid}')"></div>
-                <div class="cc-note">Type CMYK, RGB or a hex code; the other values are calculated and marked approx.</div>
+                <div class="cc-entry"><span class="cc-swatch" id="mccsw-${fid}"></span>
+                  <input type="text" id="mccq-${fid}" class="cc-q" placeholder="${CC_HINT.cmyk}" title="Type the custom color; switch the format on the right" oninput="ccQuery('${fid}')">
+                  <span class="cc-mode" id="mccmb-${fid}">${['cmyk', 'rgb', 'hex'].map(m => `<button type="button" data-m="${m}" class="${m === 'cmyk' ? 'on' : ''}" onclick="ccMode('${fid}', '${m}')">${m.toUpperCase()}</button>`).join('')}</span>
+                </div>
+                <input type="hidden" id="mccmode-${fid}" value="cmyk"><input type="hidden" id="mccn-${fid}" value="">
+                ${CC_CMYK.concat(CC_RGB).map(hid).join('')}<input type="hidden" id="mcchex-${fid}" value="">
+                <div class="cc-conv" id="mccconv-${fid}"></div>
                 <div class="cc-match" id="mccmatch-${fid}"></div>
                 <input type="hidden" id="mccsrc-${fid}" value="">
               </div>`;
   }
+  // the one entry field -> the hidden CMYK / RGB values (the other set is calculated, approx.)
+  function ccQuery(fid) {
+      let mode = document.getElementById(`mccmode-${fid}`).value, q = document.getElementById(`mccq-${fid}`).value;
+      let set = (keys, vals) => keys.forEach((k, i) => { document.getElementById(`mcc${k}-${fid}`).value = vals ? vals[i] : ''; });
+      if (mode === 'hex') {
+          let v = q.trim().replace(/^#/, '');
+          if (/^[0-9a-f]{3}$/i.test(v)) v = v.split('').map(c => c + c).join('');
+          if (/^[0-9a-f]{6}$/i.test(v)) { set(CC_RGB, [0, 2, 4].map(i => parseInt(v.substr(i, 2), 16))); ccInput(fid, 'rgb', true); }
+          else { set(CC_RGB, null); set(CC_CMYK, null); ccInput(fid, 'rgb', true); }
+          return;
+      }
+      let n = (q.match(/\d+(\.\d+)?/g) || []).map(Number), need = mode === 'cmyk' ? 4 : 3;
+      if (n.length >= need) set(mode === 'cmyk' ? CC_CMYK : CC_RGB, n.slice(0, need)); else { set(CC_CMYK, null); set(CC_RGB, null); }
+      ccInput(fid, mode, true);
+  }
+  function ccMode(fid, m) {
+      document.getElementById(`mccmode-${fid}`).value = m;
+      ccSyncEntry(fid, true);
+      document.getElementById(`mccq-${fid}`).focus();
+  }
+  // show the stored color in the chosen format (switching formats keeps the color)
+  function ccSyncEntry(fid, rewrite) {
+      let mode = (document.getElementById(`mccmode-${fid}`) || {}).value || 'cmyk', q = document.getElementById(`mccq-${fid}`); if (!q) return;
+      document.querySelectorAll(`#mccmb-${fid} button`).forEach(b => b.classList.toggle('on', b.dataset.m === mode));
+      q.placeholder = CC_HINT[mode];
+      let cm = CC_CMYK.map(k => ccNum(`mcc${k}-${fid}`, 100)), rg = CC_RGB.map(k => ccNum(`mcc${k}-${fid}`, 255)), hex = ccHex(fid);
+      if (rewrite) q.value = mode === 'hex' ? hex : (mode === 'cmyk' ? (cm.every(v => v !== null) ? cm.join(' ') : '') : (rg.every(v => v !== null) ? rg.join(' ') : ''));
+      let conv = document.getElementById(`mccconv-${fid}`);
+      if (conv) conv.innerText = hex ? [mode !== 'cmyk' && cm.every(v => v !== null) ? `C${cm[0]} M${cm[1]} Y${cm[2]} K${cm[3]}` : '',
+                                       mode !== 'rgb' && rg.every(v => v !== null) ? `R${rg[0]} G${rg[1]} B${rg[2]}` : '', mode !== 'hex' ? hex : ''].filter(Boolean).join('  ·  ') + '  (calculated)' : '';
+      let sw = document.getElementById(`mccsw-${fid}`); if (sw) sw.style.background = hex || '';
+  }
   function ccNum(id, max) { let el = document.getElementById(id); if (!el || el.value === '') return null; let v = Math.round(Number(el.value)); return isNaN(v) ? null : Math.max(0, Math.min(max, v)); }
-  function ccInput(fid, set) {
+  function ccInput(fid, set, typed) {
       document.getElementById(`mccsrc-${fid}`).value = set;
       let cm = CC_CMYK.map(k => ccNum(`mcc${k}-${fid}`, 100)), rg = CC_RGB.map(k => ccNum(`mcc${k}-${fid}`, 255));
       let put = (keys, vals, approx) => keys.forEach((k, i) => { let el = document.getElementById(`mcc${k}-${fid}`); el.value = vals ? vals[i] : ''; el.classList.toggle('cc-approx', approx && !!vals); });
@@ -905,19 +1062,11 @@
           put(CC_CMYK, any ? [0, 1, 2].map(i => k >= 1 ? 0 : Math.round(100 * (1 - r[i] - k) / (1 - k))).concat([Math.round(100 * k)]) : null, true);
           put(CC_RGB, any ? rg.map(v => v || 0) : null, false);
       }
-      let hex = ccHex(fid), sw = document.getElementById(`mccsw-${fid}`); if (sw) sw.style.background = hex || '#fff';
-      let hx = document.getElementById(`mcchex-${fid}`); if (hx && hx !== document.activeElement) hx.value = hex;
+      let hex = ccHex(fid), hx = document.getElementById(`mcchex-${fid}`); if (hx) hx.value = hex;
+      ccSyncEntry(fid, !typed);
       ccMatches(fid);
       refreshAll();
   }
-  function ccHexInput(fid) {
-      let v = document.getElementById(`mcchex-${fid}`).value.trim().replace(/^#/, '');
-      if (/^[0-9a-f]{3}$/i.test(v)) v = v.split('').map(c => c + c).join('');
-      if (!/^[0-9a-f]{6}$/i.test(v)) return;
-      CC_RGB.forEach((k, i) => { document.getElementById(`mcc${k}-${fid}`).value = parseInt(v.substr(i * 2, 2), 16); });
-      ccInput(fid, 'rgb');
-  }
-
   // ---------- closest library colors (Sherwin-Williams, Pantone, Oracal) to a custom color: CIEDE2000 on the hex values ----------
   function hexToLab(hex) {
       let h = String(hex || '').replace('#', ''); if (!/^[0-9a-f]{6}$/i.test(h)) return null;
@@ -1059,7 +1208,7 @@
               html += `<select id="mf-${fid}" onchange="refreshAll()">`;
               opts.forEach(o => html += `<option value="${esc(o)}" ${o === def ? 'selected' : ''}>${esc(o)}</option>`);
               html += f.type === 'color'
-                  ? `<option value="CUSTOM">-- Custom Color (CMYK / RGB) --</option></select>${ccPanel(fid, false)}`
+                  ? `<option value="CUSTOM">-- Custom Color (CMYK / RGB / HEX) --</option></select>${ccPanel(fid, false)}`
                   : `<option value="CUSTOM">-- Custom Input --</option></select>
                        <input type="text" id="mc-${fid}" placeholder="Custom value" style="display:none; margin-top:5px;" oninput="refreshAll()">`;
               break;
@@ -1100,6 +1249,9 @@
           default:
               html += `<input type="text" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`;
       }
+      if (COLOR_TYPES.indexOf(f.type) !== -1 && f.type !== 'vinyl')
+          html += `<div class="color-lines" id="mcl-${fid}">${(part.colorLines[fi] || []).map((k, n) => colorLineHtml(part, fi, k, n)).join('')}</div>` +
+                  `<button type="button" class="swatch-btn add-color-btn" onclick="addColorLine('${part.uid}', ${fi})" title="Another color for this field (each prints as its own row)">+ Add Color</button>`;
       return html + `</div>` +
           `<input type="text" class="fg-custom" id="mo-${fid}" placeholder="Type your own answer" style="display:none;" oninput="setFieldCustom('${part.uid}', ${fi}, this.value)">` +
           `<span class="fg-chip fg-tbd">TBD by Production</span><span class="fg-chip fg-missing">MISSING</span>` +
@@ -1180,10 +1332,29 @@
   }
 
   // ---------- extra vinyl colors in one field ("+ Add Color"): VINYL COLOR 1, 2, 3 ... on the proof ----------
+  const COLOR_TYPES = ['vinyl', 'color', 'paint', 'finish', 'db', 'rowmark'];
   function colorLineHtml(part, fi, k, n, series, defSeries) {
-      let fid = `${part.uid}_${fi}c${k}`;
+      let fid = `${part.uid}_${fi}c${k}`, f = appData.components[part.comp].fields[fi];
       return `<div class="color-line" id="mcline-${fid}"><div class="color-line-head"><span class="color-line-n">Color ${n + 2}</span>` +
-             `<span class="part-remove" onclick="removeColorLine('${part.uid}', ${fi}, ${k})">[x] Remove</span></div>${vinylPicker(fid, series, defSeries)}</div>`;
+             `<span class="part-remove" onclick="removeColorLine('${part.uid}', ${fi}, ${k})">[x] Remove</span></div>${colorLinePicker(part, f, fi, fid, series, defSeries)}</div>`;
+  }
+  function colorLinePicker(part, f, fi, fid, series, defSeries) {
+      let opts = splitOpts(f.options);
+      switch (f.type) {
+          case 'vinyl': { let sr = series || (opts.length ? opts : ['751RA']); return vinylPicker(fid, sr, defSeries || sr[0]); }
+          case 'color':
+              return `<select id="mf-${fid}" onchange="refreshAll()"><option value="">-- Select a color --</option>` + opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('') +
+                     `<option value="CUSTOM">-- Custom Color (CMYK / RGB / HEX) --</option></select>${ccPanel(fid, false)}`;
+          case 'paint': return `<div style="width:100%;">${paintBlock(fid)}</div>`;
+          case 'finish':
+              return `<select id="mf-${fid}" onchange="refreshAll()"><option value="">-- Select --</option>` + opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('') +
+                     `<option value="${CUSTOM_PAINT}">${CUSTOM_PAINT}</option><option value="CUSTOM">-- Custom Input --</option></select>` +
+                     `<input type="text" id="mc-${fid}" placeholder="Custom value" style="display:none; margin-top:5px;" oninput="refreshAll()">` +
+                     `<div id="mpaint-${fid}" style="display:none; margin-top:5px;">${paintBlock(fid)}</div>`;
+          case 'db': return swatchBtn(fid, `openDbModal('${fid}', '${esc(f.options)}', '${esc(f.variable)}')`, '', '') + ccSwitch(fid);
+          case 'rowmark': return swatchBtn(fid, `openRowmarkModal('${fid}', ${fi})`, '', '') + ccSwitch(fid);
+      }
+      return '';
   }
   function addColorLine(uid, fi) {
       let part = allParts.find(p => p.uid === uid); if (!part) return;
@@ -1192,7 +1363,7 @@
       (part.colorLines[fi] = part.colorLines[fi] || []).push(k);
       let box = document.getElementById(`mcl-${uid}_${fi}`), main = document.getElementById(`mser-${uid}_${fi}`);
       let cur = main && main.value !== 'CUSTOM' ? main.value : series[0];             // new color starts on the series chosen above
-      box.insertAdjacentHTML('beforeend', colorLineHtml(part, fi, k, part.colorLines[fi].length - 1, series, cur));
+      box.insertAdjacentHTML('beforeend', colorLineHtml(part, fi, k, part.colorLines[fi].length - 1, f.type === 'vinyl' ? series : null, f.type === 'vinyl' ? cur : null));
       refreshAll();
   }
   function removeColorLine(uid, fi, k) {
@@ -1201,6 +1372,78 @@
       let el = document.getElementById(`mcline-${uid}_${fi}c${k}`); if (el) el.remove();
       document.querySelectorAll(`#mcl-${uid}_${fi} .color-line-n`).forEach((s, n) => { s.innerText = `Color ${n + 2}`; });
       refreshAll();
+  }
+
+  // ---------- staging: "+ Add Color" on every section - any number of extra colors, each with what it is for ----------
+  function xcolorHtml(part, k, n) {
+      let fid = `${part.uid}_x${k}`;
+      return `<div class="color-line" id="pxl-${fid}"><div class="color-line-head"><span class="color-line-n">Additional color ${n + 1}</span>` +
+             `<span class="part-remove" onclick="removeXColor('${part.uid}', ${k})">[x] Remove</span></div>` +
+             `<input type="text" id="mxu-${fid}" class="xc-use" maxlength="40" placeholder="What it is for (e.g. Accent stripe, Logo red)" oninput="refreshAll()">` +
+             `<select id="mb-${fid}" style="margin:5px 0;" onchange="paintBrandChanged('${fid}')">
+                <option value="SW">Sherwin Williams</option><option value="PMS">PMS</option><option value="ORACAL">Oracal vinyl</option><option value="CUSTOM">Custom Color (CMYK / RGB / HEX)</option>
+              </select>` + swatchBtn(fid, `openPaintModal('${fid}')`, '', '') + ccPanel(fid, false) + `</div>`;
+  }
+  function addXColor(uid) {
+      let part = allParts.find(p => p.uid === uid); if (!part) return;
+      part.xcolors = part.xcolors || [];
+      let k = part.xcolorSeq = (part.xcolorSeq || 0) + 1;
+      part.xcolors.push(k);
+      document.getElementById(`pxc-${uid}`).insertAdjacentHTML('beforeend', xcolorHtml(part, k, part.xcolors.length - 1));
+      let u = document.getElementById(`mxu-${uid}_x${k}`); if (u) u.focus();
+      refreshAll();
+  }
+  function removeXColor(uid, k) {
+      let part = allParts.find(p => p.uid === uid); if (!part) return;
+      part.xcolors = (part.xcolors || []).filter(x => x !== k);
+      let el = document.getElementById(`pxl-${uid}_x${k}`); if (el) el.remove();
+      document.querySelectorAll(`#pxc-${uid} .color-line-n`).forEach((sp, n) => { sp.innerText = `Additional color ${n + 1}`; });
+      refreshAll();
+  }
+  // ---------- staging: "+ Add Field" on every section - a custom title + value row in the column picked ----------
+  function xfieldHtml(part, k, n) {
+      let fid = `${part.uid}_f${k}`, zones = compZones(appData.components[part.comp]);
+      let opts = zones.map((z, i) => `<option value="${esc(z)}"${i === zones.length - 1 ? ' selected' : ''}>Col ${i + 1}</option>`).join('');
+      return `<div class="xfield" id="pxfl-${fid}">` +
+             `<input type="text" id="mxt-${fid}" class="xf-title" maxlength="30" placeholder="Field title (e.g. Permit #)" oninput="refreshAll()">` +
+             `<input type="text" id="mxv-${fid}" class="xf-val" placeholder="Value" oninput="refreshAll()">` +
+             `<select id="mxz-${fid}" class="xf-col" title="Table column" onchange="refreshAll()">${opts}</select>` +
+             `<button type="button" class="xf-remove" title="Remove this field" onclick="removeXField('${part.uid}', ${k})">×</button></div>`;
+  }
+  function addXField(uid) {
+      let part = allParts.find(p => p.uid === uid); if (!part) return;
+      part.xfields = part.xfields || [];
+      let k = part.xfieldSeq = (part.xfieldSeq || 0) + 1;
+      part.xfields.push(k);
+      document.getElementById(`pxf-${uid}`).insertAdjacentHTML('beforeend', xfieldHtml(part, k, part.xfields.length - 1));
+      let t = document.getElementById(`mxt-${uid}_f${k}`); if (t) t.focus();
+      refreshAll();
+  }
+  function removeXField(uid, k) {
+      let part = allParts.find(p => p.uid === uid); if (!part) return;
+      part.xfields = (part.xfields || []).filter(x => x !== k);
+      let el = document.getElementById(`pxfl-${uid}_f${k}`); if (el) el.remove();
+      refreshAll();
+  }
+  function xfieldItems(part) {
+      let zones = compZones(appData.components[part.comp]);
+      return (part.xfields || []).map((k, n) => {
+          let fid = `${part.uid}_f${k}`, v = id => ((document.getElementById(id) || {}).value || '').trim();
+          let title = v(`mxt-${fid}`), val = v(`mxv-${fid}`), zone = v(`mxz-${fid}`) || zones[zones.length - 1] || 'COLUMN 1';
+          if (!title && !val) return null;                                   // an empty new field prints nothing yet
+          return { zone, fid: fid, label: (title || `Field ${n + 1}`).toUpperCase(), variable: `XFIELD ${n + 1}`, type: 'xfield', opts: '', hex: '', svg: null, gradient: false,
+                   val: val || 'Enter ' + (title || 'value'), warn: !val, warnLabel: 'MISSING' };
+      }).filter(Boolean);
+  }
+  function xcolorItems(part) {
+      let zones = compZones(appData.components[part.comp]), zone = zones[zones.length - 1] || 'COLUMN 1';
+      return (part.xcolors || []).map((k, n) => {
+          let fid = `${part.uid}_x${k}`, byId = id => document.getElementById(id);
+          let use = ((byId(`mxu-${fid}`) || {}).value || '').trim(), r = { val: '', hex: '', warn: false, warnLabel: 'MISSING' };
+          if ((byId(`mb-${fid}`) || {}).value === 'CUSTOM') Object.assign(r, ccValue(fid, true));
+          else { r.val = (byId(`mpv-${fid}`) || {}).value || ''; r.hex = (byId(`mhex-${fid}`) || {}).value || ''; if (!r.val) { r.val = 'Select Swatch'; r.warn = true; } }
+          return Object.assign({ zone, fid: fid, label: (use || `Additional color ${n + 1}`).toUpperCase(), variable: `XCOLOR ${n + 1}`, type: 'xcolor', opts: '', svg: null, gradient: false, xcolor: true }, r);
+      });
   }
 
   // vinyl: "-- Custom Input --" in the series list = type any vinyl (other brands / colors not in the list)
@@ -1296,6 +1539,14 @@
 
   function openPaintModal(fid) {
       let brand = document.getElementById(`mb-${fid}`).value;
+      if (brand === 'ORACAL') {                                  // every Oracal series, searchable ("751", "red", "8500 031")
+          let items = (appData.colors_oracal || []).map(c => {
+              let series = String(c.series).replace(/\.0$/, '').trim(), code = String(c.code).replace(/\.0$/, '').padStart(3, '0');
+              return { label: `${series} ${code} - ${c.name}`, hex: c.hex, value: `Oracal ${series} ${code} ${c.name}` };
+          });
+          showSwatchModal('Oracal Vinyl Colors', items, fid);
+          return;
+      }
       let db = brand === 'SW' ? appData.colors_sw : appData.colors_pms;
       let items = (db || []).map(c => {
           let code = String(c.code || '');
@@ -1385,17 +1636,19 @@
           });
           fields.forEach((f, fi) => {
               if (f.removed) return;
-              let fid = `${part.uid}_${fi}`;
-              let g = document.getElementById(`mg-${fid}`);
+              let g = document.getElementById(`mg-${part.uid}_${fi}`);
               if (g) g.style.display = evalShowIf(part, f.showIf) && fieldMode(part, fi) !== 'removed' ? 'grid' : 'none';
+              [`${part.uid}_${fi}`].concat((part.colorLines[fi] || []).map(k => `${part.uid}_${fi}c${k}`)).forEach(fid => {
               let mf = document.getElementById(`mf-${fid}`), mc = document.getElementById(`mc-${fid}`), mp = document.getElementById(`mpaint-${fid}`);
               if (mc && mf) mc.style.display = mf.value === 'CUSTOM' ? 'block' : 'none';
               let mcc = document.getElementById(`mcc-${fid}`);
               if (mcc && mf && f.type === 'color') mcc.style.display = mf.value === 'CUSTOM' ? 'block' : 'none';
               if (mp && mf) mp.style.display = mf.value === CUSTOM_PAINT ? 'block' : 'none';
+              });
           });
       });
       syncPartTitles();
+      document.querySelectorAll('.cc-panel').forEach(pn => { let fid = pn.id.slice(4); if (document.activeElement !== document.getElementById(`mccq-${fid}`)) ccSyncEntry(fid, false); });
       ccLayout();
       updateTablesSummary();
       schedulePreview();
@@ -1430,11 +1683,13 @@
               if (v === CUSTOM_PAINT) paintValue();
               else if (v === 'CUSTOM') r.val = byId(`mc-${fid}`).value.trim();
               else { r.val = v; r.hex = colorHex(v); }
+              if (!r.val && f.required) { r.val = 'Select Finish'; r.warn = true; }
               break;
           }
           case 'color': {
               let v = byId(`mf-${fid}`).value;
               if (v === 'CUSTOM') Object.assign(r, ccValue(fid, f.required)); else { r.val = v; r.hex = colorHex(v); }
+              if (!r.val && f.required) { r.val = 'Select Color'; r.warn = true; }
               break;
           }
           case 'fullcolor': r.val = 'Full Color Digital'; r.gradient = true; break;
@@ -1486,7 +1741,7 @@
           if (f.removed) return;
           let g = document.getElementById(`mg-${part.uid}_${fi}`);
           if (g && g.style.display === 'none') return;
-          let mode = fieldMode(part, fi), base = { zone: f.zone, label: f.label, variable: f.variable.toUpperCase(), opts: f.options, hex: '', svg: null, gradient: false, warnLabel: 'MISSING' };
+          let mode = fieldMode(part, fi), base = { zone: f.zone, label: f.label, variable: f.variable.toUpperCase(), opts: f.options, hex: '', svg: null, gradient: false, warnLabel: 'MISSING', fid: `${part.uid}_${fi}` };
           if (mode === 'removed') return;
           if (mode === 'tbd') { items.push(Object.assign(base, { type: 'tbd', val: 'TBD BY PRODUCTION', tbd: true, warn: false })); return; }
           if (mode === 'missing') { items.push(Object.assign(base, { type: 'missing', val: 'Enter ' + formLabel(f), warn: true })); return; }
@@ -1496,11 +1751,11 @@
               return;
           }
           let d = getDisplay(part, f, fi);
-          let extra = f.type === 'vinyl' ? (part.colorLines[fi] || []) : [];
+          let extra = COLOR_TYPES.indexOf(f.type) !== -1 ? (part.colorLines[fi] || []) : [];
           if (!d.warn && (d.val === '' || d.val.toUpperCase() === 'N/A') && !extra.length) return;
           if (!d.warn && splitOpts(f.hideValues).indexOf(d.val) !== -1 && !extra.length) return;
-          if (!(d.val === '' && !d.warn)) items.push(Object.assign({ zone: f.zone, label: extra.length ? `${f.label} 1` : f.label, variable: f.variable.toUpperCase(), type: f.type, opts: f.options }, d));
-          extra.forEach((k, n) => items.push(Object.assign({ zone: f.zone, label: `${f.label} ${n + 2}`, variable: `${f.variable.toUpperCase()} ${n + 2}`, type: f.type, opts: f.options },
+          if (!(d.val === '' && !d.warn)) items.push(Object.assign({ zone: f.zone, label: extra.length ? `${f.label} 1` : f.label, variable: f.variable.toUpperCase(), type: f.type, opts: f.options, fid: `${part.uid}_${fi}` }, d));
+          extra.forEach((k, n) => items.push(Object.assign({ zone: f.zone, label: `${f.label} ${n + 2}`, variable: `${f.variable.toUpperCase()} ${n + 2}`, type: f.type, opts: f.options, fid: `${part.uid}_${fi}c${k}` },
                                                             getDisplay(part, f, fi, `${part.uid}_${fi}c${k}`, true))));
       });
       let q = items.find(i => i.type === 'autoqty');
@@ -1509,6 +1764,7 @@
           if (h && !h.warn) { q.val = `${q.val} @ ${h.val.replace(/"/g, '')}"`; q.label = 'QTY / HEIGHT'; items = items.filter(i => i !== h); }
       }
       items.forEach(i => { if (i.variable === 'TEXT' && !i.warn && !i.tbd) i.val = `"${i.val}"`; });
+      items = items.concat(xfieldItems(part), xcolorItems(part));
       if ((part.letterLines || []).length) {
           let ti = items.findIndex(i => i.variable === 'TEXT'), zone = ti !== -1 ? items[ti].zone : (items[0] || {}).zone;
           items.splice(ti === -1 ? items.length : ti + 1, 0, ...letterLineItems(part, zone));
@@ -1673,7 +1929,17 @@
           let tag = document.getElementById(`ipages-${it.iid}`);
           if (tag) tag.innerText = `${total} page${total > 1 ? 's' : ''}`;
       });
-      return pages;
+      return orderPages(pages);
+  }
+  // staging: page order the designer dragged in the Pages panel (keys "item:n"); new pages keep their natural place
+  let pageOrder = [];
+  function orderPages(pages) {
+      if (!pageOrder.length) return pages;
+      let pos = k => { let i = pageOrder.indexOf(k); return i === -1 ? null : i; };
+      let known = pages.filter(p => pos(pageKey(p)) !== null).sort((a, b) => pos(pageKey(a)) - pos(pageKey(b)));
+      let out = [], qi = 0;
+      pages.forEach(p => out.push(pos(pageKey(p)) !== null ? known[qi++] : p));
+      return out;
   }
 
   // =====================================================================
@@ -1681,7 +1947,12 @@
   // =====================================================================
   const PG = { W: 1100, H: 850, AB: { x: 37.4, y: 37.4, w: 874.6, h: 712.3 }, SB: { x0: 924, x1: 1074 } };
   const LINE = '#B1B1B3', INK = '#231F20', RED_BOX = '#BA3337', TAG_BG = '#FFF200', TAG_TX = '#D60000';
-  const TBD_BG = '#6E40C9', TBD_TX = '#FFFFFF';   // "TBD by Production": a standout, neutral purple (MISSING stays yellow)
+  const TBD_BG = '#6E40C9', TBD_TX = '#FFFFFF';
+  const PROD = '#5B2C8F';                         // production proofs: page outline, labels and tables in purple
+  const TBL_PROOF = { ink: INK, line: '#A7A9AC', empty: '#F1F2F2', label: '#4D4D4F' };
+  const TBL_PROD = { ink: PROD, line: '#9C7CC6', empty: '#F3EEF9', label: '#4A3A66' };
+  let TBL = TBL_PROOF;
+  let BADGE_PREFIX = '';                           // production proofs: "CUSTOMER - PRODUCT" on the table tab   // "TBD by Production": a standout, neutral purple (MISSING stays yellow)
   let measureCtx = null;
   function tw(text, size, bold) {
       if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
@@ -1735,7 +2006,7 @@
 
   // ----- spec table layout -----
   function measureCell(item, s) {
-      let P = { lab: 7.2 * s, val: 11 * s, padX: 8 * s, padY: 7.5 * s, gap: 5 * s, lineH: 13.5 * s };
+      let P = { lab: 8.3 * s, val: 12.2 * s, padX: 8.5 * s, padY: 8 * s, gap: 5.5 * s, lineH: 14.8 * s };   // staging: larger for print
       let label = item.label.toUpperCase() + ':';
       let lw = tw(label, P.lab, true);
       let hasSw = item.gradient || item.svg || (item.hex && (!item.warn || item.warnLabel === 'LOW CONTRAST'));
@@ -1754,7 +2025,8 @@
       page.blocks.forEach(b => { if (b.cols.length > maxCols) maxCols = b.cols.length; });
       let colW = new Array(maxCols).fill(110 * s);
       let notesW = page.blocks.some(b => b.notes) ? 230 * s : 0, notes = [];
-      let skipHead = page.blocks.length === 1 && page.blocks[0].title.toUpperCase() === page.item.name.toUpperCase();
+      let skipHead = page.blocks.length === 1 && (page.blocks[0].title.toUpperCase() === prName(page.item).toUpperCase() ||
+                     (page.item.kind === 'custom' && /^MISSING: COMPONENT NAME$/.test(page.blocks[0].title)));
       let rows = [];
       page.blocks.forEach(b => {
           if (!skipHead) rows.push({ head: b.title, h: 17 * s });
@@ -1790,10 +2062,15 @@
   }
 
   function drawCell(m, x, y, w, h) {
-      let it = m.item, P = m.P, out = R(x, y, w, h, '#FFFFFF', '#BCBEC0', 1.4 * (P.val / 11));
+      let it = m.item;
+      if (!EXPORTING && it.fid) return `<g class="cell-link" data-fid="${it.fid}">` + drawCellInner(m, x, y, w, h) + `</g>`;
+      return drawCellInner(m, x, y, w, h);
+  }
+  function drawCellInner(m, x, y, w, h) {
+      let it = m.item, P = m.P, out = R(x, y, w, h, '#FFFFFF', TBL.line, 1.4 * (P.val / 11));
       let base = y + P.padY + P.val * 0.82;
       if (m.lines.length === 1) base = y + h / 2 + P.val * 0.35;
-      out += T(x + P.padX, base, m.label, P.lab, { bold: true, fill: '#777777' });
+      out += T(x + P.padX, base, m.label, P.lab, { bold: true, fill: TBL.label });
       let vx = x + P.padX + m.lw + P.gap;
       if (it.warn) {
           missN++; out += valueField({ x: vx, y: base, size: P.val, bold: true });
@@ -1824,16 +2101,21 @@
   function drawTable(page, lay, x, bottom) {
       let top = bottom - lay.h, s = lay.s, out = '', y = top;
       // product badge sits on top of the table
-      let badge = page.item.name.toUpperCase(), bs = 12 * Math.max(s, 0.8), bw = tw(badge, bs, true) + 20;
-      out += `<g id="Product_Badge">` + R(x, top - bs * 1.9, bw, bs * 1.9, INK) + T(x + 10, top - bs * 0.55, badge, bs, { bold: true, fill: '#FFFFFF' }) + `</g>`;
+      let badge = (BADGE_PREFIX && !/^MISSING:/.test(prName(page.item)) ? BADGE_PREFIX + ' - ' : '') + prName(page.item).toUpperCase(), bs = 12 * Math.max(s, 0.8), bw = tw(badge, bs, true) + 20;
+      if (/^MISSING:/.test(badge)) { missN++; out += `<g id="Product_Badge">` + valueField({ x: x + 10, y: top - bs * 0.55, size: bs, bold: true, fill: '#FFFFFF' }) + `</g>` +
+                                     `<g id="MISSING_${missN}">` + R(x, top - bs * 1.9, bw, bs * 1.9, TAG_BG, '#D6A100', 0.8, ' stroke-dasharray="2,1.5"') + T(x + 10, top - bs * 0.55, badge, bs, { bold: true, fill: TAG_TX }) + `</g>`; }
+      else out += `<g id="Product_Badge">` + R(x, top - bs * 1.9, bw, bs * 1.9, TBL.ink) + T(x + 10, top - bs * 0.55, badge, bs, { bold: true, fill: '#FFFFFF' }) + `</g>`;
       out += `<g id="Spec_Table">`;
       lay.rows.forEach(row => {
           if (row.head) {
-              out += R(x, y, lay.w, row.h, INK) + T(x + 8 * s, y + row.h * 0.68, row.head.toUpperCase(), 8 * s, { bold: true, fill: '#FFFFFF', ls: 1.2 * s });
+              out += R(x, y, lay.w, row.h, TBL.ink);
+              if (/^MISSING:/.test(row.head)) { missN++; out += valueField({ x: x + 8 * s, y: y + row.h * 0.68, size: 8 * s, bold: true, fill: '#FFFFFF' }) +
+                  R(x + 4 * s, y + 2.5 * s, tw(row.head, 8 * s, true) + 10 * s, row.h - 5 * s, TAG_BG, '#D6A100', 0.6) + T(x + 8 * s, y + row.h * 0.68, row.head, 8 * s, { bold: true, fill: TAG_TX }); }
+              else out += T(x + 8 * s, y + row.h * 0.68, row.head.toUpperCase(), 8 * s, { bold: true, fill: '#FFFFFF', ls: 1.2 * s });
           } else {
               let cx = x;
               row.cells.forEach((m, c) => {
-                  out += m ? drawCell(m, cx, y, lay.colW[c], row.h) : R(cx, y, lay.colW[c], row.h, '#F1F2F2', '#BCBEC0', 1.4 * s);
+                  out += m ? drawCell(m, cx, y, lay.colW[c], row.h) : R(cx, y, lay.colW[c], row.h, TBL.empty, TBL.line, 1.4 * s);
                   cx += lay.colW[c];
               });
           }
@@ -1845,8 +2127,8 @@
           out += `<g id="Special_Notes">`;
           lay.notes.forEach(n => {
               let nx = x + lay.tableW, ny = ys[n.start], nh = ys[n.end] - ny, N = n.N;
-              if (!n.lines.length) { out += R(nx, ny, lay.notesW, nh, '#F1F2F2', '#BCBEC0', 1.4 * s); return; }
-              out += R(nx, ny, lay.notesW, nh, '#FFFDF5', '#BCBEC0', 1.4 * s) + R(nx, ny, 6 * s, nh, '#B8860B');
+              if (!n.lines.length) { out += R(nx, ny, lay.notesW, nh, TBL.empty, TBL.line, 1.4 * s); return; }
+              out += R(nx, ny, lay.notesW, nh, '#FFFDF5', TBL.line, 1.4 * s) + R(nx, ny, 6 * s, nh, '#B8860B');
               let ty = ny + N.pad + N.lab;
               out += T(nx + 6 * s + N.pad, ty, 'SPECIAL NOTES:', N.lab, { bold: true, fill: '#B8860B', ls: 0.5 });
               ty += 6 * s;
@@ -1872,63 +2154,65 @@
   function drawSidebar(info, pkgN, pkgTotal) {
       const x0 = PG.SB.x0, x1 = PG.SB.x1, lx = 927.5, rx = 1071, cx = (x0 + x1) / 2;
       let o = `<g id="Proof_Info">`;
-      [37.4, 77, 149, 212, 261, 376, 651, 762].forEach(y => o += L(x0, y, x1, y));
-      o += T(cx, 52, TEMPLATE.Title || 'SALES PROOF', 10.5, { anchor: 'middle', fill: '#333333' });
-      o += T(cx, 67.5, `Page ${pkgN} / ${pkgTotal}`, 11, { anchor: 'middle', bold: true });
+      [37.4, 77, 149, 210, 280, 350, 426, 651, 762].forEach(y => o += L(x0, y, x1, y));
+      o += T(cx, 54, proofTitle(), 12, { anchor: 'middle', fill: '#333333', ls: 0.5 });
+      o += T(cx, 70.5, `Page ${pkgN} / ${pkgTotal}`, 12.5, { anchor: 'middle', bold: true });
       // customer / project name box
       o += R(x0, 84, x1 - x0, 58, RED_BOX);
-      // customer name (bold) with the project name under it (regular)
-      let size = 12.5, nameLines = [];
+      let size = 14, nameLines = [];
       if (info.custName) {
           let maxL = info.project ? 1 : 2;
-          nameLines = wrapText(info.custName, size, true, 138);
-          while (nameLines.length > maxL && size > 8) { size -= 0.5; nameLines = wrapText(info.custName, size, true, 138); }
+          nameLines = wrapText(info.custName, size, true, 140);
+          while (nameLines.length > maxL && size > 8) { size -= 0.5; nameLines = wrapText(info.custName, size, true, 140); }
           nameLines = nameLines.slice(0, maxL + 1);
       }
-      let projLines = info.project ? wrapText(info.project, 7.5, false, 138).slice(0, 2) : [];
-      let lh = size * 1.15, nameH = info.custName ? nameLines.length * lh : 12, projH = projLines.length ? 3 + projLines.length * 9 : 0;
+      let projLines = info.project ? wrapText(info.project, 9, false, 140).slice(0, 2) : [];
+      let lh = size * 1.15, nameH = info.custName ? nameLines.length * lh : 12, projH = projLines.length ? 3 + projLines.length * 10.5 : 0;
       let ny = 113 - (nameH + projH) / 2;
       if (info.custName) nameLines.forEach((l, i) => o += T(cx, ny + i * lh + size * 0.85, l, size, { anchor: 'middle', bold: true, fill: '#FFFFFF' }));
-      else o += missingTag(cx + tw('MISSING: CUSTOMER', 7.5, true) / 2 + 3, ny + 9, 'MISSING: CUSTOMER', 7.5,
-                           { x: cx, y: ny + 10.6, size: 12.5, anchor: 'middle', bold: true, fill: '#FFFFFF' });
-      projLines.forEach((l, i) => o += T(cx, ny + nameH + 3 + i * 9 + 6.8, l, 7.5, { anchor: 'middle', fill: '#FFFFFF' }));
-      // installation location (3 lines)
-      o += T(lx, 163, 'Installation Location:', 9.5);
-      [176, 189, 201].forEach(y => o += L(929, y, rx, y, '#CCCCCC', 0.5));
-      if (info.location) wrapText(info.location, 7.5, false, 138).slice(0, 3).forEach((l, i) => o += T(rx, [174, 187, 199][i], l, 7.5, { anchor: 'end', fill: '#555555' }));
-      else o += missingTag(rx, 174, 'MISSING', 7, { x: rx, y: 174, size: 7.5, anchor: 'end', fill: '#555555' });
-      // salesperson / inv / ticket
-      let row = (label, val, y, size) => {
-          let w = tw(label, size, false);
-          let s = T(lx, y, label, size) + L(lx + w + 3, y + 1.5, rx, y + 1.5, '#CCCCCC', 0.5);
-          return s + (val ? T(rx, y, val, size * 0.88, { anchor: 'end', fill: '#444444' }) : missingTag(rx, y, 'MISSING', 7, { x: rx, y, size: size * 0.88, anchor: 'end', fill: '#444444' }));
+      else o += missingTag(cx + tw('MISSING: CUSTOMER', 8, true) / 2 + 3, ny + 9, 'MISSING: CUSTOMER', 8,
+                           { x: cx, y: ny + 10.6, size: 14, anchor: 'middle', bold: true, fill: '#FFFFFF' });
+      projLines.forEach((l, i) => o += T(cx, ny + nameH + 3 + i * 10.5 + 8, l, 9, { anchor: 'middle', fill: '#FFFFFF' }));
+      // installation location (2 lines)
+      o += T(lx, 167, 'Installation Location:', 11);
+      [185, 201].forEach(y => o += L(929, y, rx, y, '#CCCCCC', 0.5));
+      if (info.location) wrapText(info.location, 9.5, false, 140).slice(0, 2).forEach((l, i) => o += T(rx, [182.5, 198.5][i], l, 9.5, { anchor: 'end', fill: '#333333' }));
+      else o += missingTag(rx, 182.5, 'MISSING', 8, { x: rx, y: 182.5, size: 9.5, anchor: 'end', fill: '#333333' });
+      // salesperson / inv / ticket, designer / dates: label left, value right, 20 apart
+      let row = (label, val, y) => {
+          let w = tw(label, 11, false);
+          let s2 = T(lx, y, label, 11) + L(lx + w + 3, y + 2, rx, y + 2, '#CCCCCC', 0.5);
+          return s2 + (val ? T(rx, y, val, 10, { anchor: 'end', fill: '#222222', bold: true })
+                           : missingTag(rx, y, 'MISSING', 8, { x: rx, y, size: 10, anchor: 'end', fill: '#222222', bold: true }));
       };
-      o += row('Salesperson', info.sales, 226, 9.5) + row('Inv/Est #', info.inv, 238.5, 9.5) + row('Ticket No.', info.ticket, 251, 9.5);
-      o += row('Designer', info.designer, 274.5, 8.8) + row('Original Date', info.orig, 287, 8.8) + row('Revision Date', info.rev, 299.5, 8.8);
-      o += T(lx, 312, 'File Location:', 8.8);
-      [323.5, 336, 348.5, 361].forEach(y => o += L(929, y, rx, y, '#CCCCCC', 0.5));
-      if (info.path) wrapPath(info.path, 7.3, 140).slice(0, 4).forEach((l, i) => o += T(930, [321.5, 334, 346.5, 359][i], l, 7.3, { fill: '#555555' }));
-      else o += missingTag(rx, 321.5, 'MISSING', 7, { x: 930, y: 321.5, size: 7.3, fill: '#555555' });
-      // description / project notes
-      o += T(lx, 391, 'Description:', 9);
-      o += L(lx + tw('Description:', 9, false) + 3, 392.5, rx, 392.5, '#CCCCCC', 0.5);
-      let noteLines = info.notes ? info.notes.split(/\n/).reduce((a, p) => a.concat(wrapText(p, 7.5, false, 140)), []) : [];
-      for (let i = 0; i < 19; i++) {
-          let y = 405 + i * 12.3;
+      o += row('Salesperson', info.sales, 230) + row('Inv/Est #', info.inv, 250) + row('Ticket No.', info.ticket, 270);
+      o += row('Designer', info.designer, 300) + row('Original Date', info.orig, 320) + row('Revision Date', info.rev, 340);
+      // file location (3 lines)
+      o += T(lx, 368, 'File Location:', 11);
+      [385, 400, 415].forEach(y => o += L(929, y, rx, y, '#CCCCCC', 0.5));
+      if (info.path) wrapPath(info.path, 8.6, 140).slice(0, 3).forEach((l, i) => o += T(930, [382.5, 397.5, 412.5][i], l, 8.6, { fill: '#333333' }));
+      else o += missingTag(rx, 382.5, 'MISSING', 8, { x: 930, y: 382.5, size: 8.6, fill: '#333333' });
+      // description / project notes: 10 lines, each an editable text box in the SVG (filled or empty)
+      o += T(lx, 444, 'Description:', 11);
+      o += L(lx + tw('Description:', 11, false) + 3, 446, rx, 446, '#CCCCCC', 0.5);
+      let noteLines = info.notes ? info.notes.split(/\n/).reduce((a, p) => a.concat(wrapText(p, 9, false, 140)), []) : [];
+      o += `<g id="Description_Text">`;
+      for (let i = 0; i < 10; i++) {
+          let y = 466 + i * 18;
           o += L(929, y, rx, y, '#CCCCCC', 0.5);
-          if (noteLines[i]) o += T(930, y - 2.2, noteLines[i], 7.5, { fill: '#444444' });
+          o += `<g id="Description_Line_${i + 1}">` + T(930, y - 3, noteLines[i] || ' ', 9, { fill: '#333333' }) + `</g>`;
       }
-      o += `</g>`;
+      o += `</g></g>`;
       // ETL block
       o += `<g id="ETL">` + IMG(929, 658, 36.5, 48, PROOF_ASSETS.etl);
       let etl = TEMPLATE.ETL_Text || '', y = 664.5, words = etl.split(/\s+/), cur = '', lines = [];
       words.forEach(w => {
-          let maxW = (y + lines.length * 7.35) < 708 ? 97 : 142;
+          let maxW = (y + lines.length * 7.7) < 708 ? 97 : 142;
           let t = cur ? cur + ' ' + w : w;
-          if (tw(t, 5.9, false) <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; }
+          if (tw(t, 6.3, false) <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; }
       });
       if (cur) lines.push(cur);
-      lines.forEach((l, i) => { let ly = y + i * 7.35; o += T(ly < 708 ? 974 : 929, ly, l, 5.9, { fill: '#222222' }); });
+      lines.forEach((l, i) => { let ly = y + i * 7.7; o += T(ly < 708 ? 974 : 929, ly, l, 6.3, { fill: '#222222' }); });
       o += `</g>`;
       o += `<g id="Logo">` + IMG(x0, 771, x1 - x0, 44.7, PROOF_ASSETS.logo) + `</g>`;
       return o;
@@ -1937,10 +2221,10 @@
   function drawFooter() {
       let o = `<g id="Approval_Footer">` + R(PG.AB.x, 762, PG.AB.w, 50.5, '#EDEDED', LINE, 0.8);
       let lab = TEMPLATE.Approval_Label || 'Customer Approval Signature', dl = TEMPLATE.Date_Label || 'Date';
-      o += T(43, 801, lab, 10.5, { bold: true, fill: '#222222' }) + L(43 + tw(lab, 10.5, true) + 3, 802.5, 490, 802.5, '#888888', 0.6);
-      o += T(497, 801, dl, 10.5, { bold: true, fill: '#222222' }) + L(497 + tw(dl, 10.5, true) + 3, 802.5, 696, 802.5, '#888888', 0.6);
-      wrapText(TEMPLATE.Legal_Text || '', 5.8, false, 198).forEach((l, i) => o += T(709, 771.5 + i * 7.3, l, 5.8, { fill: '#222222' }));
-      o += T(709, 803, (TEMPLATE.Copyright_Text || '').replace('{YEAR}', new Date().getFullYear()), 5.8, { fill: '#222222' });
+      o += T(43, 801, lab, 12, { bold: true, fill: '#222222' }) + L(43 + tw(lab, 12, true) + 3, 802.5, 490, 802.5, '#888888', 0.6);
+      o += T(497, 801, dl, 12, { bold: true, fill: '#222222' }) + L(497 + tw(dl, 12, true) + 3, 802.5, 696, 802.5, '#888888', 0.6);
+      wrapText(TEMPLATE.Legal_Text || '', 6.4, false, 198).slice(0, 4).forEach((l, i) => o += T(709, 772 + i * 7.6, l, 6.4, { fill: '#222222' }));
+      o += T(709, 806, (TEMPLATE.Copyright_Text || '').replace('{YEAR}', new Date().getFullYear()), 6.4, { fill: '#222222' });
       return o + `</g>`;
   }
 
@@ -1950,21 +2234,21 @@
   let wmCache = { key: '', url: '' };
   function watermarkImage() {
       const AB = PG.AB, PPU = 1.5;   // 1.5 px per unit = 150 ppi
-      let pct = Math.min(100, Math.max(1, parseFloat(TEMPLATE.Watermark_Opacity) || 2));
+      let pct = Math.min(5, Math.max(2, parseFloat(TEMPLATE.Watermark_Opacity) || 3));   // staging: 2-5% opacity
       if (wmCache.key === String(pct)) return wmCache.url;
       let c = document.createElement('canvas');
       c.width = Math.round(AB.w * PPU); c.height = Math.round(AB.h * PPU);
-      let ctx = c.getContext('2d'), g = Math.round(255 * (1 - pct / 100));
-      ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height);
+      let ctx = c.getContext('2d'), a = pct / 100;                           // transparent behind the text: images show through
       ctx.save();
       ctx.translate(c.width / 2, c.height / 2); ctx.rotate(-30 * Math.PI / 180); ctx.scale(PPU, PPU);
-      ctx.fillStyle = `rgb(${g},${g},${g})`; ctx.font = 'bold 34px Arial'; ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.strokeStyle = `rgba(255,255,255,${a})`; ctx.lineWidth = 1.2; ctx.lineJoin = 'round';
+      ctx.font = 'bold 34px Arial'; ctx.textBaseline = 'alphabetic';
       let reach = Math.hypot(AB.w, AB.h) / 2 + 240;   // enough rows / columns to cover every corner after rotating
       for (let y = -reach, row = 0; y <= reach; y += 70, row++)
           for (let x = -reach - (row % 2) * 115; x <= reach; x += 230)
-              ctx.fillText('SIGN STORE', x, y);
+              { ctx.strokeText('SIGN STORE', x, y); ctx.fillText('SIGN STORE', x, y); }
       ctx.restore();
-      wmCache = { key: String(pct), url: c.toDataURL('image/jpeg', 0.85) };   // flat gray on white: JPEG is ~4x smaller than PNG
+      wmCache = { key: String(pct), url: c.toDataURL('image/png') };          // PNG with transparency (it sits above any images)
       return wmCache.url;
   }
 
@@ -1980,17 +2264,272 @@
               `</linearGradient>` + (EXPORTING ? '' : `<clipPath id="abclip"><rect x="${AB.x}" y="${AB.y}" width="${AB.w}" height="${AB.h}"/></clipPath>`) + `</defs>` +
               R(0, 0, PG.W, PG.H, '#FFFFFF');
       o += `<g id="Artboard">` + R(AB.x, AB.y, AB.w, AB.h, '#FFFFFF');
-      if (String(TEMPLATE.Watermark || 'On').toUpperCase() !== 'OFF')
-          o += `<g id="Watermark">` + IMG(AB.x, AB.y, AB.w, AB.h, watermarkImage(), 'none') + `</g>`;
       let lay = page.blocks.length ? fitTable(page) : null;
-      o += drawArt(page, artRegion(page, lay));          // screenshots / artwork (under the table)
-      if (lay) o += drawTable(page, lay, AB.x + 26, AB.y + AB.h - 30);
-      o += drawDetails(page.drawings || []);
+      o += drawArt(page, artRegion(page, lay));          // staging: images and measurements sit UNDER the watermark and table
       o += drawMeasures(page);
-      o += T(AB.x + AB.w - 10, AB.y + AB.h - 9, `${page.item.name.toUpperCase()}${page.blank ? ' \u00B7 ' + page.title.toUpperCase() : ''} \u00B7 PAGE ${page.n}/${page.total}`, 6.5, { anchor: 'end', bold: true, fill: '#C1272D' });
+      if (String(TEMPLATE.Watermark || 'On').toUpperCase() !== 'OFF')
+          o += `<g id="Watermark"${EXPORTING ? '' : ' pointer-events="none"'}>` + IMG(AB.x, AB.y, AB.w, AB.h, watermarkImage(), 'none') + `</g>`;
+      if (lay) o += drawTable(page, lay, AB.x + 26, AB.y + AB.h - 30);
+      o += drawArtHandles(page, artRegion(page, lay));
+      o += drawDetails(page.drawings || []);
+      o += T(AB.x + AB.w - 10, AB.y + AB.h - 9, `${prName(page.item).toUpperCase()}${page.blank ? ' \u00B7 ' + page.title.toUpperCase() : ''} \u00B7 PAGE ${page.n}/${page.total}`, 6.5, { anchor: 'end', bold: true, fill: '#C1272D' });
       o += R(AB.x, AB.y, AB.w, AB.h, 'none', LINE, 0.8) + `</g>`;
       o += drawSidebar(info, pkgN, pkgTotal) + drawFooter();
       return o + `</svg>`;
+  }
+
+  function sheetHead() {
+      const AB = PG.AB, XML_HEAD = '<' + '?xml version="1.0" encoding="UTF-8"?' + '>\n';
+      return XML_HEAD + '<svg xmlns="http:' + '/' + '/www.w3.org/2000/svg" xmlns:xlink="http:' + '/' + '/www.w3.org/1999/xlink" ' +
+             `width="11in" height="8.5in" viewBox="0 0 ${PG.W} ${PG.H}">` +
+             `<defs><linearGradient id="fullcolor" x1="0" y1="0" x2="1" y2="0">` +
+             ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#8b00ff'].map((c, i) => `<stop offset="${(i / 6).toFixed(3)}" stop-color="${c}"/>`).join('') +
+             `</linearGradient></defs>` + R(0, 0, PG.W, PG.H, '#FFFFFF');
+  }
+
+  // COVER PAGE (optional, design proof export): the proof template with no tables - blank artboard + watermark,
+  // job info sidebar, customer approval, ETL and logo
+  function buildTitlePageSVG(info, pkgN, pkgTotal) {
+      const AB = PG.AB;
+      let o = sheetHead().replace('</defs>', EXPORTING ? '</defs>' : `<clipPath id="abclip"><rect x="${AB.x}" y="${AB.y}" width="${AB.w}" height="${AB.h}"/></clipPath></defs>`) +
+              `<g id="Artboard">` + R(AB.x, AB.y, AB.w, AB.h, '#FFFFFF');
+      let region = { x: AB.x + 16, y: AB.y + 16, w: AB.w - 32, h: AB.h - 32 };
+      o += drawArt(COVER_PAGE, region) + drawMeasures(COVER_PAGE);
+      if (String(TEMPLATE.Watermark || 'On').toUpperCase() !== 'OFF')
+          o += `<g id="Watermark"${EXPORTING ? '' : ' pointer-events="none"'}>` + IMG(AB.x, AB.y, AB.w, AB.h, watermarkImage(), 'none') + `</g>`;
+      o += drawArtHandles(COVER_PAGE, region) + R(AB.x, AB.y, AB.w, AB.h, 'none', LINE, 0.8) + `</g>`;
+      return o + drawSidebar(info, pkgN, pkgTotal) + drawFooter() + `</svg>`;
+  }
+
+  // PRODUCTION page frame: a thick purple border; white labels sit on its bottom edge
+  const PF = 14;                                                        // border width (0.14") - staging: half, more room inside
+  const PROD_IN = { x: PF + 8, y: PF + 8, w: PG.W - 2 * (PF + 8), h: PG.H - 2 * (PF + 8) };   // artboard inside the border
+  function productionFrame(left, right) {
+      return `<g id="Production_Frame">` + R(PF / 2, PF / 2, PG.W - PF, PG.H - PF, 'none', PROD, PF) + `</g>`;   // staging: no labels on the border
+  }
+  function prodTicket(info) { return String(info.custName || '').toUpperCase(); }   // staging: production pages never show the design ticket #
+  // blank box for the shop's work order number
+  function workOrderBox(x, y, w, size) {
+      return T(x, y, 'WORK ORDER #', size, { bold: true, fill: PROD, ls: 0.8 }) +
+             R(x + tw('WORK ORDER #', size, true) * 1.12 + 14, y - size - 4, w - tw('WORK ORDER #', size, true) * 1.12 - 14, size + 12, '#FFFFFF', PROD, 1.2, ' rx="4"');
+  }
+  // the table as large as the production artboard allows (up to 1.35x the proof size)
+  function fitProdTable(page) {
+      const maxW = PROD_IN.w - 40, maxH = PROD_IN.h * 0.62;
+      let lay;
+      for (let s = 1.6; s >= 0.5; s -= 0.05) { lay = layoutTable(page, s); if (lay.w <= maxW && lay.h <= maxH) return lay; }
+      return lay;
+  }
+
+  function prodArtRegion(lay) {
+      const A = PROD_IN, pad = 16;
+      let tableTop = A.y + A.h - 14;
+      if (lay) tableTop -= lay.h + 12 * Math.max(lay.s, 0.8) * 1.9;
+      return { x: A.x + pad, y: A.y + pad, w: A.w - 2 * pad, h: tableTop - pad - (A.y + pad) };
+  }
+  // PRODUCTION PROOF: the same page as the design proof, artboard + tables only (purple), customer name just above the tables
+  function buildProductionSVG(page, n, total, info) {
+      const A = PROD_IN;
+      let o = sheetHead() + (EXPORTING ? '' : `<defs><clipPath id="prodclip"><rect x="${A.x}" y="${A.y}" width="${A.w}" height="${A.h}"/></clipPath></defs>`) +
+              `<g id="Artboard">` + R(A.x, A.y, A.w, A.h, '#FFFFFF');
+      let lay = page.blocks.length ? fitProdTable(page) : null, region = prodArtRegion(lay);
+      ART_AB = A; ART_CLIP = 'prodclip';
+      try { o += drawArt(page, region); } finally { ART_AB = null; ART_CLIP = 'abclip'; }
+      o += drawMeasures(page);
+      if (lay) {
+          let x = A.x + 20, bottom = A.y + A.h - 14, bs = 12 * Math.max(lay.s, 0.8), badgeTop = bottom - lay.h - bs * 1.9;
+          let keep = TBL; TBL = TBL_PROD; BADGE_PREFIX = String(info.custName || '').toUpperCase();
+          try { o += drawTable(page, lay, x, bottom); } finally { TBL = keep; BADGE_PREFIX = ''; }
+      }
+      o += drawArtHandles(page, region) + `</g>`;
+      let what = `${prName(page.item).toUpperCase()}${page.total > 1 ? ` ${page.n}/${page.total}` : ''}`;
+      return o + productionFrame(`PRODUCTION PROOF ${n} / ${total}`, [prodTicket(info), what].filter(Boolean).join(' · ')) + `</svg>`;
+  }
+
+  // COLOR CHART: every color in the package, labeled with what it is and what it is for (one page)
+  function colorChartRows(pages) {
+      let rows = [], seen = {};
+      pkgItems.forEach(it => allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => {
+          collectPartItems(part).forEach(i => {
+              let colorish = i.hex || i.gradient || /COLOR|FINISH|PAINT|VINYL|LED|TRIM CAP|RETURN|FACE/.test(String(i.label).toUpperCase());
+              if (!i.xcolor && (!colorish || !(i.hex || i.gradient || /COLOR/.test(String(i.label).toUpperCase())))) return;
+              let use = [prName(it), partLabel(part) !== prName(it) ? partLabel(part) : '', i.label].filter(Boolean).join(' · ');
+              let key = i.val + '|' + use; if (seen[key]) return; seen[key] = 1;
+              rows.push({ hex: i.hex, gradient: i.gradient, val: i.val, use, warn: i.warn, tbd: i.tbd });
+          });
+      }));
+      return rows;
+  }
+  function buildColorChartSVG(pages, info) {
+      const AB = PROD_IN, rows = colorChartRows(pages);
+      let o = sheetHead() + `<g id="Color_Chart">`;
+      o += T(AB.x + 20, AB.y + 30, 'COLOR CHART', 18, { bold: true, fill: PROD, ls: 1.5 }) +
+           (info.custName ? T(AB.x + AB.w - 20, AB.y + 30, info.custName, 14, { anchor: 'end', bold: true, fill: PROD }) : '') +
+           T(AB.x + 20, AB.y + 46, `${rows.length} color${rows.length === 1 ? '' : 's'} in this job · each one labeled with what it is and where it goes`, 8.5, { fill: '#555555' });
+      let top = AB.y + 60, bottom = AB.y + AB.h - 10, avail = bottom - top;
+      let cols = rows.length > 22 ? 2 : 1, perCol = Math.ceil(rows.length / cols) || 1;
+      let rh = Math.min(24, Math.max(11, (avail - 18) / perCol)), fs = Math.min(9.5, rh * 0.42);
+      let colW = (AB.w - 40 - (cols - 1) * 20) / cols;
+      for (let c = 0; c < cols; c++) {
+          let x = AB.x + 20 + c * (colW + 20), y = top;
+          let wSw = 40 * (fs / 9.5) + 10, wVal = colW * 0.38, wUse = colW - wSw - wVal;
+          o += R(x, y, colW, 16, PROD) + T(x + 6, y + 11, 'SWATCH', 7, { bold: true, fill: '#FFFFFF', ls: 0.8 }) +
+               T(x + wSw + 6, y + 11, 'COLOR', 7, { bold: true, fill: '#FFFFFF', ls: 0.8 }) + T(x + wSw + wVal + 6, y + 11, 'WHAT IT IS FOR', 7, { bold: true, fill: '#FFFFFF', ls: 0.8 });
+          y += 16;
+          rows.slice(c * perCol, (c + 1) * perCol).forEach(r => {
+              o += R(x, y, colW, rh, '#FFFFFF', TBL_PROD.line, 0.8);
+              let sh = Math.min(rh - 6, 14 * (fs / 9.5)), sw = 34 * (fs / 9.5), sy = y + (rh - sh) / 2;
+              let fill = r.gradient ? 'url(#fullcolor)' : (normHex(r.hex) === 'transparent' || !r.hex ? '#FFFFFF' : normHex(r.hex));
+              if (r.hex || r.gradient) { o += R(x + 6, sy, sw, sh, fill, '#555555', 0.8); if (normHex(r.hex) === 'transparent') o += L(x + 6, sy + sh, x + 6 + sw, sy, '#999999', 0.6); }
+              else o += R(x + 6, sy, sw, sh, '#FFFFFF', '#BBBBBB', 0.6, ' stroke-dasharray="2,1.5"');
+              let base = y + rh / 2 + fs * 0.35;
+              let val = wrapText(r.val + (r.hex && !r.gradient && normHex(r.hex) !== 'transparent' ? `  ${normHex(r.hex).toUpperCase()}` : ''), fs, true, wVal - 10)[0] || '';
+              if (r.warn) { missN++; o += valueField({ x: x + wSw + 6, y: base, size: fs, bold: true }) + R(x + wSw + 4, y + (rh - fs * 1.3) / 2, Math.min(wVal - 8, tw(val, fs, true) + 6), fs * 1.3, TAG_BG, '#D6A100', 0.8); }
+              if (r.tbd) o += R(x + wSw + 4, y + (rh - fs * 1.3) / 2, Math.min(wVal - 8, tw(val, fs, true) + 6), fs * 1.3, TBD_BG, null, 0, ' rx="2"');
+              o += T(x + wSw + 6, base, val, fs, { bold: true, fill: r.warn ? TAG_TX : (r.tbd ? TBD_TX : '#000000') });
+              o += T(x + wSw + wVal + 6, base, wrapText(r.use, fs * 0.92, false, wUse - 10)[0] || '', fs * 0.92, { fill: '#333333' });
+              y += rh;
+          });
+      }
+      if (!rows.length) o += T(AB.x + 20, top + 20, 'No colors in this job yet.', 10, { fill: '#777777' });
+      o += `</g>`;
+      return o + productionFrame('PRODUCTION · COLOR CHART', [prodTicket(info), info.project].filter(Boolean).join(' · ')) + `</svg>`;
+  }
+
+  // =====================================================================
+  //  PRODUCTION SNAPSHOT + DEPARTMENT SHEETS
+  // =====================================================================
+  const DEPTS = [
+      { name: 'Vinyl', slug: 'vinyl', color: '#D0337A', re: /VINYL|GRAPHIC|PRINT|MEDIA|LAMINATE|DECAL|WEED|MASK|APPLICATION|CONTOUR/ },
+      { name: 'Metal fabrication', slug: 'metal', color: '#5B6470', re: /CABINET|RETURN|POLE|POST|FRAME|BACKS|BACKER|RETAINER|SKIN|CONSTRUCTION|GAUGE|BASE|REVEAL|CAP\b|STANDOFF|RACEWAY|BRACKET|FOOTER|EMBED|SPACER|PIN|TRIM CAP/ },
+      { name: 'CNC / routing', slug: 'cnc', color: '#1E6FD9', re: /ROUT|CORNER|SHAPE|PUSH-?THRU|THICKNESS|COPY|LETTER/ },
+      { name: 'Electrical', slug: 'electrical', color: '#E8A400', re: /ILLUMINAT|LED|POWER|PHOTO|TIMER|DISCONNECT|ETL|ELECTRICAL|EMC|MODULE|PITCH|LIGHTING|DISPLAY|WIRING|SWITCH/ },
+      { name: 'Paint', slug: 'paint', color: '#23885A', re: /PAINT|FINISH/ }
+  ];
+  const MATERIAL_RE = /MATERIAL|^FACE$|FACES$|FACE MATERIAL|SUBSTRATE|MEDIA|BACKS|BACKER|SKIN|^PANEL|THICKNESS|GAUGE|^RETURN$|POLE SIZE|POST SIZE|^TRIM CAP$|SHEETING|LAMINATE|^VINYL$|SERIES/;
+  // every spec of the job, flat: product, section, label, value, swatch
+  function jobSpecs() {
+      let out = [];
+      pkgItems.forEach(it => allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => collectPartItems(part).forEach(i =>
+          out.push({ product: prName(it), section: partLabel(part), label: String(i.label).toUpperCase(), val: i.val, hex: i.hex, gradient: i.gradient, warn: i.warn, tbd: i.tbd }))));
+      return out;
+  }
+  function specDepts(sp) {
+      let L = sp.label, V = String(sp.val || '').toUpperCase(), d = [];
+      DEPTS.forEach(x => { if (x.re.test(L)) d.push(x.slug); });
+      if (/\bCOLOR\b/.test(L) && /SW |PMS|PAINT/.test(V) && d.indexOf('paint') === -1) d.push('paint');
+      if (/PAINTED/.test(V) && d.indexOf('paint') === -1) d.push('paint');
+      if (/ORACAL|ARLON|3M |VINYL|PRINT/.test(V) && d.indexOf('vinyl') === -1 && /COLOR|GRAPHIC|FACE/.test(L)) d.push('vinyl');
+      if (/ROUTED|ROUTING/.test(V) && d.indexOf('cnc') === -1) d.push('cnc');
+      if (/LETTERS/.test(sp.product.toUpperCase()) && /QTY|TEXT|THICKNESS/.test(L) && d.indexOf('cnc') === -1) d.push('cnc');
+      return d;
+  }
+  function snapshotData(pages) {
+      let specs = jobSpecs(), colors = colorChartRows(pages), mats = [], seenM = {};
+      specs.forEach(sp => {
+          if (!MATERIAL_RE.test(sp.label) || sp.warn || sp.tbd || !sp.val || /^(NONE|NO|N\/A)$/i.test(sp.val) || /^\d+$/.test(String(sp.val).trim())) return;
+          let k = sp.val.toUpperCase(); if (!seenM[k]) { seenM[k] = { val: sp.val, uses: [] }; mats.push(seenM[k]); }
+          let u = `${sp.product} · ${sp.label}`; if (seenM[k].uses.indexOf(u) === -1) seenM[k].uses.push(u);
+      });
+      let depts = DEPTS.map(d => Object.assign({}, d, { rows: specs.filter(sp => specDepts(sp).indexOf(d.slug) !== -1 && !/^(NONE|NO|N\/A)$/i.test(String(sp.val).trim())) }));
+      return { specs, colors, mats, depts };
+  }
+  function buildSnapshotSVG(pages, info) {
+      const A = PROD_IN, d = snapshotData(pages), X = A.x + 20, W = A.w - 40;
+      let o = sheetHead() + `<g id="Production_Snapshot">`;
+      // header: big title, customer, job line
+      o += T(X, A.y + 40, 'PRODUCTION SNAPSHOT', 30, { bold: true, fill: PROD, ls: 1.6 }) +
+           (info.custName ? T(X + W, A.y + 40, info.custName, 22, { anchor: 'end', bold: true, fill: PROD }) : '') +
+           workOrderBox(X + W - 320, A.y + 70, 320, 13) +
+           T(X, A.y + 64, [info.project, `${pkgItems.length} product${pkgItems.length === 1 ? '' : 's'}`, `${pages.length} production proof${pages.length === 1 ? '' : 's'}`].filter(Boolean).join('  ·  '), 14, { fill: '#444444' });
+      // departments: 5 big tiles
+      let ty = A.y + 94, th = 76, tw5 = (W - 4 * 12) / 5;
+      d.depts.forEach((x, k) => {
+          let tx = X + k * (tw5 + 12), on = x.rows.length > 0;
+          o += R(tx, ty, tw5, th, on ? '#FFFFFF' : '#F4F5F7', on ? x.color : '#D5D9DF', on ? 3 : 1.2, ' rx="10"') +
+               R(tx, ty, 10, th, on ? x.color : '#D5D9DF', null, 0, ' rx="4"') +
+               T(tx + 22, ty + 31, x.name.toUpperCase(), x.name.length > 12 ? 13.5 : 16, { bold: true, fill: on ? '#1F2328' : '#9AA1A9', ls: 0.4 }) +
+               T(tx + 22, ty + 60, on ? `✓ ${x.rows.length} spec${x.rows.length === 1 ? '' : 's'}` : 'Not needed', on ? 19 : 15, { bold: on, fill: on ? x.color : '#9AA1A9' });
+      });
+      // colors (left) and materials (right)
+      let top = ty + th + 34, bottom = A.y + A.h - 14, gap = 28, colW = (W - gap) / 2, cx = X, mx = X + colW + gap;
+      o += T(cx, top, 'COLORS', 18, { bold: true, fill: PROD, ls: 1.4 }) + T(mx, top, 'MATERIALS', 18, { bold: true, fill: PROD, ls: 1.4 }) +
+           L(cx, top + 7, cx + colW, top + 7, PROD, 1.2) + L(mx, top + 7, mx + colW, top + 7, PROD, 1.2);
+      let avail = bottom - top - 16;
+      // colors: one column of big rows; two columns only when the list is long
+      let n = d.colors.length, cols = n * 38 > avail ? 2 : 1, perCol = Math.ceil(n / cols) || 1;
+      let rh = Math.max(24, Math.min(46, avail / perCol)), fs = Math.min(17, rh * 0.40), cw = (colW - (cols - 1) * 14) / cols;
+      let maxColors = Math.floor(avail / rh) * cols;
+      d.colors.slice(0, maxColors).forEach((c, k) => {
+          let x = cx + Math.floor(k / perCol) * (cw + 14), y = top + 14 + (k % perCol) * rh, sw = Math.min(48, rh * 1.25), sh = rh - 10;
+          let fill = c.gradient ? 'url(#fullcolor)' : (!c.hex || normHex(c.hex) === 'transparent' ? '#FFFFFF' : normHex(c.hex));
+          o += R(x, y + 5, sw, sh, fill, c.hex || c.gradient ? '#444444' : '#BBBBBB', 1, c.hex || c.gradient ? ' rx="4"' : ' rx="4" stroke-dasharray="3,2"');
+          let tx = x + sw + 12, tw2 = cw - sw - 16;
+          let name = wrapText(c.val, fs, true, tw2)[0] || '', use = wrapText(c.use, fs * 0.72, false, tw2)[0] || '';
+          if (c.warn) o += R(tx - 3, y + rh / 2 - fs - 1, tw(name, fs, true) + 6, fs * 1.25, TAG_BG, '#D6A100', 0.6);
+          o += T(tx, y + rh / 2 + 1, name, fs, { bold: true, fill: c.warn ? TAG_TX : '#111111' }) + T(tx, y + rh / 2 + fs * 0.95, use, fs * 0.72, { fill: '#555555' });
+      });
+      if (n > maxColors) o += T(cx, bottom, `+ ${n - maxColors} more colors on the department sheets`, 12, { fill: '#555555', italic: true });
+      if (!n) o += T(cx, top + 34, 'No colors yet.', 15, { fill: '#888888' });
+      // materials: big value, where it goes underneath
+      let mrh = Math.max(24, Math.min(46, avail / Math.max(1, d.mats.length))), mfs = Math.min(17, mrh * 0.40), maxM = Math.floor(avail / mrh);
+      d.mats.slice(0, maxM).forEach((m, k) => {
+          let y = top + 14 + k * mrh;
+          o += R(mx, y + 3, colW, mrh - 6, k % 2 ? '#FFFFFF' : '#F3EEF9', null, 0, ' rx="5"') +
+               T(mx + 12, y + mrh / 2 + 1, wrapText(m.val, mfs, true, colW - 24)[0] || '', mfs, { bold: true, fill: '#111111' }) +
+               T(mx + 12, y + mrh / 2 + mfs * 0.95, wrapText(m.uses.join(', '), mfs * 0.72, false, colW - 24)[0] || '', mfs * 0.72, { fill: '#555555' });
+      });
+      if (d.mats.length > maxM) o += T(mx, bottom, `+ ${d.mats.length - maxM} more on the department sheets`, 12, { fill: '#555555', italic: true });
+      if (!d.mats.length) o += T(mx, top + 34, 'No materials yet.', 15, { fill: '#888888' });
+      o += `</g>`;
+      return o + productionFrame('PRODUCTION · SNAPSHOT', [prodTicket(info), String(info.project || '').toUpperCase()].filter(Boolean).join(' · ')) + `</svg>`;
+  }
+  // one sheet per department that has work: what it needs (product / spec / value), notes, supervisor sign-off
+  function buildDeptSheets(pages, info) {
+      const A = PROD_IN, d = snapshotData(pages), out = [];
+      d.depts.filter(x => x.rows.length).forEach(x => {
+          const head = 78, signH = 150, rowH = 26, fs = 12.5;
+          let rows = x.rows, per = Math.max(4, Math.floor((A.h - head - signH - 20) / rowH)), chunks = [];
+          for (let i = 0; i < rows.length; i += per) chunks.push(rows.slice(i, i + per));
+          chunks.forEach((chunk, ci) => {
+              let o = sheetHead() + `<g id="Department_${x.slug}">`;
+              o += R(A.x + 18, A.y + 14, 10, 34, x.color, null, 0, ' rx="3"') +
+                   T(A.x + 38, A.y + 40, `${x.name.toUpperCase()} — DEPARTMENT SHEET${chunks.length > 1 ? `  (${ci + 1}/${chunks.length})` : ''}`, 20, { bold: true, fill: '#1F2328', ls: 0.8 }) +
+                   (info.custName ? T(A.x + A.w - 18, A.y + 40, info.custName, 15, { anchor: 'end', bold: true, fill: PROD }) : '') +
+                   T(A.x + 38, A.y + 60, info.project || '', 11, { fill: '#555555' });
+              let y = A.y + head, c1 = A.x + 18, cw = A.w - 36, w1 = cw * 0.30, w2 = cw * 0.24, w3 = cw - w1 - w2 - 60;
+              o += R(c1, y, cw, 22, PROD) + T(c1 + 10, y + 15, 'PRODUCT · SECTION', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) +
+                   T(c1 + w1 + 10, y + 15, 'SPEC', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) + T(c1 + w1 + w2 + 10, y + 15, 'WHAT IS NEEDED', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) +
+                   T(c1 + cw - 30, y + 15, 'DONE', 9.5, { anchor: 'middle', bold: true, fill: '#FFFFFF', ls: 0.8 });
+              y += 22;
+              chunk.forEach((r, k) => {
+                  o += R(c1, y, cw, rowH, k % 2 ? '#FFFFFF' : '#F7F5FB', TBL_PROD.line, 0.6);
+                  o += T(c1 + 10, y + rowH / 2 + 4, wrapText(r.product + (r.section && r.section !== r.product ? ' · ' + r.section : ''), 10.5, false, w1 - 16)[0] || '', 10.5, { fill: '#333333' });
+                  o += T(c1 + w1 + 10, y + rowH / 2 + 4, wrapText(r.label, 10.5, true, w2 - 16)[0] || '', 10.5, { bold: true, fill: '#4A3A66' });
+                  let vx = c1 + w1 + w2 + 10;
+                  if (r.hex || r.gradient) { o += R(vx, y + 6, 26, rowH - 12, r.gradient ? 'url(#fullcolor)' : (normHex(r.hex) === 'transparent' ? '#FFFFFF' : normHex(r.hex)), '#555555', 0.6, ' rx="2"'); vx += 34; }
+                  let v = wrapText(r.val, fs, true, w3 - (vx - (c1 + w1 + w2)) - 6)[0] || '';
+                  if (r.warn) { missN++; o += valueField({ x: vx, y: y + rowH / 2 + 4.5, size: fs, bold: true }) + R(vx - 3, y + 5, tw(v, fs, true) + 6, rowH - 10, TAG_BG, '#D6A100', 0.6); }
+                  if (r.tbd) o += R(vx - 3, y + 5, tw(v, fs, true) + 6, rowH - 10, TBD_BG, null, 0, ' rx="2"');
+                  o += T(vx, y + rowH / 2 + 4.5, v, fs, { bold: true, fill: r.warn ? TAG_TX : (r.tbd ? TBD_TX : '#000000') });
+                  o += R(c1 + cw - 38, y + 6, 15, 15, '#FFFFFF', '#555555', 0.9, ' rx="2"');
+                  y += rowH;
+              });
+              if (ci === chunks.length - 1) {
+                  let sy = A.y + A.h - signH;
+                  o += T(c1, sy + 4, 'NOTES', 11, { bold: true, fill: PROD, ls: 1 });
+                  for (let k = 0; k < 3; k++) o += L(c1, sy + 30 + k * 26, c1 + cw, sy + 30 + k * 26, '#999999', 0.6);
+                  let by = sy + 118;
+                  o += R(c1, by, cw, 30, '#F3EEF9', TBL_PROD.line, 0.8, ' rx="6"') +
+                       T(c1 + 12, by + 20, 'SUPERVISOR SIGN-OFF', 11, { bold: true, fill: PROD, ls: 0.8 }) + L(c1 + 165, by + 22, c1 + cw * 0.58, by + 22, '#555555', 0.6) +
+                       T(c1 + cw * 0.61, by + 20, 'DATE', 11, { bold: true, fill: PROD }) + L(c1 + cw * 0.61 + 40, by + 22, c1 + cw * 0.80, by + 22, '#555555', 0.6) +
+                       R(c1 + cw * 0.83, by + 9, 13, 13, '#FFFFFF', '#555555', 0.9, ' rx="2"') + T(c1 + cw * 0.83 + 19, by + 20, 'COMPLETE', 11, { bold: true, fill: PROD });
+              }
+              o += `</g>`;
+              out.push({ name: x.name, slug: x.slug + (chunks.length > 1 ? '-' + (ci + 1) : ''), svg: o + productionFrame(`PRODUCTION · ${x.name.toUpperCase()}`, [prodTicket(info), String(info.project || '').toUpperCase()].filter(Boolean).join(' · ')) + `</svg>` });
+          });
+      });
+      return out;
   }
 
   // =====================================================================
@@ -2036,7 +2575,7 @@
       let rules = helpRulesForPackage(), info = getCustomerInfo();
       let pages = packagePages(), counts = {};
       pages.forEach(p => counts[p.item.iid] = (counts[p.item.iid] || 0) + 1);
-      let pkg = pkgItems.map(it => `${it.name} (${counts[it.iid] || 0} page${counts[it.iid] === 1 ? '' : 's'})`).join(' + ');
+      let pkg = pkgItems.map(it => `${prName(it)} (${counts[it.iid] || 0} page${counts[it.iid] === 1 ? '' : 's'})`).join(' + ');
       let t = 'DESIGN HELP CENTER - PROOF PACKAGE\n' + '='.repeat(W) + '\n';
       t += wrapLine(pkg, W, 'Package:  ', '          ') + '\n';
       if (info.custName) t += 'Customer: ' + info.custName + '\n';
@@ -2057,7 +2596,7 @@
           if (g.basis) tags.push('[' + g.basis + ']');
           if (!r.always) {
               let names = [];
-              r.parts.forEach(p => { let it = pkgItems.find(x => x.iid === p.iid); if (it && names.indexOf(it.name) === -1) names.push(it.name); });
+              r.parts.forEach(p => { let it = pkgItems.find(x => x.iid === p.iid); if (it && names.indexOf(prName(it)) === -1) names.push(prName(it)); });
               tags.push('Applies to: ' + names.join(', '));
           }
           if (tags.length) t += wrapLine(tags.join('   '), W, IND, IND) + '\n';
@@ -2105,8 +2644,13 @@
   //  COVER PAGE + QA CHECKLIST
   // =====================================================================
   // v3: no cover in front; the Proof Summary is always the last page (proof pages are numbered from 1)
-  function coverOn() { return false; }
-  function summaryTotal(pages) { return pages.length ? pages.length + 1 : 0; }
+  // the sheet says SALES PROOF; this version calls it DESIGN PROOF (a Title the sheet sets to anything else is kept)
+  function proofTitle() { let t = String(TEMPLATE.Title || '').trim(); return !t || /^sales proof$/i.test(t) ? 'DESIGN PROOF' : t; }
+  let withCover = true;                         // staging: the design proof starts with a cover page (Remove / Add back on the Design tab)
+  const COVER_PAGE = { item: { iid: 'cover', name: 'Cover', kind: 'cover' }, n: 0, total: 1, blocks: [], drawings: [], cover: true };
+  function setCover(on) { withCover = !!on; if (!on && activeArtKey === artKey(COVER_PAGE)) activeArtKey = null; renderPreview(); }
+  function coverOn() { return withCover; }
+  function summaryTotal(pages) { return pages.length ? pages.length + 1 + (withCover ? 1 : 0) : 0; }
   function qaOn() { return String(TEMPLATE.QA_Checklist || 'On').toUpperCase() !== 'OFF'; }
   const LOGO_AR = 44.7 / 150;   // logo artwork height / width
 
@@ -2245,7 +2789,7 @@
       let off = coverOn() ? 1 : 0, ranges = itemPageRanges(pages, off), rows = [];
       pkgItems.forEach((it, k) => {
           let r = ranges[it.iid];
-          let main = { main: true, k, it, num: String(k + 1), text: it.name, qty: '', pages: !r ? '-' : (r[0] === r[1] ? `Page ${r[0]}` : `Pages ${r[0]} - ${r[1]}`) };
+          let main = { main: true, k, it, num: String(k + 1), text: prName(it), qty: '', pages: !r ? '-' : (r[0] === r[1] ? `Page ${r[0]}` : `Pages ${r[0]} - ${r[1]}`) };
           rows.push(main);
           let subs = [];
           pages.forEach((p, i) => {
@@ -2259,7 +2803,7 @@
           // a single section named like the product adds nothing: skip it
           let norm = t => String(t).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().replace(/S$/, '');
           // ... and its quantity moves up to the product row
-          if (subs.length === 1 && norm(subs[0].text) === norm(it.name)) { main.qty = qtyTag(subs[0].parts); subs = []; }
+          if (subs.length === 1 && norm(subs[0].text) === norm(prName(it))) { main.qty = qtyTag(subs[0].parts); subs = []; }
           subs.forEach((sb, j) => rows.push({ main: false, k, it, num: `${k + 1}.${j + 1}`, text: sb.text, qty: qtyTag(sb.parts),
               pages: sb.pg.length > 1 ? `Pages ${sb.pg[0]} - ${sb.pg[sb.pg.length - 1]}` : `Page ${sb.pg[0]}` }));
       });
@@ -2322,7 +2866,7 @@
           }).filter(x => x.items.length);
           let drawings = [];
           pages.filter(p => p.item.iid === it.iid).forEach(p => (p.drawings || []).forEach(m => { if (drawings.indexOf(m.d.title) === -1) drawings.push(m.d.title); }));
-          return { n: k + 1, name: it.name, range: ranges[it.iid], sections, drawings };
+          return { n: k + 1, name: prName(it), range: ranges[it.iid], sections, drawings };
       });
   }
   function qaFinalChecks() {
@@ -2334,121 +2878,129 @@
 
   // ---------- QA checklist pages: portrait 8.5 x 11 (850 x 1100) ----------
   function buildQAPages(pages, info, proofTotal) {
-      const W = 850, H = 1100, X = 40, XR = W - 40, TOP1 = 178, TOPN = 118, BOTTOM = 1000;
-      const LBL_X = 64, VAL_X = 214, VAL_W = 470, SW_X = 694, INIT_X = 752;
+      // staging: two columns, larger text
+      const W = 850, H = 1100, X = 40, XR = W - 40, TOP1 = 182, TOPN = 118, BOTTOM = 1000, GAP = 18, CW = (XR - X - GAP) / 2;
+      const LBL_W = 104, SWW = 26, INITW = 40, VS = 11, LS = 8.2;
+      const VAL_W = CW - 10 - LBL_W - SWW - INITW - 14;
+      const colX = c => X + c * (CW + GAP);
       let data = qaData(pages, coverOn() ? 1 : 0), rows = [];
       data.forEach(item => {
-          rows.push({ t: 'item', item, h: 24 });
+          rows.push({ t: 'item', item, h: 26 });
           item.sections.forEach(sec => {
-              rows.push({ t: 'sec', text: sec.title, h: 18, item });
+              rows.push({ t: 'sec', text: sec.title, h: 20, item });
               sec.items.forEach(it => {
                   let txt = it.warn ? `${it.warnLabel}: ${it.val}` : it.val;
-                  let lines = wrapText(txt, 9.5, true, VAL_W);
-                  rows.push({ t: 'spec', it, lines, h: Math.max(18, lines.length * 12 + 7), item });
+                  let lines = wrapText(txt, VS, true, VAL_W), lab = wrapText(it.label.toUpperCase(), LS, true, LBL_W - 4);
+                  rows.push({ t: 'spec', it, lines, lab, h: Math.max(22, Math.max(lines.length * 13.5, lab.length * 10) + 9), item });
               });
           });
           if (item.drawings.length) {
-              let lines = wrapText('Built per detail drawing(s): ' + item.drawings.join(', '), 9, false, VAL_W + (VAL_X - LBL_X));
-              rows.push({ t: 'check', lines, h: Math.max(18, lines.length * 11.5 + 7), item });
+              let lines = wrapText('Built per detail drawing(s): ' + item.drawings.join(', '), 10, false, CW - 20 - INITW);
+              rows.push({ t: 'check', lines, h: Math.max(20, lines.length * 12.5 + 8), item });
           }
           rows.push({ t: 'gap', h: 10, item });
       });
-      // final checks + QA sign-off: one red-outlined section, kept whole, at the bottom of the last page
       let finals = qaFinalChecks();
-      const NOTE_LINES = 10, NOTE_GAP = 21;
-      rows.push({ t: 'final', checks: finals, h: 30 + finals.length * 19 + 54 + NOTE_LINES * NOTE_GAP });
+      const NOTE_LINES = 8, NOTE_GAP = 22;
+      let finalRow = { t: 'final', checks: finals, h: 30 + finals.length * 21 + 56 + NOTE_LINES * NOTE_GAP };
 
-      // paginate
-      let pagesOut = [], cur = [], y = TOP1, first = true;
+      // paginate: fill the left column, then the right column, then a new page
+      let pagesOut = [], cur = [], col = 0, top = TOP1, y = TOP1, ends = [TOP1, TOP1];
+      let nextSlot = r => {
+          ends[col] = y;
+          if (col === 0) { col = 1; y = top; }
+          else { pagesOut.push(cur); cur = []; col = 0; top = TOPN; y = TOPN; ends = [TOPN, TOPN]; }
+          if (r.item && r.t !== 'item') { cur.push({ t: 'item', item: r.item, h: 26, cont: true, y, col }); y += 26; }
+      };
       rows.forEach(r => {
-          // keep a product / section header with at least its first rows
-          let limit = r.t === 'item' ? BOTTOM - 60 : r.t === 'sec' ? BOTTOM - 36 : BOTTOM;
-          if (y + r.h > limit && cur.length) {
-              pagesOut.push(cur); cur = []; y = TOPN; first = false;
-              if (r.item && r.t !== 'item') { cur.push({ t: 'item', item: r.item, h: 24, cont: true, y }); y += 24; }
-          }
-          if (r.t === 'gap' && !cur.length) return;
-          if (r.t === 'final') {
-              if (y + 14 + r.h > BOTTOM && cur.length) { pagesOut.push(cur); cur = []; y = TOPN; }
-              cur.push(Object.assign({}, r, { y: BOTTOM - r.h }));   // anchored to the bottom of the page
-              return;
-          }
-          cur.push(Object.assign({}, r, { y })); y += r.h;
+          let limit = r.t === 'item' ? BOTTOM - 70 : r.t === 'sec' ? BOTTOM - 44 : BOTTOM;
+          if (y + r.h > limit && y > top) nextSlot(r);
+          if (r.t === 'gap' && y === top) return;
+          cur.push(Object.assign({}, r, { y, col })); y += r.h;
       });
-      if (cur.length) pagesOut.push(cur);
+      ends[col] = y;
+      // final checks + QA sign-off: full width, kept whole, at the bottom of the last page
+      if (Math.max(ends[0], ends[1]) + 14 + finalRow.h > BOTTOM && cur.length) { pagesOut.push(cur); cur = []; }
+      cur.push(Object.assign({}, finalRow, { y: BOTTOM - finalRow.h, col: -1 }));
+      pagesOut.push(cur);
 
       let n = pagesOut.length, logoW = 128;
       return pagesOut.map((rowsOnPage, pi) => {
           let o = svgHead(W, H, 8.5, 11);
-          // header
           o += `<g id="QA_Header">` + IMG(X, 34, logoW, logoW * LOGO_AR, PROOF_ASSETS.logo) +
-               T(XR, 52, 'QUALITY ASSURANCE CHECKLIST', 16, { anchor: 'end', bold: true, ls: 0.8 }) +
-               T(XR, 68, `QA page ${pi + 1} / ${n}  \u00B7  proof package of ${proofTotal} page${proofTotal === 1 ? '' : 's'}`, 8.5, { anchor: 'end', fill: '#666666' }) +
-               L(X, 84, XR, 84, INK, 1.2);
-          let val = (v, x, yy, label) => v ? T(x, yy, v, 9.5, { bold: true }) : missingTag(x + tw('MISSING', 7, true) + 6, yy, 'MISSING', 7, { x, y: yy, size: 9.5, bold: true });
+               T(XR, 54, 'QUALITY ASSURANCE CHECKLIST', 18, { anchor: 'end', bold: true, ls: 0.8, fill: PROD }) +
+               T(XR, 71, `QA page ${pi + 1} / ${n}  ·  proof package of ${proofTotal} page${proofTotal === 1 ? '' : 's'}`, 9.5, { anchor: 'end', fill: '#555555' }) +
+               L(X, 84, XR, 84, PROD, 1.6);
+          let val = (v, x, yy) => v ? T(x, yy, v, 11, { bold: true }) : missingTag(x + tw('MISSING', 8, true) + 6, yy, 'MISSING', 8, { x, y: yy, size: 11, bold: true });
           if (pi === 0) {
-              let col = [X, 330, 590], r1 = 104, r2 = 128, r3 = 152;
-              [[col[0], r1, 'CUSTOMER', info.custName], [col[1], r1, 'PROJECT', info.project], [col[2], r1, 'TICKET NO.', info.ticket],
-               [col[0], r2, 'INSTALLATION LOCATION', info.location], [col[1], r2, 'SALESPERSON', info.sales], [col[2], r2, 'INV/EST #', info.inv],
-               [col[0], r3, 'DESIGNER', info.designer], [col[1], r3, 'REVISION DATE', info.rev], [col[2], r3, 'QA DUE / SHIP DATE', '__________']].forEach(([x, yy, lab, v]) => {
-                  o += T(x, yy - 9, lab, 6.5, { bold: true, fill: '#888888', ls: 0.8 });
-                  // fit the column: shrink the text first, cut only if it still does not fit
-                  let colW = x === col[2] ? XR - x : (x === col[0] ? col[1] : col[2]) - x - 12, sz = 9.5, shown = v;
-                  while (v && tw(v, sz, true) > colW && sz > 7) sz -= 0.25;
-                  if (v && tw(v, sz, true) > colW) { while (shown.length > 3 && tw(shown + '...', sz, true) > colW) shown = shown.slice(0, -1); shown += '...'; }
-                  o += v ? T(x, yy + 3, shown, sz, { bold: true }) : val(v, x, yy + 3);
+              let col3 = [X, 330, 590], r1 = 106, r2 = 134, r3 = 162;
+              [[col3[0], r1, 'CUSTOMER', info.custName], [col3[1], r1, 'PROJECT', info.project], [col3[2], r1, 'WORK ORDER #', '__WO__'],
+               [col3[0], r2, 'INSTALLATION LOCATION', info.location], [col3[1], r2, 'SALESPERSON', info.sales], [col3[2], r2, 'INV/EST #', info.inv],
+               [col3[0], r3, 'DESIGNER', info.designer], [col3[1], r3, 'REVISION DATE', info.rev], [col3[2], r3, 'QA DUE / SHIP DATE', '__________']].forEach(([x, yy, lab, v]) => {
+                  o += T(x, yy - 10, lab, 7.5, { bold: true, fill: lab === 'WORK ORDER #' ? PROD : '#666666', ls: 0.8 });
+                  if (v === '__WO__') { o += R(x, yy - 7, XR - x, 17, '#FFFFFF', PROD, 1.2, ' rx="3"'); return; }
+                  let cw = x === col3[2] ? XR - x : (x === col3[0] ? col3[1] : col3[2]) - x - 12, sz = 11, shown = v;
+                  while (v && tw(v, sz, true) > cw && sz > 8) sz -= 0.25;
+                  if (v && tw(v, sz, true) > cw) { while (shown.length > 3 && tw(shown + '...', sz, true) > cw) shown = shown.slice(0, -1); shown += '...'; }
+                  o += v ? T(x, yy + 4, shown, sz, { bold: true }) : val(v, x, yy + 4);
               });
-              o += L(X, 166, XR, 166, '#CCCCCC', 0.6);
+              o += L(X, 172, XR, 172, '#CCCCCC', 0.6);
           } else {
-              o += T(X, 104, [info.custName || 'MISSING CUSTOMER', info.project, info.ticket ? 'Ticket ' + info.ticket : ''].filter(Boolean).join('  \u00B7  '), 9.5, { bold: true });
+              o += T(X, 104, [info.custName || 'MISSING CUSTOMER', info.project].filter(Boolean).join('  ·  '), 11, { bold: true }) +
+                   T(XR - 200, 104, 'WORK ORDER #', 9, { bold: true, fill: PROD, ls: 0.8 }) + R(XR - 118, 92, 118, 16, '#FFFFFF', PROD, 1.2, ' rx="3"');
           }
           o += `</g><g id="QA_List">`;
+          if (rowsOnPage.some(r => r.col === 1)) o += L(X + CW + GAP / 2, pi ? TOPN : TOP1, X + CW + GAP / 2, BOTTOM - (rowsOnPage.some(r => r.t === 'final') ? rowsOnPage.find(r => r.t === 'final').h + 10 : 0), '#DDDDDD', 0.6);
           rowsOnPage.forEach(r => {
-              let y = r.y;
+              let y = r.y, x0 = r.col === -1 ? X : colX(r.col), x1 = r.col === -1 ? XR : x0 + CW;
+              let VAL_X = x0 + 8 + LBL_W, SW_X = x1 - INITW - SWW - 2, INIT_X = x1 - INITW + 4;
               if (r.t === 'item') {
-                  o += R(X, y + 2, XR - X, r.h - 4, INK) +
-                       (r.cont ? '' : R(X + 8, y + 6.5, 11, 11, '#FFFFFF', '#FFFFFF', 0.8)) +
-                       T(X + (r.cont ? 8 : 27), y + 16, `${r.item.n}. ${r.item.name.toUpperCase()}${r.cont ? '  (CONTINUED)' : ''}`, 10.5, { bold: true, fill: '#FFFFFF' }) +
-                       T(XR - 8, y + 16, `Proof page${r.item.range && r.item.range[0] !== r.item.range[1] ? 's' : ''} ${rangeText(r.item.range)}`, 8.5, { anchor: 'end', fill: '#FFFFFF' });
+                  let cust = String(info.custName || '').toUpperCase(), pn = r.item.name.toUpperCase();
+                  let rng = `p. ${rangeText(r.item.range)}`, nameW = CW - 30 - tw(rng, 9, false) - 12, nm = `${r.item.n}. ${cust && !/^MISSING/.test(pn) ? cust + ' - ' : ''}${pn}${r.cont ? ' (CONT.)' : ''}`, ns = 11.5;
+                  while (tw(nm, ns, true) > nameW && ns > 8) ns -= 0.25;
+                  o += R(x0, y + 2, CW, r.h - 4, PROD) +
+                       (r.cont ? '' : R(x0 + 7, y + 7.5, 11, 11, '#FFFFFF', '#FFFFFF', 0.8)) +
+                       T(x0 + (r.cont ? 8 : 25), y + 17.5, nm, ns, { bold: true, fill: '#FFFFFF' }) +
+                       T(x1 - 8, y + 17, rng, 9, { anchor: 'end', fill: '#FFFFFF' });
               } else if (r.t === 'sec') {
-                  o += R(X, y + 3, XR - X, r.h - 4, '#E6E7E8') + T(X + 8, y + 14, String(r.text).toUpperCase(), 8, { bold: true, ls: 1 }) +
-                       T(XR - 30, y + 14, 'OK / INIT.', 6.5, { anchor: 'middle', fill: '#777777', bold: true });
+                  o += R(x0, y + 3, CW, r.h - 4, '#EDE6F6') + T(x0 + 8, y + 15, String(r.text).toUpperCase(), 9, { bold: true, ls: 0.8, fill: '#4A2475' }) +
+                       T(x1 - INITW / 2 - 2, y + 15, 'OK / INIT.', 7, { anchor: 'middle', fill: '#4A2475', bold: true });
               } else if (r.t === 'spec' || r.t === 'check') {
-                  if (!r.item) o += R(X + 8, y + 5, 9, 9, '#FFFFFF', '#555555', 0.9);   // final checks only
                   if (r.t === 'spec') {
-                      let it = r.it, warn = it.warn;
-                      o += T(X + 10, y + 13, it.label.toUpperCase(), 7.5, { bold: true, fill: '#777777' });
+                      let it = r.it, warn = it.warn, vy = y + 15;
+                      r.lab.forEach((l, i) => o += T(x0 + 8, y + 14 + i * 10, l, LS, { bold: true, fill: '#555555' }));
                       if (warn) {
-                          missN++; o += valueField({ x: VAL_X, y: y + 13.5, size: 9.5, bold: true });
-                          let ww = Math.max.apply(null, r.lines.map(l => tw(l, 9.5, true))) + 6;
-                          o += R(VAL_X - 2, y + 4, ww, (r.lines.length - 1) * 12 + 12, TAG_BG, '#D6A100', 0.6, ' stroke-dasharray="1.5,1"');
+                          missN++; o += valueField({ x: VAL_X, y: vy, size: VS, bold: true });
+                          let ww = Math.max.apply(null, r.lines.map(l => tw(l, VS, true))) + 6;
+                          o += R(VAL_X - 2, vy - VS, ww, (r.lines.length - 1) * 13.5 + VS * 1.35, TAG_BG, '#D6A100', 0.6, ' stroke-dasharray="1.5,1"');
                       } else if (it.tbd) {
-                          let ww = Math.max.apply(null, r.lines.map(l => tw(l, 9.5, true))) + 6;
-                          o += R(VAL_X - 2, y + 4, ww, (r.lines.length - 1) * 12 + 12, TBD_BG, null, 0, ' rx="2"');
+                          let ww = Math.max.apply(null, r.lines.map(l => tw(l, VS, true))) + 6;
+                          o += R(VAL_X - 2, vy - VS, ww, (r.lines.length - 1) * 13.5 + VS * 1.35, TBD_BG, null, 0, ' rx="2"');
                       }
-                      r.lines.forEach((l, i) => o += T(VAL_X + (warn || it.tbd ? 1 : 0), y + 13.5 + i * 12, l, 9.5, { bold: true, fill: warn ? TAG_TX : (it.tbd ? TBD_TX : '#000000') }));
-                      if (it.gradient) o += R(SW_X, y + 5, 30, 10, 'url(#fullcolor)', '#555555', 0.6);
-                      else if (it.svg) o += R(SW_X, y + 3, 14, 14, it.picBg || '#FFFFFF', '#555555', 0.6) +
+                      r.lines.forEach((l, i) => o += T(VAL_X + (warn || it.tbd ? 1 : 0), vy + i * 13.5, l, VS, { bold: true, fill: warn ? TAG_TX : (it.tbd ? TBD_TX : '#000000') }));
+                      if (it.gradient) o += R(SW_X, y + 6, SWW, 11, 'url(#fullcolor)', '#555555', 0.6);
+                      else if (it.svg) o += R(SW_X + 6, y + 4, 14, 14, it.picBg || '#FFFFFF', '#555555', 0.6) +
                           (() => { let vb = String(it.svg.viewBox || '0 0 216 216').split(/\s+/).map(Number), k = 12 / Math.max(vb[2], vb[3]);
-                                   return `<g transform="translate(${SW_X + 1},${y + 4}) scale(${k.toFixed(4)})"><path d="${esc(it.svg.path)}" fill="${it.picFill || '#000000'}"/></g>`; })();
-                      else if (it.hex && !warn) o += R(SW_X, y + 5, 30, 10, normHex(it.hex) === 'transparent' ? '#FFFFFF' : normHex(it.hex), '#555555', 0.6);
+                                   return `<g transform="translate(${SW_X + 7},${y + 5}) scale(${k.toFixed(4)})"><path d="${esc(it.svg.path)}" fill="${it.picFill || '#000000'}"/></g>`; })();
+                      else if (it.hex && !warn) o += R(SW_X, y + 6, SWW, 11, normHex(it.hex) === 'transparent' ? '#FFFFFF' : normHex(it.hex), '#555555', 0.6);
                   } else {
-                      r.lines.forEach((l, i) => o += T(r.item ? X + 10 : LBL_X, y + 13 + i * 11.5, l, 9, { fill: '#222222', bold: i === 0 && !r.item }));
+                      r.lines.forEach((l, i) => o += T(x0 + 8, y + 14 + i * 12.5, l, 10, { fill: '#222222' }));
                   }
-                  o += L(INIT_X, y + r.h - 4, XR - 4, y + r.h - 4, '#999999', 0.6) + L(X, y + r.h, XR, y + r.h, '#EEEEEE', 0.5);
+                  o += L(INIT_X, y + r.h - 4, x1 - 4, y + r.h - 4, '#999999', 0.6) + L(x0, y + r.h, x1, y + r.h, '#EEEEEE', 0.5);
               } else if (r.t === 'final') {
-                  const RED = '#C1272D';
+                  const INIT_X = XR - INITW + 4;
+                  const RED = PROD;                                   // staging: purple like the production proofs
                   o += `<g id="QA_Final_Checks">` + R(X, y, XR - X, r.h, '#FFFFFF', RED, 2.2) + R(X, y, XR - X, 22, RED) +
                        T(X + 10, y + 15, 'FINAL CHECKS', 10, { bold: true, fill: '#FFFFFF', ls: 1.2 }) +
                        T(XR - 30, y + 15, 'OK / INIT.', 6.5, { anchor: 'middle', bold: true, fill: '#FFFFFF' });
                   let cy = y + 28;
                   r.checks.forEach(c => {
-                      o += R(X + 10, cy + 4, 10, 10, '#FFFFFF', '#555555', 0.9) + T(X + 28, cy + 13, c, 9, { bold: true, fill: '#222222' }) +
+                      o += R(X + 10, cy + 4, 10, 10, '#FFFFFF', '#555555', 0.9) + T(X + 28, cy + 13, c, 10.5, { bold: true, fill: '#222222' }) +
                            L(INIT_X, cy + 15, XR - 8, cy + 15, '#999999', 0.6);
-                      cy += 19;
+                      cy += 21;
                   });
                   let sy = cy + 6;
-                  o += L(X + 10, sy, XR - 10, sy, '#E3B5B7', 0.8);
+                  o += L(X + 10, sy, XR - 10, sy, '#CDB8E6', 0.8);
                   sy += 4;
                   o += T(X + 10, sy + 20, 'QA MANAGER', 9, { bold: true }) + L(X + 90, sy + 21, X + 330, sy + 21, '#555555', 0.6) +
                        T(X + 345, sy + 20, 'DATE', 9, { bold: true }) + L(X + 380, sy + 21, X + 480, sy + 21, '#555555', 0.6) +
@@ -2458,19 +3010,11 @@
                   for (let k = 0; k < NOTE_LINES; k++)    // 10 writing lines; the first starts after the label
                       o += L(k ? X + 10 : X + 55, sy + 47 + k * NOTE_GAP, XR - 10, sy + 47 + k * NOTE_GAP, '#555555', 0.6);
                   o += `</g>`;
-              } else if (r.t === 'signoff-unused') {
-                  let sy = y + 10;
-                  o += R(X, sy, XR - X, 76, '#FAFAFA', INK, 0.9) +
-                       T(X + 10, sy + 20, 'QA MANAGER', 9, { bold: true }) + L(X + 90, sy + 21, X + 330, sy + 21, '#555555', 0.6) +
-                       T(X + 345, sy + 20, 'DATE', 9, { bold: true }) + L(X + 380, sy + 21, X + 480, sy + 21, '#555555', 0.6) +
-                       R(X + 505, sy + 11, 10, 10, '#FFFFFF', '#555555', 0.9) + T(X + 521, sy + 20, 'PASS', 9, { bold: true }) +
-                       R(X + 570, sy + 11, 10, 10, '#FFFFFF', '#555555', 0.9) + T(X + 586, sy + 20, 'FAIL - see notes', 9, { bold: true }) +
-                       T(X + 10, sy + 44, 'NOTES', 9, { bold: true }) + L(X + 55, sy + 45, XR - 10, sy + 45, '#555555', 0.6) + L(X + 10, sy + 65, XR - 10, sy + 65, '#555555', 0.6);
               }
           });
-          o += `</g><g id="QA_Footer">` + L(X, 1040, XR, 1040, '#CCCCCC', 0.6) +
-               T(X, 1058, `${info.custName || ''}${info.project ? ' \u00B7 ' + info.project : ''}`, 7.5, { fill: '#666666' }) +
-               T(XR, 1058, `Checked against the proof package dated ${info.rev}  \u00B7  QA page ${pi + 1} / ${n}`, 7.5, { anchor: 'end', fill: '#666666' }) + `</g>`;
+          o += `</g><g id="QA_Footer">` + L(X, 1040, XR, 1040, '#CDB8E6', 0.8) +
+               T(X, 1058, `${info.custName || ''}${info.project ? ' · ' + info.project : ''}`, 8.5, { fill: '#555555' }) +
+               T(XR, 1058, `Checked against the proof package dated ${info.rev}  ·  QA page ${pi + 1} / ${n}`, 8.5, { anchor: 'end', fill: '#555555' }) + `</g>`;
           return o + `</svg>`;
       });
   }
@@ -2495,7 +3039,10 @@
   // =====================================================================
   let pageArt = {}, activeArtKey = null;
   const ART_MAX_PX = 2400;   // longest side kept; larger images are scaled down before embedding
-  function artKey(p) { return `${p.item.iid}:${p.n}`; }
+  let ART_PHASE = null;                                // export: force the phase whose images are drawn
+  function pageKey(p) { return `${p.item.iid}:${p.n}`; }
+  function artKey(p) { return ((ART_PHASE || step) === 'production' ? 'prod-' : '') + pageKey(p); }
+  let ART_AB = null, ART_CLIP = 'abclip';              // production proofs: their own artboard and clip
 
   // open space on the art board: above the spec table, clear of the detail drawings
   function artRegion(page, lay) {
@@ -2519,24 +3066,38 @@
       return { x: cx - w / 2, y: cy - h / 2, w, h };
   }
 
+  // staging: the selected image ("key|i") gets a bounding box with 4 corner handles (on screen only)
+  let selArt = null;
+  function drawArtHandles(page, region) {
+      if (EXPORTING || !selArt) return '';
+      let [key, idx] = selArt.split('|'); if (key !== artKey(page)) return '';
+      let arts = pageArt[key] || [], a = arts[+idx]; if (!a) return '';
+      let r = artPlacement(region, arts.length, +idx, a), f = v => v.toFixed(2), hs = 9;
+      let o = `<g id="Art_Handles">` + `<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="none" stroke="#1A73E8" stroke-width="1.4" stroke-dasharray="5,3" pointer-events="none"/>`;
+      [['nw', r.x, r.y], ['ne', r.x + r.w, r.y], ['sw', r.x, r.y + r.h], ['se', r.x + r.w, r.y + r.h]].forEach(([c, x, y]) =>
+          o += `<rect data-art-handle="${key}|${idx}|${c}" x="${f(x - hs / 2)}" y="${f(y - hs / 2)}" width="${hs}" height="${hs}" fill="#FFFFFF" stroke="#1A73E8" stroke-width="1.4" style="cursor:${c === 'nw' || c === 'se' ? 'nwse' : 'nesw'}-resize"/>`);
+      return o + `</g>`;
+  }
+  function selectArt(key, i) { selArt = key == null ? null : `${key}|${i}`; if (key != null) setActiveArt(key); renderPreview(); }
+
   // EXPORTING = true while the package is built: no clip paths (each image is cropped to the art board instead,
   // so CorelDRAW imports plain images, not locked PowerClips) and no on-screen handles.
   let EXPORTING = false;
   function drawArt(page, region) {
       let arts = pageArt[artKey(page)] || [];
       if (!arts.length || region.w < 40 || region.h < 40) return '';
-      let o = EXPORTING ? `<g id="Artwork">` : `<g id="Artwork" clip-path="url(#abclip)">`;
+      let o = EXPORTING ? `<g id="Artwork">` : `<g id="Artwork" clip-path="url(#${ART_CLIP})">`;
       arts.forEach((a, i) => {
           let r = artPlacement(region, arts.length, i, a), src = a.src;
           if (EXPORTING) { let c = cropArt(a, r); if (!c) return; r = c; src = c.src; }
-          o += `<g id="Artwork_${i + 1}"><image data-art="${artKey(page)}|${i}" x="${r.x.toFixed(2)}" y="${r.y.toFixed(2)}" width="${r.w.toFixed(2)}" ` +
+          o += `<g id="Artwork_${i + 1}"><image data-art="${artKey(page)}|${i}"${EXPORTING ? '' : ' style="cursor:move"'} x="${r.x.toFixed(2)}" y="${r.y.toFixed(2)}" width="${r.w.toFixed(2)}" ` +
                `height="${r.h.toFixed(2)}" preserveAspectRatio="none" xlink:href="${src}"/></g>`;
       });
       return o + `</g>`;
   }
   // the part of an image that falls inside the art board, as its own JPEG (null = entirely outside)
   function cropArt(a, r) {
-      const AB = PG.AB;
+      const AB = ART_AB || PG.AB;
       let x0 = Math.max(r.x, AB.x), y0 = Math.max(r.y, AB.y), x1 = Math.min(r.x + r.w, AB.x + AB.w), y1 = Math.min(r.y + r.h, AB.y + AB.h);
       if (x1 - x0 < 0.5 || y1 - y0 < 0.5) return null;
       if (x0 <= r.x && y0 <= r.y && x1 >= r.x + r.w && y1 >= r.y + r.h) return { x: r.x, y: r.y, w: r.w, h: r.h, src: a.src };
@@ -2590,31 +3151,92 @@
       key = activeArtKey;
       document.querySelectorAll('.sheet-tools').forEach(el => el.classList.toggle('active', el.dataset.key === key));
       document.querySelectorAll('.sheet[data-key]').forEach(el => el.classList.toggle('active', el.dataset.key === key));
+      renderPagePanelMarks(); renderLayers();
   }
   function artScale(key, i, f) { let a = (pageArt[key] || [])[i]; if (a) { a.scale = Math.min(4, Math.max(0.1, a.scale * f)); renderPreview(); } }
   function artFit(key, i) { let a = (pageArt[key] || [])[i]; if (a) { a.scale = 1; a.dx = 0; a.dy = 0; renderPreview(); } }
-  function artRemove(key, i) { let l = pageArt[key] || []; l.splice(i, 1); if (!l.length) delete pageArt[key]; renderPreview(); }
+  function artRemove(key, i) { let l = pageArt[key] || []; l.splice(i, 1); if (!l.length) delete pageArt[key]; if (selArt && selArt.indexOf(key + '|') === 0) selArt = null; renderPreview(); }
 
   function artToolbar(p, pageNo) {
-      let key = artKey(p), arts = pageArt[key] || [];
-      let b = (fn, label, title) => `<button type="button" class="st-btn" title="${title}" onclick="event.stopPropagation(); ${fn}">${label}</button>`;
-      return `<div class="sheet-tools${key === activeArtKey ? ' active' : ''}" data-key="${key}" onclick="setActiveArt('${key}', true)" title="Click to select this page for Ctrl+V; click again to deselect">` +
-             `<span class="st-title">Page ${pageNo} &middot; ${esc(p.item.name)}${p.blank ? ' &middot; ' + esc(p.title) : ''} ${p.n}/${p.total}</span>` +
-             b(`pickArt('${key}')`, '+ Add image', 'Add JPEG / PNG artwork or screenshots to this page') +
-             (arts.length ? '' : `<span class="st-hint">${key === activeArtKey ? 'selected: press Ctrl+V to paste here (click the bar again to deselect)' : 'or drop a file here / click this bar and press Ctrl+V'}</span>`) +
-             arts.map((a, j) => `<span class="st-img" title="${esc(a.name)}">Image ${j + 1}` +
-                 b(`artScale('${key}', ${j}, 0.9)`, '&minus;', 'Smaller') + b(`artScale('${key}', ${j}, 1.1)`, '+', 'Larger') +
-                 b(`artFit('${key}', ${j})`, 'Fit', 'Reset size and position') + b(`artRemove('${key}', ${j})`, '&times;', 'Remove this image') + `</span>`).join('') +
-             (arts.length ? `<span class="st-hint">drag an image to move it</span>` : '') +
-             `<button type="button" class="st-btn st-measure${measureKey === key ? ' on' : ''}" title="Draw dimension lines: click, drag and release on the page (Shift = straight). Esc or click again to stop." ` +
-             `onclick="event.stopPropagation(); toggleMeasure('${key}')">${measureKey === key ? 'Measuring\u2026 (Esc)' : 'Measure'}</button>` +
-             (pageMeasures[key] || []).map((m, j) => `<span class="st-img st-meas" title="Value printed on the line (inches)">M${j + 1}` +
-                 `<input type="text" id="meas-${key}-${j}" value="${esc(m.label)}" placeholder="inches" onclick="event.stopPropagation()" ` +
-                 `oninput="setMeasureLabel('${key}', ${j}, this.value)">` +
-                 b(`removeMeasure('${key}', ${j})`, '&times;', 'Remove this measurement') + `</span>`).join('') +
-             `<span class="st-dls"><button type="button" class="st-btn st-dl" title="This page as one SVG file" onclick="event.stopPropagation(); downloadPageSVG('page', ${pageNo - 1 - (coverOn() ? 1 : 0)})">Download page</button>` +
-             (p.blocks.length ? `<button type="button" class="st-btn st-dl" title="Only this page's spec table (with its product label), as an SVG at true size" onclick="event.stopPropagation(); downloadPageSVG('table', ${pageNo - 1 - (coverOn() ? 1 : 0)})">Download table</button>` : '') +
-             `</span></div>`;
+      let key = artKey(p), arts = pageArt[key] || [], meas = pageMeasures[key] || [];
+      let b = (fn, label, title, cls) => `<button type="button" class="st-btn${cls ? ' ' + cls : ''}" title="${title}" onclick="event.stopPropagation(); ${fn}">${label}</button>`;
+      return `<div class="sheet-tools${key === activeArtKey ? ' active' : ''}" id="bar-${key.replace(':', '-')}" data-key="${key}" onclick="setActiveArt('${key}', true)" title="Click to select this page (Ctrl+V pastes a screenshot onto it); click again to deselect">` +
+             `<span class="st-title">Page ${pageNo} &middot; ${p.cover ? 'Cover' : esc(prName(p.item))}${p.blank ? ' &middot; ' + esc(p.title) : ''}${p.total > 1 ? ` <span class="st-note">${p.n} of ${p.total}</span>` : ''}</span>` +
+             b(`pickArt('${key}')`, '+ Add image', 'Add JPEG / PNG artwork or screenshots to this page (or drop / paste them)') +
+             b(`toggleMeasure('${key}')`, measureKey === key ? 'Measuring… (Esc)' : '+ Add measurement', 'Draw a dimension line: click, drag and release on the page (Shift = straight)', 'st-measure' + (measureKey === key ? ' on' : '')) +
+             (arts.length || meas.length ? `<span class="st-hint">${arts.length} image${arts.length === 1 ? '' : 's'} &middot; ${meas.length} measurement${meas.length === 1 ? '' : 's'}</span>`
+                                         : `<span class="st-hint">${key === activeArtKey ? 'selected: Ctrl+V pastes here' : 'drop an image here, or select and Ctrl+V'}</span>`) +
+             `</div>`;
+  }
+
+  let thumbN = 0;
+  function inlineSvg(svg) {
+      let t = 't' + (++thumbN) + '_';
+      return svg.replace(/^<\?xml[^>]*>\s*/, '').replace(/\bid="([^"]+)"/g, (m, id) => `id="${t}${id}"`)
+                .replace(/url\(#([^)]+)\)/g, (m, id) => `url(#${t}${id})`).replace(/href="#([^"]+)"/g, (m, id) => `href="#${t}${id}"`);
+  }
+  // Pages panel: a live thumbnail of every page; drag to reorder (the Proof Summary stays last)
+  function renderPagePanel(pages, info, total) {
+      let box = document.getElementById('pp-list'); if (!box) return;
+      let n = document.getElementById('pp-count'); if (n) n.innerText = pages.length ? `${total}` : '';
+      let prod = step === 'production';
+      if (n && prod) n.innerText = pages.length ? `${pages.length}` : '';
+      let off = !prod && withCover ? 1 : 0, ck = artKey(COVER_PAGE);
+      let html = off && pages.length ? `<div class="pp-item fixed${ck === activeArtKey ? ' on' : ''}" data-key="${ck}" onclick="goToPage('${ck}')" title="Cover page (always first)"><div class="pp-thumb">${inlineSvg(buildTitlePageSVG(info, 1, total))}</div><span>1</span></div>` : '';
+      html += pages.map((p, i) => `<div class="pp-item${artKey(p) === activeArtKey ? ' on' : ''}" draggable="true" data-key="${artKey(p)}" onclick="goToPage('${artKey(p)}')" title="Page ${i + 1 + off}: ${esc(prName(p.item))} (drag to reorder)">` +
+                 `<div class="pp-thumb">${inlineSvg(prod ? buildProductionSVG(p, i + 1, pages.length, info) : buildSheetSVG(p, i + 1 + off, total, info))}</div><span>${i + 1 + off}</span></div>`).join('');
+      if (pages.length && !prod) html += `<div class="pp-item fixed" title="The Proof Summary is always the last page"><div class="pp-thumb">${inlineSvg(buildCoverSVG(pages, info, total))}</div><span>${total}</span></div>`;
+      box.innerHTML = html || '<div class="pl-empty">No pages yet.</div>';
+  }
+  function goToPage(key) {
+      setActiveArt(key);
+      let el = document.getElementById('bar-' + key.replace(':', '-')); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      renderPagePanelMarks(); renderLayers();
+  }
+  function renderPagePanelMarks() { document.querySelectorAll('#pp-list .pp-item[data-key]').forEach(el => el.classList.toggle('on', el.dataset.key === activeArtKey)); }
+  // drag and drop in the Pages panel
+  let ppDrag = null;
+  document.addEventListener('dragstart', e => { let it = e.target.closest && e.target.closest('#pp-list .pp-item[data-key]'); if (!it) return; ppDrag = it.dataset.key; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', ppDrag); } catch (x) {} it.classList.add('dragging'); });
+  document.addEventListener('dragend', e => { ppDrag = null; document.querySelectorAll('#pp-list .pp-item').forEach(el => el.classList.remove('dragging', 'drop-before', 'drop-after')); });
+  document.addEventListener('dragover', e => {
+      if (!ppDrag) return; let it = e.target.closest && e.target.closest('#pp-list .pp-item[data-key]'); if (!it) return;
+      e.preventDefault(); let r = it.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+      document.querySelectorAll('#pp-list .pp-item').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+      it.classList.add(after ? 'drop-after' : 'drop-before');
+  });
+  document.addEventListener('drop', e => {
+      if (!ppDrag) return; let it = e.target.closest && e.target.closest('#pp-list .pp-item[data-key]'); if (!it) return;
+      e.preventDefault(); e.stopPropagation();
+      let r = it.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+      movePage(ppDrag, it.dataset.key, after); ppDrag = null;
+  }, true);
+  function movePage(key, target, after) {
+      key = key.replace(/^prod-/, ''); target = target.replace(/^prod-/, '');
+      let keys = packagePages().map(pageKey); if (key === target) return;
+      keys = keys.filter(k => k !== key);
+      let i = keys.indexOf(target); if (i === -1) return;
+      keys.splice(after ? i + 1 : i, 0, key);
+      pageOrder = keys; renderPreview();
+  }
+
+  // Layers panel: the selected page's images and measurements (all sit under the table and watermark)
+  function renderLayers() {
+      let box = document.getElementById('pl-list'), lab = document.getElementById('pl-page'); if (!box) return;
+      let key = activeArtKey;
+      if (!key) { if (lab) lab.innerText = ''; box.innerHTML = '<div class="pl-empty">Select a page to see its images and measurements.</div>'; return; }
+      let pages = packagePages(), pi = pages.findIndex(p => artKey(p) === key);
+      let coff = step === 'design' && withCover ? 1 : 0;
+      if (lab) lab.innerText = key === artKey(COVER_PAGE) ? '· cover' : (pi === -1 ? '' : `· page ${pi + 1 + coff}`);
+      let arts = pageArt[key] || [], meas = pageMeasures[key] || [];
+      let html = `<div class="pl-row pl-fixed"><span class="pl-ic">&#9638;</span>Table + watermark <i>always on top</i></div>`;
+      html += arts.map((a, i) => `<div class="pl-row${selArt === key + '|' + i ? ' on' : ''}" onclick="selectArt('${key}', ${i})"><span class="pl-ic">&#9635;</span>` +
+              `<span class="pl-name" title="${esc(a.name)}">${esc(a.name || 'Image ' + (i + 1))}</span>` +
+              `<button type="button" class="pl-x" title="Remove this image" onclick="event.stopPropagation(); selArt = null; artRemove('${key}', ${i})">&times;</button></div>`).join('');
+      html += meas.map((m, i) => `<div class="pl-row"><span class="pl-ic pl-red">&#8596;</span>` +
+              `<input type="text" id="meas-${key}-${i}" class="pl-in" value="${esc(m.label)}" placeholder="inches" title="Value printed on the line" oninput="setMeasureLabel('${key}', ${i}, this.value)">` +
+              `<button type="button" class="pl-x" title="Remove this measurement" onclick="removeMeasure('${key}', ${i})">&times;</button></div>`).join('');
+      if (!arts.length && !meas.length) html += `<div class="pl-empty">No images or measurements on this page yet. Use + Add image / + Add measurement on the page bar.</div>`;
+      box.innerHTML = html;
   }
 
   // =====================================================================
@@ -2653,7 +3275,7 @@
       return list.length ? `<g id="Measurements"${inert}>` + list.map((m, i) => measureSVG(m, key, i)).join('') + `</g>` : '';
   }
   function patchMeasure(key, i) {             // redraw one line in place (keeps focus in the toolbar box)
-      let g = document.querySelector(`#sheets g[data-meas="${key}|${i}"]`), m = (pageMeasures[key] || [])[i];
+      let g = document.querySelector(`.sheet g[data-meas="${key}|${i}"]`), m = (pageMeasures[key] || [])[i];
       if (!g || !m) return;
       let tmp = document.createElementNS('http:' + '/' + '/www.w3.org/2000/svg', 'svg');
       tmp.innerHTML = measureSVG(m, key, i);
@@ -2711,7 +3333,7 @@
 
   // paste a screenshot (Ctrl+V) onto the active page, or the first page
   document.addEventListener('paste', e => {
-      if (step !== 'proof' || !e.clipboardData) return;
+      if (step === 'start' || !e.clipboardData) return;
       let files = [].slice.call(e.clipboardData.items || []).filter(it => it.kind === 'file' && /^image\//.test(it.type)).map(it => it.getAsFile());
       if (!files.length) return;                       // plain text pastes into fields as usual
       e.preventDefault();
@@ -2726,7 +3348,7 @@
   });
   document.addEventListener('click', e => {
       if (!activeArtKey || !e.target.closest) return;
-      if (e.target.closest('#preview-area') && !e.target.closest('.sheet-tools') && !e.target.closest('.sheet')) setActiveArt(null);
+      if (e.target.closest('#preview-area, #qa-area') && !e.target.closest('.sheet-tools') && !e.target.closest('.sheet')) setActiveArt(null);
   });
   function toast(msg) {
       let t = document.getElementById('toast');
@@ -2735,10 +3357,10 @@
       clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3500);
   }
   // drop files on a page (or its toolbar)
-  document.addEventListener('dragover', e => { if (e.target.closest && e.target.closest('#preview-area')) e.preventDefault(); });
+  document.addEventListener('dragover', e => { if (e.target.closest && e.target.closest('#preview-area, #qa-area')) e.preventDefault(); });
   document.addEventListener('drop', e => {
       let host = e.target.closest && e.target.closest('[data-key]');
-      if (!e.target.closest || !e.target.closest('#preview-area')) return;
+      if (!e.target.closest || !e.target.closest('#preview-area, #qa-area')) return;
       e.preventDefault();
       if (host && e.dataTransfer && e.dataTransfer.files.length) addArtFiles(host.dataset.key, e.dataTransfer.files);
   });
@@ -2749,7 +3371,7 @@
       e.preventDefault();
       let [key, idx] = el.getAttribute('data-art').split('|'), a = (pageArt[key] || [])[+idx];
       if (!a) return;
-      setActiveArt(key);
+      if (selArt !== `${key}|${idx}`) { selArt = `${key}|${idx}`; setActiveArt(key); renderPreview(); el = document.querySelector(`.sheet image[data-art="${key}|${idx}"]`); if (!el) return; }
       let svg = el.ownerSVGElement, m = svg.getScreenCTM().inverse();
       let toSvg = (cx, cy) => { let pt = svg.createSVGPoint(); pt.x = cx; pt.y = cy; return pt.matrixTransform(m); };
       let start = toSvg(e.clientX, e.clientY), x0 = +el.getAttribute('x'), y0 = +el.getAttribute('y'), ddx = 0, ddy = 0;
@@ -2758,6 +3380,61 @@
       let up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up);
                        a.dx += ddx; a.dy += ddy; renderPreview(); };
       document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+  });
+
+  // corner handle: scale the image from the opposite corner (aspect kept)
+  document.addEventListener('pointerdown', e => {
+      let h = e.target.closest && e.target.closest('[data-art-handle]');
+      if (!h) return;
+      e.preventDefault(); e.stopPropagation();
+      let [key, idx, c] = h.getAttribute('data-art-handle').split('|'), arts = pageArt[key] || [], a = arts[+idx]; if (!a) return;
+      let svg = h.ownerSVGElement, img = svg.querySelector(`image[data-art="${key}|${idx}"]`); if (!img) return;
+      let r0 = { x: +img.getAttribute('x'), y: +img.getAttribute('y'), w: +img.getAttribute('width'), h: +img.getAttribute('height') };
+      let ax = c.indexOf('w') !== -1 ? r0.x + r0.w : r0.x, ay = c.indexOf('n') !== -1 ? r0.y + r0.h : r0.y;   // fixed (opposite) corner
+      let sx = c.indexOf('w') !== -1 ? -1 : 1, sy = c.indexOf('n') !== -1 ? -1 : 1, s0 = a.scale, dx0 = a.dx, dy0 = a.dy, k = 1;
+      let move = ev => {
+          let pt = svgPoint(svg, ev);
+          k = Math.max(20 / r0.w, Math.max(Math.abs(pt.x - ax) / r0.w, Math.abs(pt.y - ay) / r0.h));
+          let w = r0.w * k, hh = r0.h * k, x = sx > 0 ? ax : ax - w, y = sy > 0 ? ay : ay - hh;
+          img.setAttribute('x', x.toFixed(2)); img.setAttribute('y', y.toFixed(2)); img.setAttribute('width', w.toFixed(2)); img.setAttribute('height', hh.toFixed(2));
+      };
+      let up = () => {
+          document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up);
+          let w = r0.w * k, hh = r0.h * k, ncx = (sx > 0 ? ax : ax - w) + w / 2, ncy = (sy > 0 ? ay : ay - hh) + hh / 2;
+          a.scale = Math.min(8, Math.max(0.05, s0 * k)); a.dx = dx0 + (ncx - (r0.x + r0.w / 2)); a.dy = dy0 + (ncy - (r0.y + r0.h / 2));
+          renderPreview();
+      };
+      document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+  }, true);
+  // Delete key removes the selected image
+  document.addEventListener('keydown', e => {
+      if (!selArt || (e.key !== 'Delete' && e.key !== 'Backspace') || /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) return;
+      let [key, i] = selArt.split('|'); selArt = null; artRemove(key, +i);
+  });
+  // click outside the images on a page: deselect the image
+  document.addEventListener('pointerdown', e => {
+      if (!selArt || !e.target.closest || e.target.closest('image[data-art]') || e.target.closest('[data-art-handle]') || e.target.closest('#page-panel') ||
+          e.target.closest('.sheet-tools, .sheet-bar, button, input, select')) return;
+      if (e.target.closest('#sheets, #qa-sheets')) { selArt = null; renderPreview(); }
+  });
+
+  // staging: click a cell of a spec table on a page -> its field on the left, flashed red
+  function jumpToSpec(fid) {
+      let el = document.getElementById('mg-' + fid) || document.getElementById('pxfl-' + fid) || document.getElementById('pxl-' + fid) || document.getElementById('mcline-' + fid);
+      if (!el) { let u = String(fid).split('_')[0]; el = document.getElementById('part-' + u); }
+      if (!el) return;
+      let panel = el.closest('.item-panel'), body = panel && panel.querySelector('.item-body');
+      if (panel && panel.classList.contains('collapsed') && typeof toggleItem === 'function') toggleItem(panel.id.replace('item-', ''));
+      if (body && body.style.display === 'none') body.style.display = '';
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el.classList.remove('spec-flash'); void el.offsetWidth; el.classList.add('spec-flash');
+      setTimeout(() => el.classList.remove('spec-flash'), 2200);
+      let ctl = el.querySelector('select, input:not([type=checkbox]):not([type=hidden])'); if (ctl) setTimeout(() => ctl.focus({ preventScroll: true }), 450);
+  }
+  document.addEventListener('click', e => {
+      let c = e.target.closest && e.target.closest('#sheets .cell-link');
+      if (!c || measureKey) return;
+      jumpToSpec(c.dataset.fid);
   });
 
   // =====================================================================
@@ -2771,21 +3448,32 @@
       try {
           let pages = packagePages(), info = getCustomerInfo(), total = summaryTotal(pages);
           let strip = svg => svg.replace(/^<\?xml[^>]*>\s*/, '');
-          let bar = (title, kind, i, extra) => `<div class="sheet-bar${extra || ''}"><span class="st-title">${title}</span>` +
-              `<span class="st-dls"><button type="button" class="st-btn st-dl" title="This page as one SVG file" onclick="downloadPageSVG('${kind}', ${i})">Download page</button></span></div>`;
-          if (step === 'tables') renderTablePreviews(pages);
-          else if (step === 'proof') {
-              let html = pages.map((p, i) => artToolbar(p, i + 1) +
-                  `<div class="sheet${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildSheetSVG(p, i + 1, total, info))}</div>`).join('');
+          let bar = (title, kind, i, extra) => `<div class="sheet-bar${extra || ''}"><span class="st-title">${title}</span></div>`;
+          if (step === 'design') {
+              let off = withCover ? 1 : 0, ck = artKey(COVER_PAGE), html = '';
+              if (pages.length && withCover)
+                  html += artToolbar(COVER_PAGE, 1).replace('</div>', `<button type="button" class="st-btn st-remove" title="Take the cover page out of this design proof" onclick="event.stopPropagation(); setCover(false)">Remove cover page</button></div>`) +
+                          `<div class="sheet${ck === activeArtKey ? ' active' : ''}${ck === measureKey ? ' measuring' : ''}" data-key="${ck}">${strip(buildTitlePageSVG(info, 1, total))}</div>`;
+              else if (pages.length)
+                  html += `<div class="sheet-bar cover-off"><span class="st-title">No cover page</span><button type="button" class="st-btn" onclick="setCover(true)">+ Add cover page</button></div>`;
+              html += pages.map((p, i) => artToolbar(p, i + 1 + off) +
+                  `<div class="sheet${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildSheetSVG(p, i + 1 + off, total, info))}</div>`).join('');
               if (pages.length) html += bar(`Page ${total} \u00B7 Proof Summary <span class="st-note">always the last page</span>`, 'summary', 0, ' summary') +
                                         `<div class="sheet">${strip(buildCoverSVG(pages, info, total))}</div>`;
-              document.getElementById('sheets').innerHTML = html || '<div class="sheets-empty">Add a product on the Tables tab to see its proof pages.</div>';
+              document.getElementById('sheets').innerHTML = html || '<div class="sheets-empty"><b>Your proof pages appear here</b><span>Pick a product or component on the left: its proof page and spec table are built here as you key in the specs.</span></div>';
+              renderPagePanel(pages, info, total); renderLayers();
           } else if (step === 'production') {
               let qa = pages.length && qaOn() ? buildQAPages(pages, info, total) : [];
               qaCount = qa.length;
-              document.getElementById('qa-sheets').innerHTML = qa.map((svg, i) => bar(`QA sheet ${i + 1} / ${qa.length}`, 'qa', i, ' portrait') +
-                  `<div class="sheet portrait">${strip(svg)}</div>`).join('') || '<div class="sheets-empty">Add a product on the Tables tab to see its QA sheet.</div>';
-              renderProdCounts(pages);
+              let html = qa.map((svg, i) => bar(`QA sheet ${i + 1} / ${qa.length}`, 'qa', i, ' portrait') + `<div class="sheet portrait">${strip(svg)}</div>`).join('');
+              html += pages.map((p, i) => artToolbar(p, i + 1) +
+                  `<div class="sheet prod${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildProductionSVG(p, i + 1, pages.length, info))}</div>`).join('');
+              if (pages.length) {
+                  html += bar('Production snapshot <span class="st-note">colors, materials and departments</span>', 'snapshot', 0, ' prod') + `<div class="sheet prod">${strip(buildSnapshotSVG(pages, info))}</div>`;
+                  buildDeptSheets(pages, info).forEach(d => html += bar(`${esc(d.name)} department sheet`, 'dept', 0, ' prod') + `<div class="sheet prod">${strip(d.svg)}</div>`);
+              }
+              document.getElementById('qa-sheets').innerHTML = html || '<div class="sheets-empty">Add a product on the Design tab to see its QA sheet and production proofs.</div>';
+              renderProdCounts(pages); renderPagePanel(pages, info, total); renderLayers();
           }
           document.getElementById('page-count').innerText = pages.length ? `${total} proof page${total === 1 ? '' : 's'}` : '';
           updateCustomerTags(info);
@@ -2797,9 +3485,9 @@
       let box = document.getElementById('table-previews'); if (!box) return;
       let html = pages.map((p, i) => {
           if (!p.blocks.length) return '';
-          let look = p.item.kind === 'custom' ? { color: SIGN_FAMILIES.custom.color } : signLook(p.item.name), svg;
+          let look = p.item.kind === 'custom' ? { color: SIGN_FAMILIES.custom.color } : signLook(prName(p.item)), svg;
           try { EXPORTING = true; svg = buildTableSVG(p).replace(/^<\?xml[^>]*>\s*/, ''); } finally { EXPORTING = false; }
-          return `<div class="tp-card" style="--cat:${look.color}"><div class="tp-head"><span class="item-bar"></span><b>${esc(p.item.name)}</b>` +
+          return `<div class="tp-card" style="--cat:${look.color}"><div class="tp-head"><span class="item-bar"></span><b>${esc(prName(p.item))}</b>` +
                  `<span class="tp-page">${p.total > 1 ? `table ${p.n} of ${p.total} \u00B7 ` : ''}proof page ${i + 1}</span>` +
                  `<button type="button" class="btn-outline small" onclick="downloadPageSVG('table', ${i})">Download SVG</button></div>` +
                  `<div class="tp-svg">${svg}</div></div>`;
@@ -2814,15 +3502,14 @@
   function renderProdCounts(pages) {
       pages = pages || packagePages();
       let n = (id, t) => { let el = document.getElementById(id); if (el) el.innerText = t; };
-      let tables = pages.filter(p => p.blocks.length).length, proof = summaryTotal(pages);
       n('prod-qa-n', qaCount ? `${qaCount} page${qaCount > 1 ? 's' : ''}` : '');
-      n('prod-tables-n', tables ? `${tables} table${tables > 1 ? 's' : ''}` : '');
-      n('prod-proof-n', proof ? `${proof} page${proof > 1 ? 's' : ''}` : '');
+      n('prod-proof-n', pages.length ? `${pages.length} page${pages.length > 1 ? 's' : ''}` : '');
+      n('prod-chart-n', pages.length ? `snapshot + ${buildDeptSheets(pages, getCustomerInfo()).length} department sheet(s)` : '');
   }
   // "2 products · 1 field TBD by Production · 1 missing"
   function updateTablesSummary() {
-      let el = document.getElementById('tables-summary'); if (!el) return;
       let empty = document.getElementById('tables-empty'); if (empty) empty.style.display = pkgItems.length ? 'none' : 'flex';
+      let el = document.getElementById('tables-summary'); if (!el) return;
       if (!pkgItems.length) { el.innerText = 'Pick products and components on the left to add their tables.'; return; }
       let tbd = 0, miss = 0;
       allParts.filter(p => p.enabled).forEach(p => collectPartItems(p).forEach(i => { if (i.tbd) tbd++; else if (i.warn) miss++; }));
@@ -2851,8 +3538,9 @@
       obj(2, () => add(`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${n} >>`));
       pages.forEach((pgImg, i) => {
           let pageN = 3 + i * 3, contN = pageN + 1, imgN = pageN + 2;
-          let cs = `q 612 0 0 792 0 0 cm /Im${i + 1} Do Q`;
-          obj(pageN, () => add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /Im${i + 1} ${imgN} 0 R >> >> /Contents ${contN} 0 R >>`));
+          let land = pgImg.w > pgImg.h, pw = land ? 792 : 612, ph = land ? 612 : 792;
+          let cs = `q ${pw} 0 0 ${ph} 0 0 cm /Im${i + 1} Do Q`;
+          obj(pageN, () => add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im${i + 1} ${imgN} 0 R >> >> /Contents ${contN} 0 R >>`));
           obj(contN, () => { add(`<< /Length ${cs.length} >>\nstream\n`); add(cs); add('\nendstream'); });
           obj(imgN, () => { add(`<< /Type /XObject /Subtype /Image /Width ${pgImg.w} /Height ${pgImg.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pgImg.bytes.length} >>\nstream\n`);
                             add(pgImg.bytes); add('\nendstream'); });
@@ -2896,6 +3584,8 @@
           if (kind === 'summary' || kind === 'cover') { svg = buildCoverSVG(pages, info, total); file = `${base} - p${pad(total)}`; }
           else if (kind === 'qa') { svg = buildQAPages(pages, info, total)[i]; file = `${base} - qa${pad(i + 1)}`; }
           else if (kind === 'table') { svg = buildTableSVG(pages[i]); file = `${base} - p${pad(i + 1)} - table`; }
+          else if (kind === 'prod') { svg = buildProductionSVG(pages[i], i + 1, pages.length, info); file = `${base} - prod${pad(i + 1)}`; }
+          else if (kind === 'chart') { svg = buildColorChartSVG(pages, info); file = `${base} - color chart`; }
           else { svg = buildSheetSVG(pages[i], i + 1, total, info); file = `${base} - p${pad(i + 1)}`; }
       } finally { EXPORTING = false; }
       if (!svg) return;
@@ -3043,11 +3733,11 @@
           items: pkgItems.map(it => ({ iid: it.iid, key: it.key, kind: it.kind, name: it.name, defs: it.defs.map(d => Object.assign({}, d)), blanks: it.blanks.map(b => Object.assign({}, b)) })),
           parts: allParts.map(p => ({ iid: p.iid, di: p.di, custom: p.custom, notesOn: p.notesOn, notes: p.notes, newPage: p.newPage, enabled: p.enabled,
                                       letterLines: p.letterLines.map(l => Object.assign({}, l)), drawPick: p.drawPick.slice(),
-                                      colorLines: JSON.parse(JSON.stringify(p.colorLines)), colorSeq: p.colorSeq,
+                                      colorLines: JSON.parse(JSON.stringify(p.colorLines)), colorSeq: p.colorSeq, xcolors: (p.xcolors || []).slice(), xcolorSeq: p.xcolorSeq || 0, xfields: (p.xfields || []).slice(), xfieldSeq: p.xfieldSeq || 0,
                                       fmode: Object.assign({}, p.fmode || {}), fcustom: Object.assign({}, p.fcustom || {}),
                                       fields: appData.components[p.comp].custom ? null : appData.components[p.comp].fields.map(f => String(f.variable).toUpperCase()),
                                       values: captureValues(document.getElementById(`part-${p.uid}`), p.uid) })),
-          excludedDrawings: Object.assign({}, excludedDrawings), customer, art, measures: JSON.parse(JSON.stringify(pageMeasures))
+          excludedDrawings: Object.assign({}, excludedDrawings), customer, art, measures: JSON.parse(JSON.stringify(pageMeasures)), pageOrder: pageOrder.slice(), cover: withCover
       };
       return { state, images };
   }
@@ -3092,6 +3782,8 @@
       sp.values = remapSavedValues(part, sp);
       if (fm) { sp.colorLines = byNew(sp.colorLines); sp.fmode = byNew(sp.fmode); sp.fcustom = byNew(sp.fcustom); }
       part.colorLines = JSON.parse(JSON.stringify(sp.colorLines || {})); part.colorSeq = sp.colorSeq || 0;
+      part.xcolors = (sp.xcolors || []).slice(); part.xcolorSeq = sp.xcolorSeq || 0;
+      part.xfields = (sp.xfields || []).slice(); part.xfieldSeq = sp.xfieldSeq || 0;
       part.letterLines = (sp.letterLines || []).map(l => Object.assign({}, l));
       part.drawPick = (sp.drawPick || []).slice();
       part._saved = sp;
@@ -3113,7 +3805,7 @@
   function resetPackage() {
       document.getElementById('items').innerHTML = '';
       pkgItems = []; allParts = []; selection = [];
-      pageArt = {}; pageMeasures = {}; excludedDrawings = {}; activeArtKey = null; measureKey = null;
+      pageArt = {}; pageMeasures = {}; excludedDrawings = {}; activeArtKey = null; measureKey = null; selArt = null; pageOrder = []; withCover = true;
       Object.keys(appData.components).forEach(id => { if (appData.components[id].custom) delete appData.components[id]; });
       customProducts = {};
       currentProof = null; currentDraft = null; draftUploaded = {};
@@ -3150,7 +3842,7 @@
           let t = document.getElementById(`ptitle-${part.uid}`); if (t && part.custom) t.value = part.custom;
           let nOn = document.getElementById(`pnote-on-${part.uid}`), nTx = document.getElementById(`pnote-${part.uid}`);
           if (nOn) nOn.checked = part.notesOn; if (nTx) { nTx.value = part.notes; nTx.style.display = part.notesOn ? 'block' : 'none'; }
-          let np = document.getElementById(`pnew-${part.uid}`); if (np) np.checked = part.newPage;
+          let np = document.getElementById(`pnew-${part.uid}`); if (np) { np.checked = part.newPage; renderJoin(part.uid); }
           let inc = document.getElementById(`pinc-${part.uid}`); if (inc) inc.checked = part.enabled;
           let body = document.getElementById(`pbody-${part.uid}`); if (body) body.style.display = part.enabled ? 'block' : 'none';
           renderLetterLines(part);
@@ -3163,7 +3855,7 @@
           if ('c' in v) el.checked = v.c; if ('v' in v) el.value = v.v;
       });
       document.getElementById('cf-sub-group').style.display = document.getElementById('cf-has-sub').checked ? 'flex' : 'none';
-      pageMeasures = JSON.parse(JSON.stringify(st.measures || {}));
+      pageMeasures = JSON.parse(JSON.stringify(st.measures || {})); pageOrder = (st.pageOrder || []).slice(); withCover = st.cover === undefined ? false : !!st.cover;
       for (let key of Object.keys(st.art || {})) {
           let list = [];
           for (let a of st.art[key]) { let src = images[a.img]; if (!src) continue; let ok = await artFromSrc(src, a); if (ok) list.push(ok); }
@@ -3182,6 +3874,7 @@
   function openSaveDialog() {
       if (!pkgItems.length) { toast('Add at least one product before saving.'); return; }
       document.getElementById('save-title').innerText = proofLabel();
+      let rev = document.getElementById('cf-rev'); if (rev && !rev.value) rev.value = todayStr();
       document.getElementById('save-where').innerText = currentProof
           ? `Saves v${currentProof.rev + 1} of this proof. v${currentProof.rev} and earlier stay in the library.`
           : 'Saves v1 to the shared Proof Library.';
@@ -3189,7 +3882,16 @@
       document.getElementById('save-as-new').checked = false;
       document.getElementById('save-note').value = '';
       document.getElementById('save-modal').style.display = 'flex';
-      document.getElementById('save-note').focus();
+      let need = ['cf-ticket', 'cf-name', 'cf-project'].find(id => !document.getElementById(id).value.trim());
+      document.getElementById(need || 'save-note').focus();
+      updateCustomerTags(getCustomerInfo());
+  }
+  // typing the name in the Save window fills the same Job info fields
+  function saveNameEdit(id, v) {
+      let el = document.getElementById(id); if (!el) return;
+      el.value = v;
+      document.getElementById('save-title').innerText = proofLabel();
+      updateProjectLabel(); schedulePreview();
   }
   function closeSaveDialog() { document.getElementById('save-modal').style.display = 'none'; }
   function saveProofNow() {
@@ -3343,7 +4045,7 @@
                   draftUploaded = {}; Object.keys(r.images || {}).forEach(h => { draftUploaded[h] = true; });
                   lastSavedSnap = ''; lastDraftSnap = currentSnap();                // restored work is not a saved revision yet
                   rememberLocalDraft(r.key);
-                  closeLibrary(); updateProofStatus(); showTab('tables');
+                  closeLibrary(); updateProofStatus(); showTab('design');
                   toast(`Restored unsaved changes from ${String(r.savedAt).slice(0, 16)}. Use Save to keep them as a version.`);
                   if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
               } catch (e) { console.error(e); alert('Could not open the draft: ' + e.message); }
@@ -3420,7 +4122,7 @@
                   currentProof = { proofId: r.proofId, rev: latest, savedAt: r.savedAt, label: proofLabel() };
                   currentDraft = p && p.draft ? { key: p.draft.key, draftId: '', proofId: r.proofId, savedAt: '' } : null;
                   draftUploaded = {}; lastSavedSnap = currentSnap(); lastDraftSnap = lastSavedSnap;
-                  closeLibrary(); updateProofStatus(); showTab('tables');
+                  closeLibrary(); updateProofStatus(); showTab('design');
                   toast(`Opened v${r.rev}: ${currentProof.label}` + (r.rev < latest ? ` (saving makes v${latest + 1})` : ''));
                   if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
               } catch (e) { console.error(e); alert('Could not open this proof: ' + e.message); renderLibrary(); }
@@ -3438,7 +4140,7 @@
                   let missing = await applyLoaded(r);
                   clearCustomerFields();
                   currentProof = null; currentDraft = null; draftUploaded = {}; lastSavedSnap = ''; lastDraftSnap = '';
-                  closeLibrary(); updateProofStatus(); showTab('proof'); refreshAll();
+                  closeLibrary(); updateProofStatus(); showTab('design'); refreshAll();
                   toast('New proof started from a copy. Customer info is cleared; Save makes its own v1.');
                   if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
               } catch (e) { console.error(e); alert('Could not copy this proof: ' + e.message); renderLibrary(); }
@@ -3454,6 +4156,7 @@
       if (e.key !== 'Escape') return;
       if (document.getElementById('swatch-modal').style.display === 'flex') { closeModal(); return; }
       if (document.getElementById('save-modal').style.display === 'flex') closeSaveDialog();
+      let cm = document.getElementById('cover-modal'); if (cm && cm.style.display === 'flex') closeCoverDialog();
       if (document.getElementById('library-modal').style.display === 'flex') closeLibrary();
       closeFieldMenu(); closeExportMenu();
   });
@@ -3531,70 +4234,94 @@
   }
   function missingCustomerOk(what) {
       let info = getCustomerInfo();
-      let missing = (info.hasSub && !info.sub ? ['sub'] : []).concat(['name', 'project', 'location', 'sales', 'inv', 'ticket', 'designer', 'orig', 'path'].filter(k => !info[k]));
+      let keys = /production/.test(what) ? ['name', 'project', 'location', 'sales', 'inv', 'designer'] : ['name', 'project', 'location', 'sales', 'inv', 'ticket', 'designer', 'orig', 'path'];
+      let missing = (info.hasSub && !info.sub ? ['sub'] : []).concat(keys.filter(k => !info[k]));
       return !missing.length || confirm(`${missing.length} job info field(s) are empty and will print as yellow MISSING tags.\nExport the ${what} anyway?`);
   }
 
-  // PROOF PACKAGE: proof pages p01 ... then the Proof Summary as the last page; SVG (editable) + PNG (300 ppi) + package_info.txt
-  // files inside the zip use the short name (Ticket - p01) so unpacked paths stay under Windows' 260-character limit
-  async function generatePackage() {
-      let pages = packagePages();
-      if (!pages.length) { toast('Add a product on the Tables tab first.'); return; }
-      if (!missingCustomerOk('proof package')) return;
-      let info = getCustomerInfo(), base = exportBase(info), total = summaryTotal(pages), pad = n => String(n).padStart(2, '0');
-      await exportZip(document.getElementById('export-btn'), `${base} - Proof.zip`, async (save, progress, zipped) => {
-          let fb = zipped ? shortBase(info, base) : base, pageNames = [];
-          let jobs = pages.map((p, i) => ({ file: `${fb} - p${pad(i + 1)}`, svg: () => buildSheetSVG(p, i + 1, total, info) }));
-          pages.forEach((p, i) => pageNames.push([`Page${pad(i + 1)}`, `${p.item.name.toUpperCase()}${p.blank ? ' ' + p.title.toUpperCase() : ''} ${p.n}/${p.total}`]));
-          jobs.push({ file: `${fb} - p${pad(total)}`, svg: () => buildCoverSVG(pages, info, total) }); pageNames.push([`Page${pad(total)}`, 'PROOF SUMMARY']);
+  // DESIGN PROOF: [cover page] + proof pages + Proof Summary, SVG only (ready for CorelDRAW) + package_info.txt for the macro
+  let exportWhat = 'design';
+  function askDesignExport(what) {
+      exportWhat = what || 'design';
+      closeExportMenu();
+      if (!packagePages().length) { toast('Add a product on the Design tab first.'); return; }
+      document.getElementById('cover-modal').style.display = 'flex';
+      document.getElementById('cover-yes').focus();
+  }
+  function closeCoverDialog() { document.getElementById('cover-modal').style.display = 'none'; }
+  function exportChosen(cover) { return exportWhat === 'all' ? generateAll(cover) : generatePackage(cover); }
+  // the design proof pages into a zip folder (prefix "" or "Design Proof/")
+  async function fillDesign(save, progress, zipped, cover, prefix) {
+      let pages = packagePages(), info = getCustomerInfo(), base = exportBase(info), off = withCover ? 1 : 0, total = summaryTotal(pages), pad = n => String(n).padStart(2, '0');
+      let fb = zipped ? shortBase(info, base) : base, pageNames = [], jobs = [];
+      ART_PHASE = 'design';
+      try {
+          if (withCover) { jobs.push(() => buildTitlePageSVG(info, 1, total)); pageNames.push(['Page01', 'COVER']); }
+          pages.forEach((p, i) => { jobs.push(() => buildSheetSVG(p, i + 1 + off, total, info)); pageNames.push([`Page${pad(i + 1 + off)}`, `${prName(p.item).toUpperCase()}${p.blank ? ' ' + String(p.title).toUpperCase() : ''} ${p.n}/${p.total}`]); });
+          jobs.push(() => buildCoverSVG(pages, info, total)); pageNames.push([`Page${pad(total)}`, 'PROOF SUMMARY']);
           for (let i = 0; i < jobs.length; i++) {
-              progress(`Page ${i + 1} of ${jobs.length}...`);
-              let svg = jobs[i].svg(), png = await svgToPngBlob(svg);
-              await save(`SVG/${jobs[i].file}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
-              await save(`PNG/${jobs[i].file}.png`, png);
+              progress(`Design page ${i + 1} of ${jobs.length}...`);
+              let svg = jobs[i]();
+              await save(`${prefix}SVG/${fb} - p${pad(i + 1)}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
+              await save(`${prefix}PNG/${fb} - p${pad(i + 1)}.png`, await svgToPngBlob(svg, 3300, 2550));
           }
-          // job details for the CorelDRAW macro (names the .cdr: Ticket - Customer - Project)
-          await save('package_info.txt', new Blob([packageInfoText(info, total, pageNames)], { type: 'text/plain' }));
+      } finally { ART_PHASE = null; }
+      await save(`${prefix}package_info.txt`, new Blob([packageInfoText(info, total, pageNames)], { type: 'text/plain' }));
+  }
+  async function generatePackage(cover) {
+      let pages = packagePages();
+      if (!pages.length) { toast('Add a product on the Design tab first.'); return; }
+      if (!missingCustomerOk('design package')) return;
+      let info = getCustomerInfo(), base = exportBase(info);
+      let r = await exportZip(exportBtn(), `${base} - Design Proof.zip`, (save, progress, zipped) => fillDesign(save, progress, zipped, withCover, ''));
+      if (r) { exportedPhase.design = true; updateStepper(); }
+      return r;
+  }
+  async function generateAll(cover) {
+      let pages = packagePages();
+      if (!pages.length) { toast('Add a product on the Design tab first.'); return; }
+      if (!missingCustomerOk('design and production packages')) return;
+      let info = getCustomerInfo(), base = exportBase(info);
+      return await exportZip(document.getElementById('export-btn'), `${base} - All.zip`, async (save, progress, zipped) => {
+          await fillDesign(save, progress, zipped, !!cover, 'Design Proof/');
+          await fillProduction(save, progress, zipped, 'Production/');
       });
   }
 
-  // PRODUCTION PACKAGE: the QA sheet (SVG, PNG, print PDF, CSV), each spec table to print, optional proof pages for reference
+  // PRODUCTION PACKAGE: QA sheet (SVG, PNG, print PDF, CSV) + production proofs and the color chart (SVG, PNG, print PDF)
+  function prodInfo(info) { return Object.assign({}, info, { ticket: '' }); }      // production files: no design ticket #
   async function generateProduction() {
+      closeExportMenu();
       let pages = packagePages();
-      if (!pages.length) { toast('Add a product on the Tables tab first.'); return; }
-      let want = id => { let el = document.getElementById(id); return !el || el.checked; };
-      let qa = want('prod-qa'), tables = want('prod-tables'), proof = !!(document.getElementById('prod-proof') || {}).checked;
-      if (!qa && !tables && !proof) { toast('Check at least one item in the production package.'); return; }
+      if (!pages.length) { toast('Add a product on the Design tab first.'); return; }
       if (!missingCustomerOk('production package')) return;
-      let info = getCustomerInfo(), base = exportBase(info), total = summaryTotal(pages), pad = n => String(n).padStart(2, '0');
-      await exportZip(document.getElementById('export-btn'), `${base} - Production.zip`, async (save, progress, zipped) => {
-          let fb = zipped ? shortBase(info, base) : base;
-          if (qa) {
-              let qaPages = buildQAPages(pages, info, total), jpegs = [];
-              for (let i = 0; i < qaPages.length; i++) {
-                  progress(`QA sheet ${i + 1} of ${qaPages.length}...`);
-                  svgToPngBlob.wantJpeg = true;
-                  let png = await svgToPngBlob(qaPages[i], 2550, 3300);
-                  svgToPngBlob.wantJpeg = false;
-                  if (png.jpeg) jpegs.push(png.jpeg);
-                  await save(`QA/SVG/${fb} - qa${pad(i + 1)}.svg`, new Blob([qaPages[i]], { type: 'image/svg+xml' }));
-                  await save(`QA/PNG/${fb} - qa${pad(i + 1)}.png`, png);
-              }
-              if (jpegs.length) await save(`PRINT - ${fb} - QA sheet.pdf`, jpegPagesToPdf(jpegs, `${base} - QA sheet`));
-              await save(`${fb} - QA sheet.csv`, new Blob([buildQACsv(pages, info)], { type: 'text/csv' }));
-          }
-          if (tables) {
-              progress('Spec tables...');
-              for (let i = 0; i < pages.length; i++) if (pages[i].blocks.length)
-                  await save(`Tables/${fb} - p${pad(i + 1)} - table.svg`, new Blob([buildTableSVG(pages[i])], { type: 'image/svg+xml' }));
-          }
-          if (proof) {
-              for (let i = 0; i < pages.length; i++) {
-                  progress(`Proof page ${i + 1} of ${total}...`);
-                  await save(`Proof pages/${fb} - p${pad(i + 1)}.png`, await svgToPngBlob(buildSheetSVG(pages[i], i + 1, total, info)));
-              }
-              await save(`Proof pages/${fb} - p${pad(total)}.png`, await svgToPngBlob(buildCoverSVG(pages, info, total)));
-          }
-      });
+      let info = getCustomerInfo(), base = exportBase(prodInfo(info));
+      let r = await exportZip(exportBtn(), `${base} - Production.zip`, (save, progress, zipped) => fillProduction(save, progress, zipped, ''));
+      if (r) { exportedPhase.production = true; updateStepper(); }
+      return r;
   }
+  // production package = SVG + PDF only: QA sheet, production proofs, snapshot and department sheets
+  async function fillProduction(save, progress, zipped, prefix) {
+      ART_PHASE = 'production';
+      try { return await fillProductionInner(save, progress, zipped, prefix); } finally { ART_PHASE = null; }
+  }
+  async function fillProductionInner(save, progress, zipped, prefix) {
+      let pages = packagePages(), info = getCustomerInfo(), base = exportBase(prodInfo(info)), total = summaryTotal(pages), pad = n => String(n).padStart(2, '0');
+      let fb = zipped ? shortBase(prodInfo(info), base) : base, jobs = [], jpegs = [];
+      if (qaOn()) buildQAPages(pages, info, total).forEach((svg, i) => jobs.push({ file: `${fb} - qa${pad(i + 1)}`, svg: () => svg, w: 2550, h: 3300 }));
+      pages.forEach((p, i) => jobs.push({ file: `${fb} - prod${pad(i + 1)}`, svg: () => buildProductionSVG(p, i + 1, pages.length, info) }));
+      jobs.push({ file: `${fb} - prod${pad(pages.length + 1)} - snapshot`, svg: () => buildSnapshotSVG(pages, info) });
+      buildDeptSheets(pages, info).forEach((d, k) => jobs.push({ file: `${fb} - prod${pad(pages.length + 2 + k)} - dept ${d.slug}`, svg: () => d.svg }));
+      for (let i = 0; i < jobs.length; i++) {
+          progress(`Production page ${i + 1} of ${jobs.length}...`);
+          svgToPngBlob.wantJpeg = true;
+          let png;
+          try { png = await svgToPngBlob(jobs[i].svg(), jobs[i].w || 3300, jobs[i].h || 2550); } finally { svgToPngBlob.wantJpeg = false; }
+          if (png.jpeg) jpegs.push(png.jpeg);
+          await save(`${prefix}SVG/${jobs[i].file}.svg`, new Blob([jobs[i].svg()], { type: 'image/svg+xml' }));
+          await save(`${prefix}PNG/${jobs[i].file}.png`, png);
+      }
+      if (jpegs.length) await save(`${prefix}${fb} - Production package.pdf`, jpegPagesToPdf(jpegs, `${base} - Production package`));
+  }
+
 </script>

@@ -1,6 +1,6 @@
-# Sign Proof Generator
+# SignStudio (Sign Proof Generator)
 
-**Current version: v3.0** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.0** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -14,13 +14,13 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 
 ## Features
 
-**v3.0 layout:** a start screen (new project, or search saved projects and drafts) and three tabs, with the working panel always on the left:
+**v4.0 (SignStudio):** a home screen and two phases, guided by a 3-step bar under the top menu (red on Design, purple on Production):
 
-1. **Tables:** pick products and components, key in specs, and watch each spec table build live. Every field has a menu: default options, a custom answer, **TBD by Production** (solid purple), **Leave blank** (yellow MISSING) or **Remove from this table**. Letter products take the TEXT plus **QTY & SIZES** (`10 @ 18", 4 @ 12"`).
-2. **Proof pages:** job info and the proof pages; the **Proof Summary** is always the last page.
-3. **Production:** the QA sheet now, department sheets later.
+1. **Create project:** type the job info and create the project, or open a saved project or draft (the Saved projects popup).
+2. **Design proof / Production proof:** a 30% specs menu, the proof pages in the middle (60%) and a Pages + Layers panel on the right (10%). Pages show live thumbnails (drag to reorder); Layers lists the selected page's images and measurements. Images get bounding boxes (drag, resize by the corners) and always sit under the spec table and the watermark. Click any cell of a table on a page to jump to its field. The design proof starts with a cover page (Remove / Add back). Production proofs have their own images.
+3. **Approve and export:** large previews of every page exactly as it will be exported, then one button: **Export Design Package** (SVG/ + PNG/) or **Export Production Package** (SVG/ + PNG/ + one PDF: QA sheet, production proofs, Production Snapshot, department sheets).
 
-**Export** (top bar): data tables as SVG (one file or one per table), the proof package, or the production package. Project statuses, Design help and detail drawings are removed for now.
+Job info is edited in **Save Project**. Production pages never show the design ticket #; the QA sheet and the snapshot have a blank WORK ORDER # box.
 
 ### Proof builder
 - **Data-driven:** every product, component, field, option, default, rule, drawing and design standard lives in the Google Sheet. You change the sheet, not the code.
@@ -117,6 +117,31 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.0] – 2026-10-15
+#### Changed
+- **SignStudio:** new home screen (create a project with job info, or open a saved one), back chevron, and a clickable 3-step guide: Create project > Design proof / Production proof > Approve and export (red and yellow on Design, purple and white on Production).
+- **Job info lives in Save Project** (the Save button), not in a sidebar.
+- **Layout on both tabs:** 30% specs menu (one column) | 60% proof pages | 10% Pages + Layers (each half folds open or closed).
+- **Pages panel:** live thumbnails; drag to reorder (saved with the project). **Layers panel:** images and measurements of the selected page.
+- **Images and measurements are back** on design and production pages (separate per phase): + Add image, paste or drop, bounding box with corner handles, + Add measurement. They sit under the spec table and the watermark.
+- **Click a table cell on a page** to scroll to that field on the left (it flashes red).
+- **Cover page built into the Design tab** (page 1, Remove cover page / + Add cover page); no cover question at export. Older saved projects open without a cover.
+- **+ Add Blank Page** is back; the "New page" checkbox became a Same page / New page connector between sections.
+- **+ Add Color on every color field**; custom colors are one field with a CMYK / RGB / HEX switch (closest Sherwin-Williams / Pantone / Oracal matches below).
+- **Approve and export review window** replaces the Export button: large previews, missing-tag count, one big export button.
+- **Design package:** SVG/ and PNG/ folders (+ package_info.txt for the CorelDRAW macro). **Production package:** SVG/ and PNG/ folders + one PDF with every page.
+- **Production proofs:** half-width purple border with no labels on it, larger tables and artwork area, table tabs read CUSTOMER - PRODUCT.
+- **QA sheet in production purple**, CUSTOMER - PRODUCT headers, blank WORK ORDER # box.
+- **Production Snapshot** replaces the color chart: departments involved (Vinyl, Metal fabrication, CNC / routing, Electrical, Paint), every color and material in large text, WORK ORDER # box. **Department sheets** for each department involved, with notes and a supervisor sign-off.
+- **No design ticket #** anywhere in the production package (sheets or file names).
+- **Watermark** at true 2-5% opacity (Proof_Template Watermark_Opacity, 3% default), design proof only, cropped to the artboard.
+- CorelDRAW macro: Import Production Proofs reads the new SVG/ folder (older packages still work).
+
+#### Data
+- No changes to the data tabs or Proof_Template.
+
+---
 
 ### [3.0] – 2026-10-15
 #### Changed
