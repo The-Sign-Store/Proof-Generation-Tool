@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.2  (October 15, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.3  (October 15, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -332,6 +332,11 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.3  (2026-10-15)
+  - Next button under Pages + Layers opens Approve and export (red/yellow on
+    Design, purple/white on Production); Back to proof pages in the review.
+  - QA sheet comes after the production pages everywhere. No data changes.
+
 v4.2  (2026-10-15)
   - Home screen: wider four-column form that fits one screen, more space
     under the top bar, copyright line pinned to the bottom. No data changes.

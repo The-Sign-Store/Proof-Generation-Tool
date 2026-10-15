@@ -901,4 +901,18 @@
   .home-foot { margin-top: auto; padding-top: 22px; text-align: center; font-size: 12px; color: #8A929C; letter-spacing: .02em; }   /* pinned to the bottom of the screen */
   @media (max-width: 1100px) { #step-start .home-grid { grid-template-columns: 1fr; } }
   @media (max-width: 760px) { #step-start .hf-grid { grid-template-columns: 1fr; } #step-start .hf.span2, #step-start .hf.span3 { grid-column: auto; } }
+  /* v4.3: Next button under Pages + Layers (red + yellow on Design, purple + white on Production) */
+  .pp-next { flex: none; padding: 10px 8px 12px; border-top: 1px solid var(--line); background: #FFFFFF; }
+  .pp-next-btn { width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 10px; font: 700 13.5px var(--font); line-height: 1.25; cursor: pointer;
+                 box-shadow: var(--elev-1); transition: filter .12s, box-shadow .12s; }
+  .pp-next-btn:hover { filter: brightness(1.08); box-shadow: var(--elev-2); }
+  .pp-next-btn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 4px; font-size: clamp(10px, 0.66vw, 13.5px); letter-spacing: 0; }   /* one line */
+  .pp-next { padding: 10px 6px 12px; }
+  #page-panel { min-width: 150px !important; }   /* the Approve and export button fits on one line on small screens */
+  #tab-design .pp-next-btn { background: #D32F2F; color: #FFD54F; }
+  #tab-production .pp-next-btn { background: #5B2C8F; color: #FFFFFF; }
+  /* review window: back to the proof pages */
+  .review-back { height: 44px; padding: 0 18px; border: 1px solid #D0D5DB; border-radius: 22px; background: #FFFFFF; color: #3A414A; font: 600 14px var(--font); cursor: pointer; }
+  .review-back:hover { background: #F2F4F7; }
+  .review-foot #rv-count { margin-right: auto; }
 </style>

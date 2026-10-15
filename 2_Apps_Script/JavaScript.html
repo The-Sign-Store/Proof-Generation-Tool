@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.2  -  Design + Production
+  //  SIGNSTUDIO v4.3  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.2';
+  const APP_VERSION = '4.3';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -154,6 +154,7 @@
       set('sp-proof', step !== 'start', false);
       set('sp-export', false, step !== 'start' && !!exportedPhase[phase]);
       let back = document.getElementById('nav-back'); if (back) back.style.visibility = step === 'start' ? 'hidden' : 'visible';
+      let nx = document.getElementById('pp-next'); if (nx) nx.innerHTML = 'Approve and export &rarr;';
   }
   function goBack() { if (step === 'production') showTab('design'); else if (step === 'design') goStart(); }
   function stepProof() { stepTo(step === 'start' ? lastPhase : step); }
@@ -190,10 +191,10 @@
       try {
           if (prod) {
               let qa = qaOn() ? buildQAPages(pages, info, summaryTotal(pages)) : [];
-              qa.forEach((svg, i) => cards.push({ svg, label: `QA sheet ${i + 1} / ${qa.length}`, portrait: true }));
               pages.forEach((p, i) => cards.push({ svg: buildProductionSVG(p, i + 1, pages.length, info), label: `Production proof ${i + 1} / ${pages.length} · ${prName(p.item)}` }));
               cards.push({ svg: buildSnapshotSVG(pages, info), label: 'Production snapshot' });
               buildDeptSheets(pages, info).forEach(d => cards.push({ svg: d.svg, label: `${d.name} department sheet` }));
+              qa.forEach((svg, i) => cards.push({ svg, label: `QA sheet ${i + 1} / ${qa.length}`, portrait: true }));
           } else {
               let cover = withCover, off = cover ? 1 : 0, total = summaryTotal(pages);
               {
@@ -3465,13 +3466,13 @@
           } else if (step === 'production') {
               let qa = pages.length && qaOn() ? buildQAPages(pages, info, total) : [];
               qaCount = qa.length;
-              let html = qa.map((svg, i) => bar(`QA sheet ${i + 1} / ${qa.length}`, 'qa', i, ' portrait') + `<div class="sheet portrait">${strip(svg)}</div>`).join('');
-              html += pages.map((p, i) => artToolbar(p, i + 1) +
+              let html = pages.map((p, i) => artToolbar(p, i + 1) +
                   `<div class="sheet prod${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildProductionSVG(p, i + 1, pages.length, info))}</div>`).join('');
               if (pages.length) {
                   html += bar('Production snapshot <span class="st-note">colors, materials and departments</span>', 'snapshot', 0, ' prod') + `<div class="sheet prod">${strip(buildSnapshotSVG(pages, info))}</div>`;
                   buildDeptSheets(pages, info).forEach(d => html += bar(`${esc(d.name)} department sheet`, 'dept', 0, ' prod') + `<div class="sheet prod">${strip(d.svg)}</div>`);
               }
+              html += qa.map((svg, i) => bar(`QA sheet ${i + 1} / ${qa.length}`, 'qa', i, ' portrait') + `<div class="sheet portrait">${strip(svg)}</div>`).join('');   // v4.3: QA last
               document.getElementById('qa-sheets').innerHTML = html || '<div class="sheets-empty">Add a product on the Design tab to see its QA sheet and production proofs.</div>';
               renderProdCounts(pages); renderPagePanel(pages, info, total); renderLayers();
           }
@@ -4308,10 +4309,10 @@
   async function fillProductionInner(save, progress, zipped, prefix) {
       let pages = packagePages(), info = getCustomerInfo(), base = exportBase(prodInfo(info)), total = summaryTotal(pages), pad = n => String(n).padStart(2, '0');
       let fb = zipped ? shortBase(prodInfo(info), base) : base, jobs = [], jpegs = [];
-      if (qaOn()) buildQAPages(pages, info, total).forEach((svg, i) => jobs.push({ file: `${fb} - qa${pad(i + 1)}`, svg: () => svg, w: 2550, h: 3300 }));
       pages.forEach((p, i) => jobs.push({ file: `${fb} - prod${pad(i + 1)}`, svg: () => buildProductionSVG(p, i + 1, pages.length, info) }));
       jobs.push({ file: `${fb} - prod${pad(pages.length + 1)} - snapshot`, svg: () => buildSnapshotSVG(pages, info) });
       buildDeptSheets(pages, info).forEach((d, k) => jobs.push({ file: `${fb} - prod${pad(pages.length + 2 + k)} - dept ${d.slug}`, svg: () => d.svg }));
+      if (qaOn()) buildQAPages(pages, info, total).forEach((svg, i) => jobs.push({ file: `${fb} - qa${pad(i + 1)}`, svg: () => svg, w: 2550, h: 3300 }));   // v4.3: QA last
       for (let i = 0; i < jobs.length; i++) {
           progress(`Production page ${i + 1} of ${jobs.length}...`);
           svgToPngBlob.wantJpeg = true;

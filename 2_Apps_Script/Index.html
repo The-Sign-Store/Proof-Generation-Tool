@@ -122,6 +122,7 @@
           <button type="button" class="pp-head" aria-expanded="true" onclick="let h = this.parentElement; h.classList.toggle('collapsed'); this.setAttribute('aria-expanded', !h.classList.contains('collapsed'))" title="Show / hide layers">Layers <span id="pl-page"></span><span class="pp-caret">&#9662;</span></button>
           <div class="pp-scroll"><div id="pl-list"><div class="pl-empty">Select a page to see its images and measurements.</div></div></div>
         </section>
+        <div class="pp-next"><button type="button" class="pp-next-btn" id="pp-next" onclick="approveExport()" title="Review every page and export this package">Approve and export &rarr;</button></div>
       </aside>
     </div>
 
@@ -179,7 +180,7 @@
       </div>
       <div class="review-opts" id="rv-opts"><label class="cf-check"><input type="checkbox" id="rv-cover" onchange="renderReview()"> Add a cover page in front (the proof template with no tables)</label></div>
       <div class="review-grid" id="rv-grid"></div>
-      <div class="review-foot"><span id="rv-count"></span><button type="button" class="review-go" id="rv-go" onclick="reviewExport()">Export Design Package</button></div>
+      <div class="review-foot"><button type="button" class="review-back" onclick="closeReview()">&larr; Back to proof pages</button><span id="rv-count"></span><button type="button" class="review-go" id="rv-go" onclick="reviewExport()">Export Design Package</button></div>
     </div>
   </div>
 
