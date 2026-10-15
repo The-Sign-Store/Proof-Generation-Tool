@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v2.3.2  (October 13, 2026)
+SIGN PROOF GENERATOR  v3.0  (October 13, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -194,8 +194,29 @@ SignOS_Reference     SignOS SKUs behind the material options
 Product_Schema       original products, kept for reference (the current app does not read it)
 
 
-WHAT THE APP DOES (v2.3.2)
+WHAT THE APP DOES (v3.0)
 -----------------------------------------------------------------------------
+v3.0 LAYOUT (read first; the step-by-step notes below still apply to the
+spec fields themselves)
+  Start     Create a new project, or search and open a saved project or
+            draft. The app name in the top bar comes back here.
+  Tab 1     Tables: "Add products & components" (search + family filter) and
+            the spec cards on the left; every spec table drawn live on the
+            right. The menu on each field: default options, type a custom
+            answer, Mark TBD by Production (solid purple), Leave blank
+            (yellow MISSING), Remove from this table (Restore brings it back).
+            Letters: TEXT (what they say) + QTY & SIZES, e.g. 10 @ 18", 4 @ 12"
+  Tab 2     Proof pages: job info on the left, the pages on the right. The
+            Proof Summary (the old cover) is always the LAST page.
+  Tab 3     Production: package options on the left, the QA sheet on the
+            right. Department sheets come later.
+  Export    Top bar, right of Save: data tables (one SVG, or one SVG per
+            table in a zip), Proof package (... - Proof.zip), Production
+            package (... - Production.zip: QA sheet SVG/PNG/PDF/CSV, spec
+            tables, optional proof page PNGs).
+  Removed   Project statuses (the project manager tracks them), Design help
+            and detail drawings (for now), the floating export box.
+
 Step 1  Select: any mix of 19 products and 11 stand-alone components.
 Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
         - Section names (red titles, e.g. "Acrylic 2") are editable: click
@@ -248,9 +269,6 @@ Step 2  Specs: fields driven by the sheet; sections paginate 2 per page.
           unsaved changes asks first; the next visit offers "Restore". Drafts
           also show in Saved proofs (Open / Discard).
         - Saved versions are numbered v1, v2, v3 ...
-        - Status (v2.2): Draft, Sent to Customer, Changes Requested, Approved,
-          Cancelled. Set it when saving or change it in Saved proofs; filter
-          the library by status.
         - New from this (Saved proofs): starts a new proof with the same
           products, specs, images and measurements; customer info cleared.
         - Dashboard: the color key above the cards is also a filter; click
@@ -314,6 +332,41 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v3.0  (2026-10-15)
+  Changed
+    - New layout in three tabs: 1 · Tables, 2 · Proof pages, 3 · Production.
+      The working panel is always on the left: products and specs on Tables,
+      job info on Proof pages, package options on Production.
+    - Start screen: "Create a new project" or open a saved project or draft
+      (search included). The Sign Proof Generator name in the top bar returns
+      to it.
+    - Tables tab: add and remove products and components from the "Add
+      products & components" list at the top of the left panel (search plus a
+      family filter). Each spec table is drawn live on the right while you
+      type.
+    - Every field has a ⋮ menu: use the default options, type a custom
+      answer, Mark TBD by Production (solid purple on the proof and QA
+      sheet), Leave blank (yellow MISSING tag), or Remove from this table
+      (Restore brings it back).
+    - Letters (channel, halo, PVC routed, monument letters, cloud signs): a
+      TEXT field (what the letters say) and a separate QTY & SIZES field,
+      e.g. 10 @ 18", 4 @ 12". Projects saved before v3.0 are converted when
+      opened (quantity, height and extra letter lines become one QTY & SIZES
+      entry).
+    - Export button in the top bar (right of Save): data tables as one SVG or
+      one SVG per table (zip), the proof package, or the production package.
+    - The cover is now the Proof Summary, always the last page of the proof
+      package, so customers see the proof pages first.
+    - Production package: the QA sheet (SVG, PNG, print PDF, CSV) plus each
+      spec table to print; proof page PNGs optional. Always available.
+      Department sheets come later.
+    - Cleaner look with the Figtree font.
+  Removed
+    - Project statuses (Draft, Sent, Approved and so on). The project manager
+      tracks status.
+    - The Design help button and detail drawings, for now.
+    - The floating export box.
+
 v2.3.2  (2026-10-14)
   Fixed
     - QA checklist files no longer fail to unpack on Windows ("Error

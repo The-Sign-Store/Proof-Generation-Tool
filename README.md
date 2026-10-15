@@ -1,6 +1,6 @@
 # Sign Proof Generator
 
-**Current version: v2.3.2** · The Sign Store Online, Inc. · Design Department
+**Current version: v3.0** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -13,6 +13,14 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 ---
 
 ## Features
+
+**v3.0 layout:** a start screen (new project, or search saved projects and drafts) and three tabs, with the working panel always on the left:
+
+1. **Tables:** pick products and components, key in specs, and watch each spec table build live. Every field has a menu: default options, a custom answer, **TBD by Production** (solid purple), **Leave blank** (yellow MISSING) or **Remove from this table**. Letter products take the TEXT plus **QTY & SIZES** (`10 @ 18", 4 @ 12"`).
+2. **Proof pages:** job info and the proof pages; the **Proof Summary** is always the last page.
+3. **Production:** the QA sheet now, department sheets later.
+
+**Export** (top bar): data tables as SVG (one file or one per table), the proof package, or the production package. Project statuses, Design help and detail drawings are removed for now.
 
 ### Proof builder
 - **Data-driven:** every product, component, field, option, default, rule, drawing and design standard lives in the Google Sheet. You change the sheet, not the code.
@@ -109,6 +117,26 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [3.0] – 2026-10-15
+#### Changed
+- **New layout in three tabs: 1 · Tables, 2 · Proof pages, 3 · Production.** The working panel is always on the left: products and specs on Tables, job info on Proof pages, package options on Production.
+- **Start screen:** "Create a new project" or open a saved project or draft (search included). The Sign Proof Generator name in the top bar returns to it.
+- **Tables tab:** add and remove products and components from the "Add products & components" list at the top of the left panel (search plus a family filter). Each spec table is drawn live on the right while you type.
+- **Every field has a ⋮ menu:** use the default options, type a custom answer, **Mark TBD by Production** (solid purple on the proof and QA sheet), **Leave blank** (yellow MISSING tag), or **Remove from this table** (Restore brings it back).
+- **Letters (channel, halo, PVC routed, monument letters, cloud signs):** a TEXT field (what the letters say) and a separate **QTY & SIZES** field, e.g. `10 @ 18", 4 @ 12"`. Projects saved before v3.0 are converted when opened (quantity, height and extra letter lines become one QTY & SIZES entry).
+- **Export button in the top bar** (right of Save): data tables as one SVG or one SVG per table (zip), the proof package, or the production package.
+- **The cover is now the Proof Summary, always the last page** of the proof package, so customers see the proof pages first.
+- **Production package:** the QA sheet (SVG, PNG, print PDF, CSV) plus each spec table to print; proof page PNGs optional. Always available. Department sheets come later.
+- Cleaner look with the Figtree font.
+
+#### Removed
+- Project statuses (Draft, Sent, Approved and so on). The project manager tracks status.
+- The Design help button and detail drawings, for now.
+- The floating export box.
+
+
+---
 
 ### [2.3.2] – 2026-10-14
 #### Fixed
