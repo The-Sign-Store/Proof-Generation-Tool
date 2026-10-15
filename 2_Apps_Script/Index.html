@@ -12,68 +12,69 @@
 
   <!-- TOP BAR -->
   <div id="topbar">
-    <button type="button" class="brand" onclick="goStart()" title="Start screen: new or saved project"><span class="brand-mark"></span>Sign Proof Generator</button>
+    <button type="button" class="nav-back" id="nav-back" onclick="goBack()" title="Back" aria-label="Back"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="brand" onclick="goStart()" title="Home: create or open a project"><img class="brand-logo" id="brand-logo" alt="The Sign Store"><span class="brand-name">SignStudio</span> <span class="staging-chip">STAGING</span></button>
     <div class="project-label" id="project-label"></div>
-    <nav class="tabs" id="tabs" aria-label="Steps" style="display:none;">
-      <button type="button" class="tab" id="tab-btn-tables" onclick="showTab('tables')">1 &middot; Tables</button>
-      <button type="button" class="tab" id="tab-btn-proof" onclick="showTab('proof')">2 &middot; Proof pages</button>
-      <button type="button" class="tab" id="tab-btn-production" onclick="showTab('production')">3 &middot; Production</button>
+    <nav class="tabs" id="tabs" aria-label="Phase">
+      <button type="button" class="tab" id="tab-btn-design" onclick="showTab('design')">Design</button>
+      <button type="button" class="tab" id="tab-btn-production" onclick="showTab('production')">Production</button>
     </nav>
     <div class="topbar-right">
       <span id="page-count"></span>
       <span id="proof-status" class="proof-status" style="display:none;"></span>
-      <button type="button" class="btn-tonal" onclick="openLibrary()" title="Open a saved project">Saved projects</button>
-      <button type="button" class="btn-filled" id="save-btn" onclick="openSaveDialog()" title="Save this project to the shared Proof Library">Save</button>
+      <button type="button" class="btn-tonal" id="lib-top-btn" onclick="openLibrary()" title="Open a saved project">Saved projects</button>
+      <button type="button" class="btn-filled" id="save-btn" onclick="openSaveDialog()" title="Job info and save this project to the shared Proof Library">Save Project</button>
       <div class="export-wrap" id="export-wrap" style="display:none;">
         <button type="button" class="btn-dark" id="export-btn" aria-haspopup="menu" aria-expanded="false" onclick="toggleExportMenu(event)">Export &#9662;</button>
         <div id="export-menu" role="menu" style="display:none;">
-          <div class="xm-head">Data tables (SVG)</div>
-          <button type="button" role="menuitem" class="xm-item" id="xb-tables" onclick="downloadAllTables()"><b>All tables in one SVG</b></button>
-          <button type="button" role="menuitem" class="xm-item" id="xb-tables-zip" onclick="downloadTablesZip()"><b>One SVG per table</b><span>zip</span></button>
-          <div class="xm-sep"></div>
-          <button type="button" role="menuitem" class="xm-item" id="generate-btn" onclick="generatePackage()"><b>Proof package</b><span>Every proof page (SVG + PNG), Proof Summary last &middot; zip</span></button>
-          <button type="button" role="menuitem" class="xm-item" id="prod-btn" onclick="generateProduction()"><b>Production package</b><span>QA sheet and spec tables; department sheets later &middot; zip</span></button>
+          <button type="button" role="menuitem" class="xm-item" id="generate-btn" onclick="askDesignExport('design')"><b>1 &middot; Design package</b><span>Every proof page as SVG, ready for CorelDRAW &middot; optional cover page</span></button>
+          <button type="button" role="menuitem" class="xm-item" id="prod-btn" onclick="generateProduction()"><b>2 &middot; Production package</b><span>QA sheet, production proofs, snapshot and department sheets</span></button>
         </div>
       </div>
     </div>
   </div>
+
+  <nav class="stepper" id="stepper" aria-label="Project steps">
+    <button type="button" class="step-pill" id="sp-start" data-n="1" onclick="goStart()" title="Create a project or open a saved one"><span class="sp-n">1</span><span class="sp-t">Create project</span></button>
+    <span class="sp-line"></span>
+    <button type="button" class="step-pill" id="sp-proof" data-n="2" onclick="stepProof()" title="Build the proof pages"><span class="sp-n">2</span><span class="sp-t">Design proof</span></button>
+    <span class="sp-line"></span>
+    <button type="button" class="step-pill" id="sp-export" data-n="3" onclick="approveExport()" title="Export this phase's package"><span class="sp-n">3</span><span class="sp-t">Approve and export</span></button>
+  </nav>
 
   <div id="loading">Loading Database from Google Sheets...</div>
   <div class="app-notice" id="app-notice" role="status" style="display:none;"></div>
 
-  <!-- START: new or saved project -->
+  <!-- START: create a project (job info) or open a saved one -->
   <div id="step-start" class="screen" style="display:none;">
     <div class="start">
       <div class="restore-banner" id="restore-banner" style="display:none;"></div>
-      <h1>What are you working on?</h1>
-      <p class="start-sub">Start a new project, or open one you already saved so you keep adding to the same project and its versions.</p>
-      <div class="start-cards">
-        <button type="button" class="start-card" id="start-new" onclick="startNewProject()">
-          <span class="start-icon new">+</span>
-          <span class="start-title">Create a new project</span>
-          <span class="start-desc">A new customer job: build its tables, proof pages and production package.</span>
-        </button>
-        <div class="start-card">
+      <div class="home-grid">
+        <section class="home-card home-new">
+          <div class="home-head"><span class="start-icon new">+</span><div><h1>Create a new project</h1>
+            <p>Fill in the job info (anything blank prints as a yellow MISSING tag), then create the project.</p></div></div>
+          <div class="hf-grid"><div class="hf wide"><label for="hf-name">Customer Name</label><input type="text" id="hf-name"></div><label class="cf-check hf-sub"><input type="checkbox" id="hf-has-sub" onchange="document.getElementById('hf-sub-wrap').style.display = this.checked ? 'flex' : 'none'"> Sub-customer</label><div class="hf wide" id="hf-sub-wrap" style="display:none;"><label for="hf-sub">Sub-Customer Name</label><input type="text" id="hf-sub" placeholder="e.g. tenant, location or division"></div><div class="hf wide"><label for="hf-project">Project Name</label><input type="text" id="hf-project" placeholder="e.g. Main Entry Monument + Wayfinding"></div><div class="hf wide"><label for="hf-location">Installation Location</label><input type="text" id="hf-location" placeholder="Site name, street, city"></div><div class="hf"><label for="hf-sales">Sales Person</label><input type="text" id="hf-sales"></div><div class="hf"><label for="hf-designer">Designer Initials</label><input type="text" id="hf-designer" maxlength="6"></div><div class="hf"><label for="hf-inv">Invoice / Estimate #</label><input type="text" id="hf-inv"></div><div class="hf"><label for="hf-ticket">Ticket #</label><input type="text" id="hf-ticket"></div><div class="hf"><label for="hf-orig">Original Request Date</label><input type="date" id="hf-orig"></div><div class="hf wide"><label for="hf-path">File Location</label><input type="text" id="hf-path" placeholder="P:\PROOF SHEETS\..."></div><div class="hf wide"><label for="hf-notes">Project Notes (optional)</label><textarea id="hf-notes" rows="2"></textarea></div></div>
+          <div class="home-actions"><button type="button" class="btn-filled home-create" id="start-new" onclick="createProject()">Create project</button></div>
+        </section>
+        <section class="home-card home-open">
           <span class="start-icon open">&#8599;</span>
-          <span class="start-title">Open a saved project</span>
-          <label for="start-search" class="sr-only">Search saved projects</label>
-          <input type="search" id="start-search" placeholder="Ticket #, customer or project" oninput="renderStartList()">
-        </div>
+          <h2>Open a saved project</h2>
+          <p>Keep working on a project you already saved, or pick up an autosaved draft.</p>
+          <button type="button" class="btn-blue" id="start-open" onclick="openLibrary()">Open a saved project</button>
+        </section>
       </div>
-      <div class="start-list-head"><h2>Saved projects</h2><span id="start-count"></span></div>
-      <div class="start-list" id="start-list"><div class="lib-empty">Loading saved projects...</div></div>
     </div>
   </div>
 
-  <!-- THE THREE TABS -->
+  <!-- THE TWO TABS -->
   <div id="step-build" class="screen" style="display:none;">
 
-    <!-- 1 TABLES: left = pick products + key in specs; right = the tables as they will print, live -->
-    <div class="tab-panel" id="tab-tables">
+    <!-- 1 DESIGN: left = pick products + key in specs; right = the proof pages, built live; far right = pages + layers -->
+    <div class="tab-panel" id="tab-design">
       <aside id="tables-side">
         <section id="cat-rail" class="open">
           <button type="button" class="side-section-head" id="cat-toggle" aria-expanded="true" onclick="toggleCatalog()">
-            <span>Add products &amp; components</span><span class="ssh-caret">&#9662;</span></button>
+            <span>Add products &amp; components</span><span class="ssh-right"><span class="ssh-hint"></span><span class="ssh-caret">&#9662;</span></span></button>
           <div class="cat-body">
             <label for="cat-search" class="sr-only">Search products and components</label>
             <input type="search" id="cat-search" placeholder="Search products, components" oninput="filterCatalog(this.value)">
@@ -97,25 +98,84 @@
           </div>
         </section>
       </aside>
-      <main id="tables-preview">
-        <div class="tables-head">
-          <div>
-            <h1>Spec tables</h1>
-            <p id="tables-summary">Pick products and components on the left to add their tables.</p>
-          </div>
-          <span class="tables-actions">
-            <button type="button" class="btn-outline" id="dl-all-tables" onclick="downloadAllTables()">Download all tables (1 SVG)</button>
-            <button type="button" class="btn-dark" onclick="showTab('proof')">Next: Proof pages &rarr;</button>
-          </span>
-        </div>
-        <div id="table-previews"></div>
-      </main>
+      <div id="preview-area"><div id="sheets"></div></div>
+      <aside id="page-panel">
+        <section class="pp-half pp-pages">
+          <button type="button" class="pp-head" aria-expanded="true" onclick="let h = this.parentElement; h.classList.toggle('collapsed'); this.setAttribute('aria-expanded', !h.classList.contains('collapsed'))" title="Show / hide pages">Pages <span id="pp-count"></span><span class="pp-caret">&#9662;</span></button>
+          <div class="pp-scroll"><div id="pp-list"></div></div>
+        </section>
+        <section class="pp-half pp-layers">
+          <button type="button" class="pp-head" aria-expanded="true" onclick="let h = this.parentElement; h.classList.toggle('collapsed'); this.setAttribute('aria-expanded', !h.classList.contains('collapsed'))" title="Show / hide layers">Layers <span id="pl-page"></span><span class="pp-caret">&#9662;</span></button>
+          <div class="pp-scroll"><div id="pl-list"><div class="pl-empty">Select a page to see its images and measurements.</div></div></div>
+        </section>
+      </aside>
     </div>
 
-    <!-- 2 PROOF PAGES: proof pages first, the Proof Summary last; job info on the right -->
-    <div class="tab-panel" id="tab-proof" style="display:none;">
-      <aside id="customer-panel">
-        <h2>Job info</h2>
+    <!-- 2 PRODUCTION: QA sheet, production proofs (artboard + purple tables) and the color chart -->
+    <div class="tab-panel" id="tab-production" style="display:none;">
+      <aside id="prod-panel">
+        <h1>Production package</h1>
+        <p class="prod-sub">Everything the shop needs to build this job, from the same pages as the Design tab. Add images and measurements to each production proof on the right; use <b>Approve and export</b> in the step guide when it goes to the shop.</p>
+        <div class="prod-box">
+          <div class="prod-opt"><b>QA sheet</b> <span id="prod-qa-n"></span></div>
+          <div class="prod-opt"><b>Production proofs</b> <span id="prod-proof-n"></span></div>
+          <div class="prod-opt"><b>Production snapshot</b> <span id="prod-chart-n"></span></div>
+        </div>
+        </aside>
+      <div id="qa-area"><div id="qa-sheets"></div></div>
+    </div>
+  </div>
+
+  <!-- DESIGN PROOF EXPORT: cover page? -->
+  <div id="cover-modal" class="dialog-scrim" onclick="if (event.target === this) closeCoverDialog()">
+    <div class="dialog" role="dialog" aria-labelledby="cover-h">
+      <h3 id="cover-h">Add a cover page?</h3>
+      <p class="dialog-text">A cover page is the proof template with no tables: the blank artboard and watermark, the job info sidebar, customer approval, ETL and store logo. It goes in front of the proof pages as page 1.</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn-plain" onclick="closeCoverDialog()">Cancel</button>
+        <button type="button" class="btn-tonal" id="cover-no" onclick="closeCoverDialog(); exportChosen(false)">No cover page</button>
+        <button type="button" class="btn-filled" id="cover-yes" onclick="closeCoverDialog(); exportChosen(true)">Add cover page</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DESIGN HELP CENTER (plain text, filtered to this package) -->
+  <div id="help-modal" onclick="if (event.target === this) closeHelp()">
+    <div class="modal-content help-content">
+      <div class="modal-header">
+        <h3>Design Help Center</h3>
+        <span>
+          <button type="button" class="help-action" onclick="copyHelp()" id="help-copy">Copy</button>
+          <button type="button" class="help-action" onclick="downloadHelp()">Download .txt</button>
+          <button type="button" class="help-action" onclick="printHelp()">Print</button>
+          <span class="close-btn" onclick="closeHelp()">&times;</span>
+        </span>
+      </div>
+      <pre id="help-text"></pre>
+    </div>
+  </div>
+
+  <!-- SAVE TO THE PROOF LIBRARY -->
+  <!-- APPROVE AND EXPORT: every page as it will be exported -->
+  <div id="review-modal" class="review-scrim" style="display:none;" onclick="if (event.target === this) closeReview()">
+    <div class="review" role="dialog" aria-labelledby="rv-title">
+      <div class="review-head">
+        <div><h2 id="rv-title">Approve and export</h2><p class="review-sub">Check every page below: this is exactly what goes in the package.</p></div>
+        <button type="button" class="review-x" onclick="closeReview()" aria-label="Close">&times;</button>
+      </div>
+      <div class="review-opts" id="rv-opts"><label class="cf-check"><input type="checkbox" id="rv-cover" onchange="renderReview()"> Add a cover page in front (the proof template with no tables)</label></div>
+      <div class="review-grid" id="rv-grid"></div>
+      <div class="review-foot"><span id="rv-count"></span><button type="button" class="review-go" id="rv-go" onclick="reviewExport()">Export Design Package</button></div>
+    </div>
+  </div>
+
+  <div id="save-modal" class="dialog-scrim" onclick="if (event.target === this) closeSaveDialog()">
+    <div class="dialog" role="dialog" aria-labelledby="save-h">
+      <h3 id="save-h">Save Project</h3>
+      <div class="dialog-sub" id="save-title"></div>
+      <div class="save-jobinfo" id="customer-panel">
+        <div class="sj-head">Job info</div>
+
         <div class="cf-note">Fields left blank print as yellow <b>MISSING</b> tags so they can be filled in later.</div>
         <div class="cf-group"><label for="cf-name">Customer Name *</label><input type="text" id="cf-name" oninput="schedulePreview(); updateProjectLabel()">
           <label class="cf-check"><input type="checkbox" id="cf-has-sub" onchange="toggleSubCustomer()"> Sub-customer</label>
@@ -141,52 +201,7 @@
           <div class="cf-help">In Windows File Explorer, open the job folder, click the address bar, copy (Ctrl+C) and paste here.</div>
         </div>
         <div class="cf-group optional"><label for="cf-notes">Project Notes (optional)</label><textarea id="cf-notes" rows="4" oninput="schedulePreview()"></textarea></div>
-        <div class="cf-help">The <b>Proof Summary</b> (customer, job info and everything in the package) is always the last page.</div>
-        <button type="button" class="btn-dark full" onclick="showTab('production')">Next: Production &rarr;</button>
-      </aside>
-      <div id="preview-area"><div id="sheets"></div></div>
-    </div>
-
-    <!-- 3 PRODUCTION: QA sheet now, a sheet per department later -->
-    <div class="tab-panel" id="tab-production" style="display:none;">
-      <aside id="prod-panel">
-        <h1>Production package</h1>
-        <p class="prod-sub">Everything production needs to build this job. Export it whenever the job goes to the shop.</p>
-        <div class="prod-box">
-          <label class="prod-opt"><input type="checkbox" id="prod-qa" checked onchange="renderProdCounts()"> QA sheet <span id="prod-qa-n"></span></label>
-          <label class="prod-opt"><input type="checkbox" id="prod-tables" checked onchange="renderProdCounts()"> Spec tables to print <span id="prod-tables-n"></span></label>
-          <label class="prod-opt"><input type="checkbox" id="prod-proof" onchange="renderProdCounts()"> Proof pages (reference copy) <span id="prod-proof-n"></span></label>
-        </div>
-        <div class="prod-later">
-          <span class="prod-later-h">LATER: A SHEET PER DEPARTMENT</span>
-          <span class="prod-chips"><span>Vinyl</span><span>Metal fabrication</span><span>CNC / routing</span><span>Electrical</span><span>Paint</span><span>Installation</span></span>
-        </div>
-      </aside>
-      <div id="qa-area"><div id="qa-sheets"></div></div>
-    </div>
-  </div>
-
-  <!-- DESIGN HELP CENTER (plain text, filtered to this package) -->
-  <div id="help-modal" onclick="if (event.target === this) closeHelp()">
-    <div class="modal-content help-content">
-      <div class="modal-header">
-        <h3>Design Help Center</h3>
-        <span>
-          <button type="button" class="help-action" onclick="copyHelp()" id="help-copy">Copy</button>
-          <button type="button" class="help-action" onclick="downloadHelp()">Download .txt</button>
-          <button type="button" class="help-action" onclick="printHelp()">Print</button>
-          <span class="close-btn" onclick="closeHelp()">&times;</span>
-        </span>
       </div>
-      <pre id="help-text"></pre>
-    </div>
-  </div>
-
-  <!-- SAVE TO THE PROOF LIBRARY -->
-  <div id="save-modal" class="dialog-scrim" onclick="if (event.target === this) closeSaveDialog()">
-    <div class="dialog" role="dialog" aria-labelledby="save-h">
-      <h3 id="save-h">Save project</h3>
-      <div class="dialog-sub" id="save-title"></div>
       <p class="dialog-text" id="save-where"></p>
       <label class="dialog-label" for="save-note">Version note (optional)</label>
       <input type="text" id="save-note" maxlength="120" placeholder="e.g. Customer changed the return color" onkeydown="if (event.key === 'Enter') saveProofNow()">

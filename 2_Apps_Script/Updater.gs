@@ -21,6 +21,7 @@ const MANAGED_TABS = ['Component_Registry', 'Component_Schema', 'Product_Assembl
 const TEMPLATE_TAB = 'Proof_Template';
 const BACKUPS_KEPT = 3;            // per tab; older backups are deleted
 const WORKBOOK_NAME = 'Sign_Proof_Specifications_App_Data';
+const STAGING = true;              // staging copy: never pull the live GitHub release over this test code
 
 function onOpen() {
   let ui;
@@ -29,8 +30,8 @@ function onOpen() {
     console.log('The Proof Generator menu is added when the Google Sheet opens. Reload the sheet to see it.');
     return;
   }
-  ui.createMenu('Proof Generator')
-    .addItem('Update from GitHub', 'updateFromGitHub')
+  ui.createMenu(STAGING ? 'Proof Generator (STAGING)' : 'Proof Generator')
+    .addItem(STAGING ? 'Update from GitHub (off in staging)' : 'Update from GitHub', 'updateFromGitHub')
     .addItem('Import workbook from Drive', 'importWorkbook')
     .addSeparator()
     .addItem('About this version', 'aboutVersion')
@@ -83,6 +84,11 @@ function fetchRelease_() {
 
 function updateFromGitHub() {
   const ui = SpreadsheetApp.getUi();
+  if (STAGING) {
+    ui.alert('Update from GitHub', 'This is the STAGING copy. Updating from GitHub is turned off here so the live release ' +
+             'never overwrites the code being tested. Paste new staging files by hand instead.', ui.ButtonSet.OK);
+    return;
+  }
   let rel;
   try { rel = fetchRelease_(); }
   catch (e) { ui.alert('Update from GitHub', 'Could not read the latest release from GitHub.\n\n' + e.message, ui.ButtonSet.OK); return; }
