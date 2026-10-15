@@ -121,6 +121,7 @@ All notable changes, newest first.
 ### [4.3] – 2026-10-15
 #### Changed
 - **Next button** under Pages + Layers (red with yellow text on Design, purple with white on Production) opens Approve and export; the review window has **Back to proof pages**.
+- **Search every project** in Saved projects by ticket #, customer, project, product, component (section) names and designer initials; several words narrow it down (e.g. `47601 cabinet`). Unsaved drafts are searchable the same way. Projects and drafts saved before v4.3 are indexed automatically the first time Saved projects is opened (new **Search** column on the Saved_Proofs tab).
 - **QA sheet comes last** on the Production tab, in the review window, in the PDF and in the export folders (after the production proofs, snapshot and department sheets).
 
 #### Data

@@ -251,7 +251,10 @@
   function renderStartList() {
       let box = document.getElementById('start-list'); if (!box) return;
       let q = (document.getElementById('start-search').value || '').trim().toLowerCase();
-      let match = p => !q || [p.ticket, p.customer, p.sub, p.project, p.designer, p.products, p.label].join(' ').toLowerCase().indexOf(q) !== -1;
+      let words = q.split(/\s+/).filter(Boolean);
+      let match = p => { if (!words.length) return true;
+                         let hay = [p.ticket, p.customer, p.sub, p.project, p.designer, p.products, p.label, p.search === '-' ? '' : p.search].join(' ').toLowerCase();
+                         return words.every(w => hay.indexOf(w) !== -1); };
       let list = startList.filter(match), drafts = startDrafts.filter(match);
       document.getElementById('start-count').innerText = startList.length ? `${startList.length} saved` : '';
       let html = drafts.map(d => `<div class="start-row draft">
@@ -3868,6 +3871,11 @@
   }
 
   // ---------- save ----------
+  function searchWords() {
+      let names = [], add = n => { n = String(n || '').trim(); if (n && !/^MISSING/i.test(n) && names.indexOf(n) === -1) names.push(n); };
+      pkgItems.forEach(it => { add(prName(it)); allParts.filter(p => p.iid === it.iid && p.enabled !== false).forEach(p => add(partLabel(p))); });
+      return names.join(', ');
+  }
   function proofLabel() {
       let i = getCustomerInfo();
       return [i.ticket, i.custName, i.project].filter(Boolean).join(' - ') || 'Untitled proof';
@@ -3900,7 +3908,7 @@
       let cap = captureState(), info = getCustomerInfo(), snap = snapOf(cap.state);
       let images = Object.keys(cap.images).map(h => ({ hash: h, data: cap.images[h].replace(/^data:[^,]*,/, ''), mime: 'image/jpeg' }));
       let meta = { ticket: info.ticket, customer: info.name, sub: info.sub, project: info.project, designer: info.designer,
-                   products: pkgItems.map(i => i.name).join(', '), note, appVersion: APP_VERSION };
+                   products: pkgItems.map(i => i.name).join(', '), search: searchWords(), note, appVersion: APP_VERSION };
       let btn = document.getElementById('save-go'); btn.disabled = true; btn.innerText = 'Saving…';
       let draftId = currentDraft && !currentDraft.proofId ? currentDraft.draftId : null;
       google.script.run
@@ -3991,7 +3999,9 @@
       autosaveBusy = true;
       let images = Object.keys(cap.images).filter(h => !draftUploaded[h]).map(h => ({ hash: h, data: cap.images[h].replace(/^data:[^,]*,/, ''), mime: 'image/jpeg' }));
       let req = { proofId: currentProof ? currentProof.proofId : null, draftId: currentDraft && !currentProof ? currentDraft.draftId : null,
-                  meta: { label: proofLabel(), products: pkgItems.map(i => i.name).join(', ') }, state: JSON.stringify(cap.state), images };
+                  meta: (() => { let i = getCustomerInfo(); return { label: proofLabel(), products: pkgItems.map(x => x.name).join(', '), search: searchWords(),
+                                                                   ticket: i.ticket, customer: i.name, sub: i.sub, project: i.project, designer: i.designer }; })(),
+                  state: JSON.stringify(cap.state), images };
       google.script.run
           .withSuccessHandler(r => {
               autosaveBusy = false; lastDraftSnap = snap; images.forEach(im => { draftUploaded[im.hash] = true; });
@@ -4080,7 +4090,10 @@
   function closeLibrary() { document.getElementById('library-modal').style.display = 'none'; }
   function renderLibrary() {
       let q = document.getElementById('lib-search').value.trim().toLowerCase();
-      let match = p => !q || [p.ticket, p.customer, p.sub, p.project, p.designer, p.products, p.label].join(' ').toLowerCase().indexOf(q) !== -1;
+      let words = q.split(/\s+/).filter(Boolean);
+      let match = p => { if (!words.length) return true;
+                         let hay = [p.ticket, p.customer, p.sub, p.project, p.designer, p.products, p.label, p.search === '-' ? '' : p.search].join(' ').toLowerCase();
+                         return words.every(w => hay.indexOf(w) !== -1); };
       let list = libraryList.filter(match), drafts = libraryDrafts.filter(match);
       let box = document.getElementById('lib-list');
       if (!libraryList.length && !libraryDrafts.length) { box.innerHTML = '<div class="lib-empty">No saved proofs yet. Build a package, then use Save in the top bar.</div>'; return; }

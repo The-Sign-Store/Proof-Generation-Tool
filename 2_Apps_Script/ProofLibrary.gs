@@ -20,7 +20,7 @@
  */
 const PROOF_TAB = 'Saved_Proofs';
 const PROOF_HEAD = ['Proof_ID', 'Rev', 'Ticket', 'Customer', 'Sub_Customer', 'Project', 'Designer', 'Products', 'Note',
-                    'Saved_At', 'Saved_By', 'File_ID', 'Folder_ID', 'App_Version', 'Status', 'Status_By', 'Status_At'];
+                    'Saved_At', 'Saved_By', 'File_ID', 'Folder_ID', 'App_Version', 'Status', 'Status_By', 'Status_At', 'Search'];
 const PROOF_STATUSES = ['Draft', 'Sent to Customer', 'Changes Requested', 'Approved', 'Cancelled'];
 
 function proofLibraryFolder_() {
@@ -118,7 +118,8 @@ function saveProof(req) {
     const user = user_(), status = PROOF_STATUSES.indexOf(meta.status) !== -1 ? meta.status : 'Draft';
     appendProofRow_({ Proof_ID: proofId, Rev: rev, Ticket: meta.ticket, Customer: meta.customer, Sub_Customer: meta.sub, Project: meta.project,
                       Designer: meta.designer, Products: meta.products, Note: meta.note, Saved_At: savedAt, Saved_By: user,
-                      File_ID: file.getId(), Folder_ID: folder.getId(), App_Version: meta.appVersion, Status: status, Status_By: user, Status_At: savedAt });
+                      File_ID: file.getId(), Folder_ID: folder.getId(), App_Version: meta.appVersion, Status: status, Status_By: user, Status_At: savedAt,
+                      Search: meta.search || '' });
     // the revision now holds the latest work: its autosave draft (and the never-saved draft it came from) are no longer needed
     dropDraft_('DRAFT_' + proofId);
     if (req.draftId) dropDraft_('DRAFT_' + req.draftId);
@@ -150,14 +151,15 @@ function setProofStatus(proofId, rev, status) {
 
 /** Every saved proof, newest first, with its revisions (newest first). */
 function listProofs() {
-  const byId = {};
-  proofRows_().forEach(r => {
+  const byId = {}, rows = proofRows_();
+  backfillSearch_(rows);
+  rows.forEach(r => {
     const p = byId[r.Proof_ID] = byId[r.Proof_ID] || { proofId: r.Proof_ID, revs: [] };
     p.revs.push({ rev: r.Rev, savedAt: r.Saved_At, savedBy: r.Saved_By, note: r.Note, designer: r.Designer,
                   status: r.Status, statusBy: r.Status_By, statusAt: r.Status_At });
     if (!p.latest || r.Rev >= p.latest) {
       p.latest = r.Rev; p.savedAt = r.Saved_At; p.ticket = r.Ticket; p.customer = r.Customer; p.sub = r.Sub_Customer;
-      p.project = r.Project; p.designer = r.Designer; p.products = r.Products; p.status = r.Status;
+      p.project = r.Project; p.designer = r.Designer; p.products = r.Products; p.status = r.Status; p.search = r.Search;
     }
   });
   const list = Object.keys(byId).map(k => byId[k]);
@@ -254,6 +256,7 @@ function saveDraft(req) {
     else file = folder.createFile(name, req.state, 'application/json');
     info = { fileId: file.getId(), folderId: folder.getId(), savedAt: t.second, savedBy: user_(), label: String(meta.label || ''),
              products: String(meta.products || ''), proofId: req.proofId || '', draftId: draftId };
+    ['ticket', 'customer', 'sub', 'project', 'designer', 'search'].forEach(k => { info[k] = String(meta[k] || ''); });   // v4.3: searchable
     props.setProperty(key, JSON.stringify(info));
     return { key: key, draftId: draftId, savedAt: t.second };
   } finally { lock.releaseLock(); }
@@ -261,6 +264,7 @@ function saveDraft(req) {
 
 /** Autosaves of packages that were never saved, newest first. */
 function listDrafts() {
+  backfillDraftSearch_();
   const d = drafts_();
   return Object.keys(d).filter(k => !d[k].proofId).map(k => Object.assign({ key: k }, d[k]))
     .sort((a, b) => (a.savedAt < b.savedAt ? 1 : a.savedAt > b.savedAt ? -1 : 0));
@@ -298,4 +302,59 @@ function discardDraft(key) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try { dropDraft_(key); return true; } finally { lock.releaseLock(); }
+}
+
+
+// =====================================================================  SEARCH (v4.3)
+// Saved projects and drafts are searchable by ticket, customer, project, designer, product and component names.
+// Projects saved before v4.3 get their "Search" text filled in from their saved file the first time the list is opened.
+
+/** Product + component (section) names of a saved state, plus its job info. */
+function searchFromState_(json) {
+  const st = JSON.parse(json), names = [], add = n => { n = String(n || '').trim(); if (n && !/^MISSING/i.test(n) && names.indexOf(n) === -1) names.push(n); };
+  const reg = componentNames_(), custom = st.customComps || {};
+  (st.items || []).forEach(it => add(it.name));
+  (st.parts || []).forEach(p => {
+    if (p.enabled === false) return;
+    const it = (st.items || []).filter(i => i.iid === p.iid)[0], d = it && it.defs ? it.defs[p.di] || {} : {};
+    add(p.custom || d.title || (custom[d.component] || {}).name || reg[d.component] || '');
+  });
+  const c = st.customer || {}, v = k => String((c[k] || {}).v || '').trim();
+  return { search: names.join(', '), ticket: v('cf-ticket'), customer: v('cf-name'), sub: v('cf-sub'), project: v('cf-project'), designer: v('cf-designer') };
+}
+let COMPONENT_NAMES_ = null;
+function componentNames_() {
+  if (COMPONENT_NAMES_) return COMPONENT_NAMES_;
+  COMPONENT_NAMES_ = {};
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Component_Registry');
+  if (sh) {
+    const v = sh.getDataRange().getValues(), h = v.shift().map(String), id = h.indexOf('Component_ID'), nm = h.indexOf('Display_Name');
+    v.forEach(r => { if (r[id]) COMPONENT_NAMES_[String(r[id])] = String(r[nm] || r[id]); });
+  }
+  return COMPONENT_NAMES_;
+}
+/** Fill the Search column of older saved projects (latest version of each), a batch per call. */
+function backfillSearch_(rows) {
+  const latest = {};
+  rows.forEach(r => { if (!latest[r.Proof_ID] || r.Rev > latest[r.Proof_ID].Rev) latest[r.Proof_ID] = r; });
+  const todo = Object.keys(latest).map(k => latest[k]).filter(r => !r.Search && r.File_ID).slice(0, 60);
+  if (!todo.length) return;
+  const sh = proofTab_(), head = sh.getDataRange().getValues()[0].map(String), col = head.indexOf('Search') + 1;
+  if (!col) return;
+  todo.forEach(r => {
+    let text = '-';                                                        // "-" = looked at, nothing to add (not retried)
+    try { text = searchFromState_(DriveApp.getFileById(r.File_ID).getBlob().getDataAsString('UTF-8')).search || '-'; } catch (e) { /* file gone */ }
+    sh.getRange(r._row, col).setValue(text);
+    r.Search = text;
+  });
+}
+/** Drafts saved before v4.3: add job info + names from their file once. */
+function backfillDraftSearch_() {
+  const props = PropertiesService.getScriptProperties(), d = drafts_();
+  Object.keys(d).filter(k => d[k].search === undefined).slice(0, 40).forEach(k => {
+    const info = d[k];
+    try { Object.assign(info, searchFromState_(DriveApp.getFileById(info.fileId).getBlob().getDataAsString('UTF-8'))); }
+    catch (e) { info.search = ''; }
+    props.setProperty(k, JSON.stringify(info));
+  });
 }

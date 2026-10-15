@@ -335,7 +335,11 @@ CHANGELOG
 v4.3  (2026-10-15)
   - Next button under Pages + Layers opens Approve and export (red/yellow on
     Design, purple/white on Production); Back to proof pages in the review.
-  - QA sheet comes after the production pages everywhere. No data changes.
+  - QA sheet comes after the production pages everywhere.
+  - Saved projects: search by ticket, customer, project, product, component
+    or designer initials (several words narrow it down); drafts too. Older
+    projects are indexed the first time Saved projects is opened (new
+    Search column on Saved_Proofs). No data tab changes.
 
 v4.2  (2026-10-15)
   - Home screen: wider four-column form that fits one screen, more space
