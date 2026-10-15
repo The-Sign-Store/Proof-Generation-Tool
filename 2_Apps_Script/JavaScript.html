@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGN PROOF GENERATOR v2.3.2  -  Proof Packages
+  //  SIGN PROOF GENERATOR v3.0  -  Proof Packages
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '2.3.2';
+  const APP_VERSION = '3.0';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -18,7 +18,7 @@
   let itemSeq = 0, partSeq = 0;
   let modalItems = [], modalTarget = null;
   let renderTimer = null;
-  let step = 'select';
+  let step = 'start';           // 'start' | 'tables' | 'proof' | 'production'
   let customProducts = {}, customSeq = 0, customCompSeq = 0;   // 'X::n' -> {name}: custom tables built on screen (this package only)
   let excludedDrawings = {};   // 'iid|DRAWING_ID' -> true when unchecked in the Specs panel
 
@@ -66,7 +66,7 @@
       document.getElementById('loading').style.display = 'none';
       document.getElementById('cf-rev').value = todayStr();
       renderDashboard();
-      showStep('select');
+      goStart();
       startAutosave();
       startVersionCheck();
       appRunning = true;
@@ -114,22 +114,81 @@
   // =====================================================================
   //  STEP NAVIGATION
   // =====================================================================
-  function showStep(s) {
-      step = s;
-      document.getElementById('step-select').style.display = s === 'select' ? 'flex' : 'none';
-      document.getElementById('step-build').style.display = s === 'select' ? 'none' : 'flex';
-      document.getElementById('builder-panel').style.display = s === 'specs' ? 'block' : 'none';
-      document.getElementById('customer-panel').style.display = s === 'customer' ? 'block' : 'none';
-      ['select', 'specs', 'customer'].forEach((k, i) => {
-          let el = document.getElementById('stepper-' + k);
-          if (el) el.className = 'step' + (k === s ? ' active' : (['select', 'specs', 'customer'].indexOf(s) > i ? ' done' : ''));
+  // ---------- v3: a start screen, then three tabs (Tables, Proof pages, Production) ----------
+  const TABS = ['tables', 'proof', 'production'];
+  const TAB_EXPORT = { tables: 'xb-tables', proof: 'generate-btn', production: 'prod-btn' };   // the open tab's export is marked in the Export menu
+  function showTab(t) {
+      step = t;
+      let start = t === 'start', byId = id => document.getElementById(id);
+      byId('step-start').style.display = start ? 'flex' : 'none';
+      byId('step-build').style.display = start ? 'none' : 'flex';
+      byId('tabs').style.display = start ? 'none' : 'flex';
+      byId('export-wrap').style.display = start ? 'none' : 'inline-flex';
+      byId('page-count').style.display = start ? 'none' : '';
+      TABS.forEach(k => {
+          byId('tab-' + k).style.display = k === t ? 'flex' : 'none';
+          byId('tab-btn-' + k).classList.toggle('active', k === t);
+          byId(TAB_EXPORT[k]).classList.toggle('on', k === t);
       });
-      if (s !== 'select') schedulePreview();
+      closeExportMenu();
+      updateProjectLabel();
+      if (!start) { updateTablesSummary(); renderPreview(); }
+      window.scrollTo(0, 0);
+  }
+  // older names (saved-proof code paths, tests)
+  function showStep(s) { showTab({ select: 'tables', specs: 'tables', customer: 'proof' }[s] || s); }
+  function goSelect() { showTab('tables'); }
+  function goCustomer() { showTab('proof'); }
+  function goSpecs() { showTab('tables'); }
+  function goStart() { showTab('start'); loadStartList(); }
+  function updateProjectLabel() {
+      let el = document.getElementById('project-label'); if (!el) return;
+      if (step === 'start') { el.innerHTML = ''; return; }
+      let v = id => ((document.getElementById(id) || {}).value || '').trim();
+      let t = v('cf-ticket'), name = [v('cf-name'), v('cf-project')].filter(Boolean).join(' \u00B7 ');
+      el.innerHTML = (t ? `<span class="pl-ticket">${esc(t)}</span>` : '') + `<span class="pl-name">${esc(name || 'New project')}</span>`;
   }
 
-  function goSelect() { showStep('select'); }
-  function goCustomer() { showStep('customer'); }
-  function goSpecs() { showStep('specs'); }
+  // ---------- start screen: create a new project, or open a saved one ----------
+  let startList = [], startDrafts = [];
+  function loadStartList() {
+      let box = document.getElementById('start-list'); if (!box) return;
+      box.innerHTML = '<div class="lib-empty">Loading saved projects...</div>';
+      google.script.run
+          .withSuccessHandler(list => {
+              startList = list || [];
+              google.script.run.withSuccessHandler(d => { startDrafts = d || []; renderStartList(); })
+                  .withFailureHandler(() => { startDrafts = []; renderStartList(); }).listDrafts();
+          })
+          .withFailureHandler(e => { box.innerHTML = `<div class="lib-empty">Could not load saved projects: ${esc(e && e.message || e)}</div>`; })
+          .listProofs();
+  }
+  function renderStartList() {
+      let box = document.getElementById('start-list'); if (!box) return;
+      let q = (document.getElementById('start-search').value || '').trim().toLowerCase();
+      let match = p => !q || [p.ticket, p.customer, p.sub, p.project, p.designer, p.products, p.label].join(' ').toLowerCase().indexOf(q) !== -1;
+      let list = startList.filter(match), drafts = startDrafts.filter(match);
+      document.getElementById('start-count').innerText = startList.length ? `${startList.length} saved` : '';
+      let html = drafts.map(d => `<div class="start-row draft">
+              <span class="sr-ticket">Draft</span>
+              <span class="sr-name">${esc(d.label || 'Untitled project')}<small>${esc(d.products || '')}</small></span>
+              <span class="sr-v"></span><span class="sr-when">Autosaved ${esc(String(d.savedAt).slice(0, 16))}</span>
+              <span class="sr-act"><button type="button" class="btn-plain" onclick="discardDraftUI('${esc(d.key)}')">Discard</button>
+                <button type="button" class="btn-filled" onclick="openDraft('${esc(d.key)}')">Open</button></span></div>`).join('');
+      html += list.slice(0, q ? 200 : 40).map(p => `<div class="start-row">
+              <span class="sr-ticket">${esc(p.ticket || '')}</span>
+              <span class="sr-name">${esc([p.customer + (p.sub ? ' - ' + p.sub : ''), p.project].filter(Boolean).join(' \u00B7 ') || 'Untitled project')}<small>${esc(p.products || '')}</small></span>
+              <span class="sr-v">v${esc(p.latest)}</span><span class="sr-when">${esc(String((p.revs[0] || {}).savedAt || ''))}</span>
+              <span class="sr-act"><button type="button" class="btn-plain" title="A new project with the same products, specs, images and measurements; customer info is cleared" onclick="newFromProof('${esc(p.proofId)}', ${Number(p.latest) || 0})">New from this</button>
+                <button type="button" class="btn-filled" onclick="openSavedProof('${esc(p.proofId)}', ${Number(p.latest) || 0})">Open</button></span></div>`).join('');
+      if (!html) html = `<div class="lib-empty">${startList.length ? 'No saved projects match.' : 'No saved projects yet. Create a new project, then use Save in the top bar.'}</div>`;
+      box.innerHTML = html;
+  }
+  function startNewProject() {
+      if (pkgItems.length && hasUnsavedChanges() && !confirm('Start a new project? Unsaved work in the current project will be lost (its autosaved draft stays in Saved projects).')) return;
+      resetPackage(); clearCustomerFields(); lastSavedSnap = ''; lastDraftSnap = ''; forgetLocalDraft();
+      renderCustomCards(); updateSelectionBar(); updateProofStatus(); showTab('tables');
+  }
 
   // =====================================================================
   //  STEP 1: DASHBOARD
@@ -151,14 +210,14 @@
   //  DASHBOARD ICONS + COLOR FAMILIES (one-color line icons; the card outline uses the family color)
   // =====================================================================
   const SIGN_FAMILIES = {
-      letters: { name: 'Channel Letters & Cloud Signs', color: '#1E6FD9' },
-      cabinets: { name: 'Cabinets & Digital', color: '#7E3FC2' },
-      ground: { name: 'Pole, Monument & Ground', color: '#D06F12' },
-      panels: { name: 'Panels', color: '#23885A' },
-      vinyl: { name: 'Vinyl & Banners', color: '#D0337A' },
-      ada: { name: 'ADA', color: '#0E8A8A' },
-      custom: { name: 'Custom', color: '#C1272D' },
-      other: { name: 'Other', color: '#7A7F87' }
+      letters: { name: 'Channel Letters & Cloud Signs', color: '#1E6FD9', short: 'Letters' },
+      cabinets: { name: 'Cabinets & Digital', color: '#7E3FC2', short: 'Cabinets' },
+      ground: { name: 'Pole, Monument & Ground', color: '#D06F12', short: 'Ground' },
+      panels: { name: 'Panels', color: '#23885A', short: 'Panels' },
+      vinyl: { name: 'Vinyl & Banners', color: '#D0337A', short: 'Vinyl' },
+      ada: { name: 'ADA', color: '#0E8A8A', short: 'ADA' },
+      custom: { name: 'Custom', color: '#C1272D', short: 'Custom' },
+      other: { name: 'Other', color: '#7A7F87', short: 'Other' }
   };
   // first match wins: [name pattern, icon, family]
   const SIGN_ICON_RULES = [
@@ -225,24 +284,25 @@
   let familyFilter = [];
   function renderLegend() {
       let el = document.getElementById('cat-legend'); if (!el) return;
-      el.innerHTML = Object.keys(SIGN_FAMILIES).filter(k => k !== 'other').map(k => {
-          let on = familyFilter.indexOf(k) !== -1;
-          return `<button type="button" class="legend-chip${on ? ' on' : ''}" style="--cat:${SIGN_FAMILIES[k].color}" aria-pressed="${on}" ` +
-                 `title="${on ? 'Stop filtering by' : 'Show only'} ${esc(SIGN_FAMILIES[k].name)}" onclick="toggleFamily('${k}')"><i></i>${esc(SIGN_FAMILIES[k].name)}</button>`;
-      }).join('') + (familyFilter.length ? `<button type="button" class="legend-clear" onclick="clearFamilies()">Show all</button>` : '');
+      el.innerHTML = `<button type="button" class="legend-chip all${familyFilter.length ? '' : ' on'}" aria-pressed="${!familyFilter.length}" onclick="clearFamilies()">All</button>` +
+          Object.keys(SIGN_FAMILIES).filter(k => k !== 'other').map(k => {
+              let on = familyFilter.indexOf(k) !== -1;
+              return `<button type="button" class="legend-chip${on ? ' on' : ''}" style="--cat:${SIGN_FAMILIES[k].color}" aria-pressed="${on}" ` +
+                     `title="Show only ${esc(SIGN_FAMILIES[k].name)}" onclick="toggleFamily('${k}')">${esc(SIGN_FAMILIES[k].short)}</button>`;
+          }).join('');
   }
   function toggleFamily(k) {
-      familyFilter = familyFilter.indexOf(k) === -1 ? familyFilter.concat(k) : familyFilter.filter(x => x !== k);
+      familyFilter = familyFilter.length === 1 && familyFilter[0] === k ? [] : [k];
       renderLegend(); applyCatalogFilter();
   }
   function clearFamilies() { familyFilter = []; renderLegend(); applyCatalogFilter(); }
 
   function renderDashboard() {
       let cat = catalog();
-      let card = c => { let look = signLook(c.name); return `<label class="cat-card" style="--cat:${look.color}" data-family="${look.family}" data-name="${esc(c.name.toLowerCase())}" id="card-${esc(c.key)}">
+      let card = c => { let look = signLook(c.name); return `<label class="cat-card" style="--cat:${look.color}" data-family="${look.family}" data-name="${esc(c.name.toLowerCase())}" id="card-${esc(c.key)}" title="${esc(c.desc)}">
               <input type="checkbox" onchange="toggleSelect('${esc(c.key).replace(/'/g, "\\'")}', this.checked)">
               <span class="cat-icon">${iconSvg(look.icon)}</span>
-              <div><div class="cat-name">${esc(c.name)}</div><div class="cat-desc">${esc(c.desc)}</div></div>
+              <span class="cat-name">${esc(c.name)}</span>
               <span class="cat-order"></span></label>`; };
       renderLegend();
       document.getElementById('cat-products').innerHTML = cat.products.map(card).join('');
@@ -254,27 +314,26 @@
   // ---------- custom tables (main screen): name a custom product, then build its table on the specs step ----------
   function renderCustomCards() {
       let box = document.getElementById('cat-custom'); if (!box) return;
-      box.innerHTML = Object.keys(customProducts).map(key => `<div class="cat-card custom-card" style="--cat:${SIGN_FAMILIES.custom.color}" data-family="custom" id="card-${key}" data-name="${esc(customProducts[key].name.toLowerCase())}">
+      box.innerHTML = Object.keys(customProducts).map(key => `<label class="cat-card custom-card" style="--cat:${SIGN_FAMILIES.custom.color}" data-family="custom" id="card-${key}" data-name="${esc(customProducts[key].name.toLowerCase())}">
               <input type="checkbox" onchange="toggleSelect('${key}', this.checked)">
               <span class="cat-icon">${iconSvg(SIGN_ICONS.custom)}</span>
-              <div style="flex:1;"><input type="text" class="custom-name" id="cname-${key}" value="${esc(customProducts[key].name)}" maxlength="60"
-                     title="Product name on the proof and the cover" oninput="renameCustomProduct('${key}', this.value)">
-                <div class="cat-desc">Custom table: your own titles and descriptions, with swatches, materials and detail drawings</div></div>
-              <span class="cat-order"></span><span class="part-remove custom-x" title="Remove this custom product" onclick="removeCustomProduct('${key}')">&times;</span></div>`).join('') +
-          `<button type="button" class="custom-new" id="custom-new" onclick="addCustomProduct()"><b><span class="cat-icon">${iconSvg(SIGN_ICONS.custom)}</span>+ Build Custom Table</b>` +
-          `<span>A product with a completely custom spec table: type each title and description, and use color swatches, materials, finishes and detail drawings</span></button>`;
+              <span class="cat-name" id="cname-${key}">${esc(customProducts[key].name)}</span>
+              <span class="cat-order"></span></label>`).join('') +
+          `<button type="button" class="custom-new" id="custom-new" onclick="addCustomProduct()"><span class="cn-plus">+</span> Build a custom table</button>`;
   }
   function addCustomProduct() {
       let key = 'X::' + (++customSeq);
       customProducts[key] = { name: 'Custom Product' + (Object.keys(customProducts).length ? ' ' + (Object.keys(customProducts).length + 1) : '') };
       selection.push(key);
-      renderCustomCards(); updateSelectionBar();
-      let el = document.getElementById(`cname-${key}`); if (el) { el.focus(); el.select(); }
+      renderCustomCards(); syncPackage();
+      let it = pkgItems.find(x => x.key === key), el = it && document.getElementById(`iname-in-${it.iid}`);
+      if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); el.select(); }
   }
   function renameCustomProduct(key, v) {
       let c = customProducts[key]; if (!c) return;
       c.name = String(v || '').trim() || 'Custom Product';
       let card = document.getElementById(`card-${key}`); if (card) card.dataset.name = c.name.toLowerCase();
+      let cn = document.getElementById(`cname-${key}`); if (cn) cn.innerText = c.name;
       let it = pkgItems.find(x => x.key === key);
       if (it) {
           let d0 = it.defs[0];
@@ -286,14 +345,14 @@
           }
           it.name = c.name;
           let h = document.getElementById(`iname-${it.iid}`); if (h) h.innerText = c.name;
-          [`cname-${key}`, `iname-in-${it.iid}`].forEach(id => { let el = document.getElementById(id); if (el && el !== document.activeElement) el.value = c.name; });
+          let ic = document.getElementById(`iname-in-${it.iid}`); if (ic && ic !== document.activeElement) ic.value = c.name;
           schedulePreview();
       }
   }
   function removeCustomProduct(key) {
       delete customProducts[key];
       selection = selection.filter(k => k !== key);
-      renderCustomCards(); updateSelectionBar();
+      renderCustomCards(); syncPackage();
   }
 
   function filterCatalog() { applyCatalogFilter(); }
@@ -313,46 +372,47 @@
       if (cg) { cg.style.display = showCustom ? '' : 'none'; if (cg.previousElementSibling) cg.previousElementSibling.style.display = showCustom ? '' : 'none'; }
   }
 
+  // the rail adds a table as soon as an item is checked; unchecking removes it (after asking, if it is in the package)
   function toggleSelect(key, on) {
+      let it = pkgItems.find(x => x.key === key);
+      if (!on && it && !confirm(`Remove ${it.name} and its table from this project?`)) { updateSelectionBar(); return; }
       selection = selection.filter(k => k !== key);
       if (on) selection.push(key);
-      updateSelectionBar();
+      if (!on && key.indexOf('X::') === 0) { delete customProducts[key]; renderCustomCards(); }
+      syncPackage();
+      if (on) { let n = pkgItems.find(x => x.key === key), el = n && document.getElementById(`item-${n.iid}`); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
   }
 
   function updateSelectionBar() {
       document.querySelectorAll('.cat-card').forEach(c => {
-          let key = c.id.slice(5), idx = selection.indexOf(key);
-          c.classList.toggle('selected', idx !== -1);
-          c.querySelector('input').checked = idx !== -1;
-          c.querySelector('.cat-order').innerText = idx !== -1 ? idx + 1 : '';
+          let key = c.id.slice(5), on = selection.indexOf(key) !== -1;
+          c.classList.toggle('selected', on);
+          let cb = c.querySelector('input'); if (cb) cb.checked = on;
+          let o = c.querySelector('.cat-order'); if (o) o.innerText = on ? 'Added' : '+';
       });
-      let btn = document.getElementById('build-btn');
-      btn.disabled = selection.length === 0;
-      btn.innerText = selection.length ? `Build Proof Package (${selection.length} selected) \u2192` : 'Select at least one item';
+      let empty = document.getElementById('tables-empty'); if (empty) empty.style.display = pkgItems.length ? 'none' : 'flex';
   }
 
-  function clearSelection() { selection = []; updateSelectionBar(); }
+  function clearSelection() { selection = []; syncPackage(); }
 
-  function buildPackage() {
-      if (!selection.length) return;
-      // remove items no longer selected
+  // package = the selected items, in the order they were picked; existing items keep everything typed into them
+  function syncPackage() {
       pkgItems.filter(it => selection.indexOf(it.key) === -1).forEach(it => {
           allParts = allParts.filter(p => p.iid !== it.iid);
           let el = document.getElementById(`item-${it.iid}`); if (el) el.remove();
       });
       pkgItems = pkgItems.filter(it => selection.indexOf(it.key) !== -1);
-      // add new items, keep selection order
-      let holder = document.getElementById('items');
-      let ordered = [];
+      let holder = document.getElementById('items'), ordered = [];
       selection.forEach(key => {
           let it = pkgItems.find(x => x.key === key) || createItem(key);
           ordered.push(it);
           holder.appendChild(document.getElementById(`item-${it.iid}`));
       });
       pkgItems = ordered;
+      updateSelectionBar();
       refreshAll();
-      showStep('specs');
   }
+  function buildPackage() { syncPackage(); if (step === 'start') showTab('tables'); }
 
   // =====================================================================
   //  STEP 2: BUILDER (items -> parts -> fields)
@@ -382,9 +442,17 @@
       let panel = document.createElement('div');
       panel.className = 'item-panel';
       panel.id = `item-${iid}`;
+      let look = kind === 'custom' ? { color: SIGN_FAMILIES.custom.color, family: 'custom' } : signLook(name);
+      panel.style.setProperty('--cat', look.color);
       panel.innerHTML = `<div class="item-header" onclick="toggleItem('${iid}')">
+                            <span class="item-bar"></span>
                             <span class="item-name" id="iname-${iid}">${esc(name)}</span>
-                            <span><span class="item-pages" id="ipages-${iid}"></span><span class="item-caret" id="icaret-${iid}">\u25BE</span></span>
+                            <span class="item-fam">${esc((SIGN_FAMILIES[look.family] || SIGN_FAMILIES.other).name)}</span>
+                            <span class="item-pages" id="ipages-${iid}"></span>
+                            <span class="item-acts">
+                              <button type="button" class="item-x" title="Remove from this project" aria-label="Remove ${esc(name)}" onclick="event.stopPropagation(); toggleSelect('${esc(key)}', false)">&times;</button>
+                              <span class="item-caret" id="icaret-${iid}">\u25BE</span>
+                            </span>
                          </div>
                          <div class="item-body" id="ibody-${iid}"></div>`;
       document.getElementById('items').appendChild(panel);
@@ -507,6 +575,7 @@
                 </div>` + renderField(part, f, fi) + `</div>`;
   }
   function customDrawingsHtml(part) {
+      if (DRAWINGS_HIDDEN) return '';
       let list = (appData.drawings || []).slice().sort((a, b) => a.order - b.order);
       return `<details class="cr-draw"><summary>Detail drawings (<span id="crdn-${part.uid}">${part.drawPick.length}</span> picked)</summary><div class="cr-draw-list">` +
           list.map(d => `<label class="dd-chip"><input type="checkbox" id="crd-${part.uid}-${esc(d.id)}" ${part.drawPick.indexOf(d.id) !== -1 ? 'checked' : ''} ` +
@@ -656,7 +725,7 @@
       let uid = 'p' + (++partSeq);
       let optional = d.include !== 'Required';
       let prevPart = clone ? allParts.filter(p => p.iid === it.iid && p.di === di).pop() : null;
-      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, letterLines: [], drawPick: [], colorLines: {}, colorSeq: 0, include: d.include,
+      let part = { uid, iid: it.iid, di, comp: d.component, title: d.title || comp.name, custom: '', notesOn: false, notes: '', newPage: false, letterLines: [], drawPick: [], colorLines: {}, colorSeq: 0, fmode: {}, fcustom: {}, include: d.include,
                    enabled: d.include !== 'Optional-Off' || num > 1, overrides: parseOverrides(d.overrides), num };   // an added copy is always included
       if (prevPart) { Object.keys(prevPart.colorLines).forEach(k => { part.colorLines[k] = prevPart.colorLines[k].slice(); }); part.colorSeq = prevPart.colorSeq; }
       if (restoring) takeSavedPart(part);
@@ -694,6 +763,7 @@
                        <button type="button" class="swatch-btn add-letters-btn" onclick="addLetterLine('${uid}')" title="Another line of letters in this section (e.g. a different letter height); all other specs are shared">+ Add Letters</button>`;
           html += `</div>`;
       });
+      html += `<div class="part-removed" id="prem-${uid}" style="display:none;"></div>`;
       html += `<div class="part-notes">
                  <label class="part-toggle"><input type="checkbox" id="pnote-on-${uid}" onchange="togglePartNotes('${uid}')"> Add Special Notes</label>
                  <textarea id="pnote-${uid}" class="part-notes-text" style="display:none;" rows="3"
@@ -717,6 +787,8 @@
               let n = document.getElementById(`crdn-${uid}`); if (n) n.innerText = part.drawPick.length;
               part.letterLines = prev.letterLines.map(l => Object.assign({}, l, { id: 'L' + (++lineSeq) }));
               renderLetterLines(part);
+              part.fmode = Object.assign({}, prev.fmode || {}); part.fcustom = Object.assign({}, prev.fcustom || {});
+              applyFieldModes(part);
           }
       }
   }
@@ -971,7 +1043,8 @@
       let opts = splitOpts(f.options);
       let wide = (f.type === 'dims' && opts.length > 2) || f.type === 'paint' || up === 'TEXT';
       let html = (wide ? `<div class="flex-break"></div>` : '') +
-                 `<div class="form-group${wide ? ' wide-field' : ''}" id="mg-${fid}"${f.notes ? ` title="${esc(f.notes)}"` : ''}><label>${esc(formLabel(f))}${f.required ? ' *' : ''}</label>`;
+                 `<div class="form-group${wide ? ' wide-field' : ''}" id="mg-${fid}"${f.notes ? ` title="${esc(f.notes)}"` : ''}><label>${esc(formLabel(f))}${f.required ? ' *' : ''}</label>` +
+                 `<div class="fg-ctl" id="mctl-${fid}">`;
       switch (f.type) {
           case 'number':
               html += `<input type="number" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`; break;
@@ -1027,7 +1100,75 @@
           default:
               html += `<input type="text" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`;
       }
-      return html + `</div>`;
+      return html + `</div>` +
+          `<input type="text" class="fg-custom" id="mo-${fid}" placeholder="Type your own answer" style="display:none;" oninput="setFieldCustom('${part.uid}', ${fi}, this.value)">` +
+          `<span class="fg-chip fg-tbd">TBD by Production</span><span class="fg-chip fg-missing">MISSING</span>` +
+          `<button type="button" class="fg-menu" id="mmenu-${fid}" aria-label="Options for ${esc(formLabel(f))}" title="Default options, your own answer, TBD by Production, MISSING or remove" ` +
+          `onclick="openFieldMenu(event, '${part.uid}', ${fi})">\u22EF</button></div>`;
+  }
+
+  // ---------- v3: every field can use its default options, a typed answer, TBD by Production, a MISSING tag, or leave the table ----------
+  const FIELD_MODES = [['', 'Use the default options'], ['custom', 'Type a custom answer'], ['tbd', 'Mark TBD by Production'],
+                       ['missing', 'Leave blank (shows MISSING)'], ['removed', 'Remove from this table']];
+  function fieldMode(part, fi) { return (part.fmode || {})[fi] || ''; }
+  function openFieldMenu(e, uid, fi) {
+      e.stopPropagation();
+      let part = allParts.find(x => x.uid === uid); if (!part) return;
+      let f = appData.components[part.comp].fields[fi], cur = fieldMode(part, fi);
+      let m = document.getElementById('field-menu');
+      if (!m) { m = document.createElement('div'); m.id = 'field-menu'; m.setAttribute('role', 'menu'); document.body.appendChild(m); }
+      m.innerHTML = `<div class="fm-head">${esc(formLabel(f))}</div>` + FIELD_MODES.map(([k, label]) =>
+          (k === 'removed' ? '<div class="fm-sep"></div>' : '') +
+          `<button type="button" role="menuitemradio" aria-checked="${k === cur}" class="fm-item${k === cur ? ' on' : ''}${k === 'removed' ? ' danger' : ''}" ` +
+          `onclick="setFieldMode('${uid}', ${fi}, '${k}')">${label}${k === cur ? ' \u2713' : ''}</button>`).join('');
+      let r = e.currentTarget.getBoundingClientRect();
+      m.style.display = 'block';
+      let top = r.bottom + 4 + window.scrollY, left = Math.max(8, r.right - m.offsetWidth + window.scrollX);
+      if (r.bottom + m.offsetHeight + 8 > window.innerHeight) top = r.top - m.offsetHeight - 4 + window.scrollY;
+      m.style.top = top + 'px'; m.style.left = left + 'px';
+      let first = m.querySelector('.fm-item.on') || m.querySelector('.fm-item'); if (first) first.focus();
+  }
+  function closeFieldMenu() { let m = document.getElementById('field-menu'); if (m) m.style.display = 'none'; }
+  document.addEventListener('click', e => { let m = document.getElementById('field-menu'); if (m && m.style.display === 'block' && !m.contains(e.target)) closeFieldMenu(); });
+  function setFieldMode(uid, fi, mode) {
+      let part = allParts.find(x => x.uid === uid); if (!part) return;
+      part.fmode = part.fmode || {}; part.fcustom = part.fcustom || {};
+      if (mode === 'custom' && part.fcustom[fi] == null) {                // start from what the field shows now
+          let f = appData.components[part.comp].fields[fi], d = getDisplay(part, f, fi);
+          part.fcustom[fi] = d.warn ? '' : d.val;
+      }
+      if (mode) part.fmode[fi] = mode; else delete part.fmode[fi];
+      closeFieldMenu();
+      applyFieldMode(part, fi);
+      renderRemovedFields(part);
+      refreshAll();
+      if (mode === 'custom') { let o = document.getElementById(`mo-${uid}_${fi}`); if (o) { o.focus(); o.select(); } }
+  }
+  function setFieldCustom(uid, fi, v) {
+      let part = allParts.find(x => x.uid === uid); if (!part) return;
+      part.fcustom = part.fcustom || {}; part.fcustom[fi] = String(v || '');
+      schedulePreview(); updateTablesSummary();
+  }
+  function applyFieldMode(part, fi) {
+      let fid = `${part.uid}_${fi}`, g = document.getElementById(`mg-${fid}`), mode = fieldMode(part, fi); if (!g) return;
+      ['custom', 'tbd', 'missing', 'removed'].forEach(k => g.classList.toggle('mode-' + k, mode === k));
+      let o = document.getElementById(`mo-${fid}`);
+      if (o) { o.style.display = mode === 'custom' ? 'block' : 'none'; if (mode === 'custom' && o !== document.activeElement) o.value = (part.fcustom || {})[fi] || ''; }
+  }
+  function applyFieldModes(part) { appData.components[part.comp].fields.forEach((f, fi) => applyFieldMode(part, fi)); renderRemovedFields(part); }
+  // "2 fields removed from this table: Photo Cell, Diffuser  Restore"
+  function renderRemovedFields(part) {
+      let box = document.getElementById(`prem-${part.uid}`); if (!box) return;
+      let fields = appData.components[part.comp].fields;
+      let gone = Object.keys(part.fmode || {}).filter(fi => part.fmode[fi] === 'removed' && fields[fi] && !fields[fi].removed);
+      box.innerHTML = gone.length ? `<span>${gone.length} field${gone.length > 1 ? 's' : ''} removed from this table: ${esc(gone.map(fi => formLabel(fields[fi])).join(', '))}</span>` +
+          `<button type="button" class="link-btn" onclick="restoreFields('${part.uid}')">Restore</button>` : '';
+      box.style.display = gone.length ? 'flex' : 'none';
+  }
+  function restoreFields(uid) {
+      let part = allParts.find(x => x.uid === uid); if (!part) return;
+      Object.keys(part.fmode || {}).forEach(fi => { if (part.fmode[fi] === 'removed') delete part.fmode[fi]; });
+      applyFieldModes(part); refreshAll();
   }
 
   function vinylPicker(fid, series, defSeries) {
@@ -1234,6 +1375,11 @@
               if (el && t !== '') el.value = t.replace(/\s/g, '').length;
           });
           fields.forEach((f, fi) => {
+              if (String(f.variable).toUpperCase() !== 'QTY & SIZES') return;
+              let el = document.getElementById(`mf-${part.uid}_${fi}`), n = letterCount(getRaw(part, 'TEXT'));
+              if (el) el.placeholder = `e.g. ${n || 10} @ 18", or ${n || 10} @ 18", 4 @ 12"`;
+          });
+          fields.forEach((f, fi) => {
               if (f.type !== 'calc') return;
               let el = document.getElementById(`mf-${part.uid}_${fi}`); if (el) el.value = calcText(part, f);
           });
@@ -1241,7 +1387,7 @@
               if (f.removed) return;
               let fid = `${part.uid}_${fi}`;
               let g = document.getElementById(`mg-${fid}`);
-              if (g) g.style.display = evalShowIf(part, f.showIf) ? 'flex' : 'none';
+              if (g) g.style.display = evalShowIf(part, f.showIf) && fieldMode(part, fi) !== 'removed' ? 'grid' : 'none';
               let mf = document.getElementById(`mf-${fid}`), mc = document.getElementById(`mc-${fid}`), mp = document.getElementById(`mpaint-${fid}`);
               if (mc && mf) mc.style.display = mf.value === 'CUSTOM' ? 'block' : 'none';
               let mcc = document.getElementById(`mcc-${fid}`);
@@ -1251,6 +1397,7 @@
       });
       syncPartTitles();
       ccLayout();
+      updateTablesSummary();
       schedulePreview();
   }
 
@@ -1339,6 +1486,15 @@
           if (f.removed) return;
           let g = document.getElementById(`mg-${part.uid}_${fi}`);
           if (g && g.style.display === 'none') return;
+          let mode = fieldMode(part, fi), base = { zone: f.zone, label: f.label, variable: f.variable.toUpperCase(), opts: f.options, hex: '', svg: null, gradient: false, warnLabel: 'MISSING' };
+          if (mode === 'removed') return;
+          if (mode === 'tbd') { items.push(Object.assign(base, { type: 'tbd', val: 'TBD BY PRODUCTION', tbd: true, warn: false })); return; }
+          if (mode === 'missing') { items.push(Object.assign(base, { type: 'missing', val: 'Enter ' + formLabel(f), warn: true })); return; }
+          if (mode === 'custom') {
+              let v = String((part.fcustom || {})[fi] || '').trim();
+              items.push(Object.assign(base, v ? { type: 'custom', val: v, warn: false } : { type: 'custom', val: 'Enter ' + formLabel(f), warn: true }));
+              return;
+          }
           let d = getDisplay(part, f, fi);
           let extra = f.type === 'vinyl' ? (part.colorLines[fi] || []) : [];
           if (!d.warn && (d.val === '' || d.val.toUpperCase() === 'N/A') && !extra.length) return;
@@ -1352,7 +1508,7 @@
           let h = items.find(i => i.variable === String(q.opts).toUpperCase());
           if (h && !h.warn) { q.val = `${q.val} @ ${h.val.replace(/"/g, '')}"`; q.label = 'QTY / HEIGHT'; items = items.filter(i => i !== h); }
       }
-      items.forEach(i => { if (i.variable === 'TEXT' && !i.warn) i.val = `"${i.val}"`; });
+      items.forEach(i => { if (i.variable === 'TEXT' && !i.warn && !i.tbd) i.val = `"${i.val}"`; });
       if ((part.letterLines || []).length) {
           let ti = items.findIndex(i => i.variable === 'TEXT'), zone = ti !== -1 ? items[ti].zone : (items[0] || {}).zone;
           items.splice(ti === -1 ? items.length : ti + 1, 0, ...letterLineItems(part, zone));
@@ -1392,8 +1548,9 @@
       try { return String(rule).split(/\s+OR\s+/).some(r => evalShowIf(part, r)); } finally { visibleOnly = false; }
   }
 
+  const DRAWINGS_HIDDEN = true;   // v3.0: detail drawings are being reviewed; none are drawn or offered until they are re-enabled
   function drawingsForPart(part) {
-      if (String(TEMPLATE.Detail_Drawings || 'On').toUpperCase() === 'OFF') return [];
+      if (DRAWINGS_HIDDEN || String(TEMPLATE.Detail_Drawings || 'On').toUpperCase() === 'OFF') return [];
       if (appData.components[part.comp].custom) return (appData.drawings || []).filter(d => (part.drawPick || []).indexOf(d.id) !== -1);
       return (appData.drawings || []).filter(d => (!d.components.length || d.components.indexOf(part.comp) !== -1) && matchRule(part, d.rule));
   }
@@ -1524,6 +1681,7 @@
   // =====================================================================
   const PG = { W: 1100, H: 850, AB: { x: 37.4, y: 37.4, w: 874.6, h: 712.3 }, SB: { x0: 924, x1: 1074 } };
   const LINE = '#B1B1B3', INK = '#231F20', RED_BOX = '#BA3337', TAG_BG = '#FFF200', TAG_TX = '#D60000';
+  const TBD_BG = '#6E40C9', TBD_TX = '#FFFFFF';   // "TBD by Production": a standout, neutral purple (MISSING stays yellow)
   let measureCtx = null;
   function tw(text, size, bold) {
       if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
@@ -1587,7 +1745,7 @@
       let lines = wrapText(text, P.val, true, maxVal);
       let vw = Math.max.apply(null, lines.map(l => tw(l, P.val, true)));
       return { item, P, label, lw, swW, lines, vw,
-               w: 2 * P.padX + lw + P.gap + vw + swW + (item.warn ? 6 * s : 0),
+               w: 2 * P.padX + lw + P.gap + vw + swW + (item.warn || item.tbd ? 6 * s : 0),
                h: Math.max(item.svg ? 30 * s : 0, 2 * P.padY + (lines.length - 1) * P.lineH + P.val) };
   }
 
@@ -1641,8 +1799,11 @@
           missN++; out += valueField({ x: vx, y: base, size: P.val, bold: true });
           let ww = Math.max.apply(null, m.lines.map(l => tw(l, P.val, true))) + 6 * (P.val / 11);
           out += R(vx - 2, base - P.val * 0.95, ww, (m.lines.length - 1) * P.lineH + P.val * 1.3, TAG_BG, '#D6A100', 0.8, ' stroke-dasharray="2,1.5"');
+      } else if (it.tbd) {
+          let ww = Math.max.apply(null, m.lines.map(l => tw(l, P.val, true))) + 6 * (P.val / 11);
+          out += `<g id="TBD_${++missN}">` + R(vx - 2, base - P.val * 0.95, ww, (m.lines.length - 1) * P.lineH + P.val * 1.3, TBD_BG, null, 0, ' rx="2"') + `</g>`;
       }
-      m.lines.forEach((l, i) => out += T(vx + (it.warn ? 1 : 0), base + i * P.lineH, l, P.val, { bold: true, fill: it.warn ? TAG_TX : '#000000' }));
+      m.lines.forEach((l, i) => out += T(vx + (it.warn || it.tbd ? 1 : 0), base + i * P.lineH, l, P.val, { bold: true, fill: it.warn ? TAG_TX : (it.tbd ? TBD_TX : '#000000') }));
       if (m.swW) {
           let sx = x + w - P.padX - (m.swW - 8 * (P.val / 11));
           if (it.svg) {
@@ -1943,7 +2104,9 @@
   // =====================================================================
   //  COVER PAGE + QA CHECKLIST
   // =====================================================================
-  function coverOn() { return String(TEMPLATE.Cover_Page || 'On').toUpperCase() !== 'OFF'; }
+  // v3: no cover in front; the Proof Summary is always the last page (proof pages are numbered from 1)
+  function coverOn() { return false; }
+  function summaryTotal(pages) { return pages.length ? pages.length + 1 : 0; }
   function qaOn() { return String(TEMPLATE.QA_Checklist || 'On').toUpperCase() !== 'OFF'; }
   const LOGO_AR = 44.7 / 150;   // logo artwork height / width
 
@@ -1988,8 +2151,8 @@
       let lw = 320, lh = lw * LOGO_AR;
       o += `<g id="Logo">` + IMG(X0, M + 30, lw, lh, PROOF_ASSETS.logo) + `</g>`;
       o += `<g id="Cover_Title">` +
-           T(XR, M + 58, TEMPLATE.Cover_Title || 'SALES PROOF PACKAGE', 20, { anchor: 'end', bold: true, ls: 1.2 }) +
-           T(XR, M + 78, `Page 1 / ${total}`, 11, { anchor: 'end', bold: true }) +
+           T(XR, M + 58, TEMPLATE.Summary_Title || 'PROOF SUMMARY', 20, { anchor: 'end', bold: true, ls: 1.2 }) +
+           T(XR, M + 78, `Page ${total} / ${total}`, 11, { anchor: 'end', bold: true }) +
            T(XR, M + 94, `${pages.length} proof page${pages.length === 1 ? '' : 's'} \u00B7 ${pkgItems.length} product${pkgItems.length === 1 ? '' : 's'} / component${pkgItems.length === 1 ? '' : 's'}`, 9, { anchor: 'end', fill: '#666666' }) +
            `</g>`;
       // customer + project
@@ -2259,8 +2422,11 @@
                           missN++; o += valueField({ x: VAL_X, y: y + 13.5, size: 9.5, bold: true });
                           let ww = Math.max.apply(null, r.lines.map(l => tw(l, 9.5, true))) + 6;
                           o += R(VAL_X - 2, y + 4, ww, (r.lines.length - 1) * 12 + 12, TAG_BG, '#D6A100', 0.6, ' stroke-dasharray="1.5,1"');
+                      } else if (it.tbd) {
+                          let ww = Math.max.apply(null, r.lines.map(l => tw(l, 9.5, true))) + 6;
+                          o += R(VAL_X - 2, y + 4, ww, (r.lines.length - 1) * 12 + 12, TBD_BG, null, 0, ' rx="2"');
                       }
-                      r.lines.forEach((l, i) => o += T(VAL_X + (warn ? 1 : 0), y + 13.5 + i * 12, l, 9.5, { bold: true, fill: warn ? TAG_TX : '#000000' }));
+                      r.lines.forEach((l, i) => o += T(VAL_X + (warn || it.tbd ? 1 : 0), y + 13.5 + i * 12, l, 9.5, { bold: true, fill: warn ? TAG_TX : (it.tbd ? TBD_TX : '#000000') }));
                       if (it.gradient) o += R(SW_X, y + 5, 30, 10, 'url(#fullcolor)', '#555555', 0.6);
                       else if (it.svg) o += R(SW_X, y + 3, 14, 14, it.picBg || '#FFFFFF', '#555555', 0.6) +
                           (() => { let vb = String(it.svg.viewBox || '0 0 216 216').split(/\s+/).map(Number), k = 12 / Math.max(vb[2], vb[3]);
@@ -2316,7 +2482,7 @@
       out.push(['Item #', 'Product / Component', 'Proof Pages', 'Section', 'Spec', 'Value', 'Status', 'Checked (Y/N)', 'Initials', 'Notes']);
       qaData(pages, coverOn() ? 1 : 0).forEach(item => {
           item.sections.forEach(sec => sec.items.forEach(it =>
-              out.push([item.n, item.name, rangeText(item.range), sec.title, it.label, it.val, it.warn ? it.warnLabel : 'OK', '', '', ''])));
+              out.push([item.n, item.name, rangeText(item.range), sec.title, it.label, it.val, it.warn ? it.warnLabel : (it.tbd ? 'TBD BY PRODUCTION' : 'OK'), '', '', ''])));
           item.drawings.forEach(d => out.push([item.n, item.name, rangeText(item.range), 'Detail drawing', 'Built per detail', d, 'OK', '', '', '']));
       });
       qaFinalChecks().forEach(c => out.push(['', 'FINAL CHECKS', '', '', c, '', '', '', '', '']));
@@ -2545,7 +2711,7 @@
 
   // paste a screenshot (Ctrl+V) onto the active page, or the first page
   document.addEventListener('paste', e => {
-      if (step === 'select' || !e.clipboardData) return;
+      if (step !== 'proof' || !e.clipboardData) return;
       let files = [].slice.call(e.clipboardData.items || []).filter(it => it.kind === 'file' && /^image\//.test(it.type)).map(it => it.getAsFile());
       if (!files.length) return;                       // plain text pastes into fields as usual
       e.preventDefault();
@@ -2599,27 +2765,69 @@
   // =====================================================================
   function schedulePreview() { clearTimeout(renderTimer); renderTimer = setTimeout(renderPreview, 60); }
 
+  let qaCount = 0;
   function renderPreview() {
-      if (step === 'select') return;
+      if (step === 'start') return;
       try {
-          let pages = packagePages(), info = getCustomerInfo();
+          let pages = packagePages(), info = getCustomerInfo(), total = summaryTotal(pages);
           let strip = svg => svg.replace(/^<\?xml[^>]*>\s*/, '');
-          let off = coverOn() && pages.length ? 1 : 0, total = pages.length + off, html = '';
-          let bar = (title, kind, i) => `<div class="sheet-bar"><span class="st-title">${title}</span>` +
+          let bar = (title, kind, i, extra) => `<div class="sheet-bar${extra || ''}"><span class="st-title">${title}</span>` +
               `<span class="st-dls"><button type="button" class="st-btn st-dl" title="This page as one SVG file" onclick="downloadPageSVG('${kind}', ${i})">Download page</button></span></div>`;
-          if (off) html += bar('Page 1 \u00B7 Cover', 'cover', 0) + `<div class="sheet">${strip(buildCoverSVG(pages, info, total))}</div>`;
-          html += pages.map((p, i) => artToolbar(p, i + 1 + off) +
-              `<div class="sheet${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildSheetSVG(p, i + 1 + off, total, info))}</div>`).join('');
-          if (qaOn() && pages.length) {
-              html += `<div class="sheet-label">QA CHECKLIST \u00B7 exported in the package's QA_Checklist folder (not for the customer)</div>`;
-              let qa = buildQAPages(pages, info, total);
-              html += qa.map((svg, i) => bar(`QA checklist ${i + 1} / ${qa.length}`, 'qa', i).replace('class="sheet-bar"', 'class="sheet-bar portrait"') +
-                                         `<div class="sheet portrait">${strip(svg)}</div>`).join('');
+          if (step === 'tables') renderTablePreviews(pages);
+          else if (step === 'proof') {
+              let html = pages.map((p, i) => artToolbar(p, i + 1) +
+                  `<div class="sheet${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildSheetSVG(p, i + 1, total, info))}</div>`).join('');
+              if (pages.length) html += bar(`Page ${total} \u00B7 Proof Summary <span class="st-note">always the last page</span>`, 'summary', 0, ' summary') +
+                                        `<div class="sheet">${strip(buildCoverSVG(pages, info, total))}</div>`;
+              document.getElementById('sheets').innerHTML = html || '<div class="sheets-empty">Add a product on the Tables tab to see its proof pages.</div>';
+          } else if (step === 'production') {
+              let qa = pages.length && qaOn() ? buildQAPages(pages, info, total) : [];
+              qaCount = qa.length;
+              document.getElementById('qa-sheets').innerHTML = qa.map((svg, i) => bar(`QA sheet ${i + 1} / ${qa.length}`, 'qa', i, ' portrait') +
+                  `<div class="sheet portrait">${strip(svg)}</div>`).join('') || '<div class="sheets-empty">Add a product on the Tables tab to see its QA sheet.</div>';
+              renderProdCounts(pages);
           }
-          document.getElementById('sheets').innerHTML = html || '<div style="color:#aaa;padding:40px;">Nothing to preview yet.</div>';
-          document.getElementById('page-count').innerText = `${total} page${total === 1 ? '' : 's'}${qaOn() && pages.length ? ' + QA' : ''}`;
+          document.getElementById('page-count').innerText = pages.length ? `${total} proof page${total === 1 ? '' : 's'}` : '';
           updateCustomerTags(info);
+          updateProjectLabel();
       } catch (e) { console.error('Preview error:', e); }
+  }
+  // Tables tab, right side: every spec table exactly as it prints (one per proof page that has a table), updated as specs are typed
+  function renderTablePreviews(pages) {
+      let box = document.getElementById('table-previews'); if (!box) return;
+      let html = pages.map((p, i) => {
+          if (!p.blocks.length) return '';
+          let look = p.item.kind === 'custom' ? { color: SIGN_FAMILIES.custom.color } : signLook(p.item.name), svg;
+          try { EXPORTING = true; svg = buildTableSVG(p).replace(/^<\?xml[^>]*>\s*/, ''); } finally { EXPORTING = false; }
+          return `<div class="tp-card" style="--cat:${look.color}"><div class="tp-head"><span class="item-bar"></span><b>${esc(p.item.name)}</b>` +
+                 `<span class="tp-page">${p.total > 1 ? `table ${p.n} of ${p.total} \u00B7 ` : ''}proof page ${i + 1}</span>` +
+                 `<button type="button" class="btn-outline small" onclick="downloadPageSVG('table', ${i})">Download SVG</button></div>` +
+                 `<div class="tp-svg">${svg}</div></div>`;
+      }).join('');
+      box.innerHTML = html || '<div class="tables-empty preview"><b>Your tables appear here</b><span>As you pick products and key in specs on the left, each spec table is drawn here exactly as it prints.</span></div>';
+  }
+  function toggleCatalog(force) {
+      let sec = document.getElementById('cat-rail'), open = force === undefined ? !sec.classList.contains('open') : force;
+      sec.classList.toggle('open', open);
+      document.getElementById('cat-toggle').setAttribute('aria-expanded', open);
+  }
+  function renderProdCounts(pages) {
+      pages = pages || packagePages();
+      let n = (id, t) => { let el = document.getElementById(id); if (el) el.innerText = t; };
+      let tables = pages.filter(p => p.blocks.length).length, proof = summaryTotal(pages);
+      n('prod-qa-n', qaCount ? `${qaCount} page${qaCount > 1 ? 's' : ''}` : '');
+      n('prod-tables-n', tables ? `${tables} table${tables > 1 ? 's' : ''}` : '');
+      n('prod-proof-n', proof ? `${proof} page${proof > 1 ? 's' : ''}` : '');
+  }
+  // "2 products · 1 field TBD by Production · 1 missing"
+  function updateTablesSummary() {
+      let el = document.getElementById('tables-summary'); if (!el) return;
+      let empty = document.getElementById('tables-empty'); if (empty) empty.style.display = pkgItems.length ? 'none' : 'flex';
+      if (!pkgItems.length) { el.innerText = 'Pick products and components on the left to add their tables.'; return; }
+      let tbd = 0, miss = 0;
+      allParts.filter(p => p.enabled).forEach(p => collectPartItems(p).forEach(i => { if (i.tbd) tbd++; else if (i.warn) miss++; }));
+      el.innerText = [`${pkgItems.length} product${pkgItems.length > 1 ? 's' : ''} / component${pkgItems.length > 1 ? 's' : ''}`,
+                      tbd ? `${tbd} TBD by Production` : '', miss ? `${miss} missing` : ''].filter(Boolean).join(' \u00B7 ');
   }
 
   function updateCustomerTags(info) {
@@ -2681,18 +2889,70 @@
   // one page as a single SVG file, built exactly like the package export (same name it has inside the zip)
   function downloadPageSVG(kind, i) {
       let pages = packagePages(), info = getCustomerInfo(), base = shortBase(info, exportBase(info));   // same short name as inside the zip
-      let off = coverOn() && pages.length ? 1 : 0, total = pages.length + off, pad = n => String(n).padStart(2, '0');
+      let total = summaryTotal(pages), pad = n => String(n).padStart(2, '0');
       let svg, file;
       try {
           EXPORTING = true;
-          if (kind === 'cover') { svg = buildCoverSVG(pages, info, total); file = `${base} - p01`; }
+          if (kind === 'summary' || kind === 'cover') { svg = buildCoverSVG(pages, info, total); file = `${base} - p${pad(total)}`; }
           else if (kind === 'qa') { svg = buildQAPages(pages, info, total)[i]; file = `${base} - qa${pad(i + 1)}`; }
-          else if (kind === 'table') { svg = buildTableSVG(pages[i]); file = `${base} - p${pad(i + 1 + off)} - table`; }
-          else { svg = buildSheetSVG(pages[i], i + 1 + off, total, info); file = `${base} - p${pad(i + 1 + off)}`; }
+          else if (kind === 'table') { svg = buildTableSVG(pages[i]); file = `${base} - p${pad(i + 1)} - table`; }
+          else { svg = buildSheetSVG(pages[i], i + 1, total, info); file = `${base} - p${pad(i + 1)}`; }
       } finally { EXPORTING = false; }
       if (!svg) return;
       saveBlob(new Blob([svg], { type: 'image/svg+xml' }), file + '.svg');
       toast(`Downloaded ${file}.svg`);
+  }
+
+  // ---------- data tables: one SVG per table, or every table stacked in one SVG ----------
+  function tableJobs() {
+      let pages = packagePages(), info = getCustomerInfo(), fb = shortBase(info, exportBase(info)), pad = n => String(n).padStart(2, '0');
+      return pages.map((p, i) => ({ page: p, i, file: `${fb} - p${pad(i + 1)} - table` })).filter(j => j.page.blocks.length);
+  }
+  function buildAllTablesSVG(jobs) {
+      const AB = PG.AB, x0 = AB.x + 26, bottom = AB.y + AB.h - 30, pad = 4, gap = 30;
+      let y = pad, w = 0, body = '';
+      jobs.forEach((j, k) => {
+          let lay = fitTable(j.page), bs = 12 * Math.max(lay.s, 0.8), top = bottom - lay.h - bs * 1.9;
+          body += `<g id="Table_${k + 1}" transform="translate(${(pad - x0).toFixed(2)},${(y - top).toFixed(2)})">` + drawTable(j.page, lay, x0, bottom) + `</g>`;
+          y += bottom - top + gap; w = Math.max(w, lay.w);
+      });
+      let vw = w + 2 * pad, vh = y - gap + pad;
+      return svgHead(vw, vh, (vw / 100).toFixed(3), (vh / 100).toFixed(3)) + body + `</svg>`;
+  }
+  // ---------- Export menu (top bar, right of Save) ----------
+  function toggleExportMenu(e) {
+      if (e) e.stopPropagation();
+      let m = document.getElementById('export-menu'), open = m.style.display === 'none';
+      m.style.display = open ? 'flex' : 'none';
+      document.getElementById('export-btn').setAttribute('aria-expanded', open);
+      if (open) { let first = m.querySelector('.xm-item.on') || m.querySelector('.xm-item'); if (first) first.focus(); }
+  }
+  function closeExportMenu() {
+      let m = document.getElementById('export-menu'); if (m) m.style.display = 'none';
+      let b = document.getElementById('export-btn'); if (b) b.setAttribute('aria-expanded', 'false');
+  }
+  function closeTablesMenu() { closeExportMenu(); }
+  document.addEventListener('click', e => { let w = document.getElementById('export-wrap'); if (w && !w.contains(e.target)) closeExportMenu(); });
+  function downloadAllTables() {
+      closeTablesMenu();
+      let jobs = tableJobs(); if (!jobs.length) { toast('No tables yet: add a product on the Tables tab.'); return; }
+      let info = getCustomerInfo(), file = `${shortBase(info, exportBase(info))} - tables`, svg;
+      try { EXPORTING = true; svg = buildAllTablesSVG(jobs); } finally { EXPORTING = false; }
+      saveBlob(new Blob([svg], { type: 'image/svg+xml' }), file + '.svg');
+      toast(`Downloaded ${file}.svg (${jobs.length} table${jobs.length > 1 ? 's' : ''})`);
+  }
+  async function downloadTablesZip() {
+      closeTablesMenu();
+      let jobs = tableJobs(); if (!jobs.length) { toast('No tables yet: add a product on the Tables tab.'); return; }
+      let info = getCustomerInfo();
+      await exportZip(document.getElementById('export-btn'), `${exportBase(info)} - Tables.zip`, async save => {
+          for (let j of jobs) await save(`${j.file}.svg`, new Blob([buildTableSVG(j.page)], { type: 'image/svg+xml' }));
+      });
+  }
+  async function downloadItemTables(iid) {
+      let jobs = tableJobs().filter(j => j.page.item.iid === iid);
+      if (!jobs.length) { toast('This product has no table yet.'); return; }
+      for (let j of jobs) { downloadPageSVG('table', j.i); if (jobs.length > 1) await new Promise(r => setTimeout(r, 400)); }
   }
 
   // just a page's spec table (with its product badge), cropped to the table; same drawing as on the page, 1 unit = 0.01"
@@ -2784,10 +3044,42 @@
           parts: allParts.map(p => ({ iid: p.iid, di: p.di, custom: p.custom, notesOn: p.notesOn, notes: p.notes, newPage: p.newPage, enabled: p.enabled,
                                       letterLines: p.letterLines.map(l => Object.assign({}, l)), drawPick: p.drawPick.slice(),
                                       colorLines: JSON.parse(JSON.stringify(p.colorLines)), colorSeq: p.colorSeq,
+                                      fmode: Object.assign({}, p.fmode || {}), fcustom: Object.assign({}, p.fcustom || {}),
+                                      fields: appData.components[p.comp].custom ? null : appData.components[p.comp].fields.map(f => String(f.variable).toUpperCase()),
                                       values: captureValues(document.getElementById(`part-${p.uid}`), p.uid) })),
           excludedDrawings: Object.assign({}, excludedDrawings), customer, art, measures: JSON.parse(JSON.stringify(pageMeasures))
       };
       return { state, images };
+  }
+
+  // ---------- reopening proofs saved with an older field list: values follow the field NAME, not its position ----------
+  // v3.0 replaced QUANTITY (counted) + LETTER HEIGHT with one QTY & SIZES field ("10 @ 18\", 4 @ 12\"") on the letter components.
+  const V2_FIELDS = {"HALO_LETTERS": ["QUANTITY", "LETTER HEIGHT", "TEXT", "LETTER TYPE", "FACE", "FACE PAINT", "FACE GRAPHICS", "RETURN DEPTH", "RETURN GAUGE", "RETURN FINISH", "BACKS", "DIFFUSER VINYL", "STANDOFFS", "WALL SURFACE"], "PVC_ROUTED_LETTERS": ["QUANTITY", "LETTER HEIGHT", "THICKNESS", "TEXT", "MATERIAL COLOR", "FINISH", "PAINT COLOR", "MOUNTING", "MOUNTING DETAIL"], "CHANNEL_LETTERS_FL": ["QUANTITY", "LETTER HEIGHT", "TEXT", "FACE MATERIAL", "FACE COLOR", "FACE VINYL", "VINYL COLOR", "RETURN", "RETURN COLOR", "TRIM CAP", "TRIM CAP COLOR", "LED COLOR", "MOUNTING", "MOUNTING PAINT", "RACEWAY SIZE"], "MONUMENT_LETTERS": ["QUANTITY", "LETTER HEIGHT", "TEXT", "FONT", "LIGHTING", "LETTER TYPE", "MATERIAL THICKNESS", "FACE MATERIAL", "FACE GAUGE", "FACE GAUGE - UNLIT", "RETURN GAUGE", "RETURN GAUGE - UNLIT", "LETTER DEPTH", "LETTER DEPTH - UNLIT", "TRIM CAP", "BACKS", "FINISH", "LETTER COLOR", "FACE COLOR", "FACE VINYL", "VINYL COLOR", "TRIM CAP COLOR", "RETURN COLOR - COIL", "RETURN COLOR", "RETURN COLOR - UNLIT", "MOUNTING", "PIN SIZE", "PIN EMBED", "SPACER DEPTH", "STANDOFF MODEL", "STANDOFF SIZE", "STANDOFF SIZE - AL16", "STANDOFF SIZE - CUSTOM", "STANDOFF FINISH", "MONUMENT SURFACE", "MOUNTING PATTERN", "LED COLOR", "DIFFUSER VINYL", "POWER SUPPLY", "PHOTO CELL"]};
+  const FID_RE = /~_(\d+)(?=$|-|c\d)/;
+  function savedFieldMap(part, sp) {
+      let comp = appData.components[part.comp]; if (!comp || comp.custom) return null;
+      let now = comp.fields.map(f => String(f.variable).toUpperCase()), then = sp.fields || V2_FIELDS[part.comp];
+      if (!then || then.join('|') === now.join('|')) return null;
+      let map = {}; then.forEach((v, i) => { let j = now.indexOf(v); if (j !== -1) map[i] = j; });
+      return { then, now, map };
+  }
+  function remapSavedValues(part, sp) {
+      let m = savedFieldMap(part, sp); if (!m) return sp.values || {};
+      let out = {}, vals = sp.values || {}, val = name => { let i = m.then.indexOf(name), e = i === -1 ? null : vals[`mf-~_${i}`]; return e && e.v != null ? String(e.v).trim() : ''; };
+      Object.keys(vals).forEach(k => {
+          let r = k.match(FID_RE); if (!r) { out[k] = vals[k]; return; }
+          let j = m.map[+r[1]]; if (j !== undefined) out[k.replace(FID_RE, '~_' + j)] = vals[k];
+      });
+      let qs = m.now.indexOf('QTY & SIZES'), ti = m.now.indexOf('TEXT');
+      if (qs !== -1 && m.then.indexOf('LETTER HEIGHT') !== -1) {              // QUANTITY + LETTER HEIGHT (+ extra letter lines) -> one field
+          let h = s => String(s || '').replace(/"/g, '').trim(), sizes = [], texts = [val('TEXT')];
+          if (val('QUANTITY') || h(val('LETTER HEIGHT'))) sizes.push(`${val('QUANTITY') || letterCount(val('TEXT'))} @ ${h(val('LETTER HEIGHT'))}"`);
+          (sp.letterLines || []).forEach(l => { sizes.push(`${letterCount(l.text)} @ ${h(l.height)}"`); texts.push(String(l.text || '').trim()); });
+          out[`mf-~_${qs}`] = { v: sizes.join(', ') };
+          if (ti !== -1) out[`mf-~_${ti}`] = { v: texts.filter(Boolean).join(' / ') };
+          sp.letterLines = [];
+      }
+      return out;
   }
 
   // called by addPart while restoring: give the new section its saved lists before its fields are drawn
@@ -2796,6 +3088,9 @@
       restoring.taken[part.di] = n + 1;
       let sp = restoring.parts.filter(p => p.di === part.di)[n];
       if (!sp) return;
+      let fm = savedFieldMap(part, sp), byNew = o => { if (!fm) return o; let r = {}; Object.keys(o || {}).forEach(k => { let j = fm.map[+k]; if (j !== undefined) r[j] = o[k]; }); return r; };
+      sp.values = remapSavedValues(part, sp);
+      if (fm) { sp.colorLines = byNew(sp.colorLines); sp.fmode = byNew(sp.fmode); sp.fcustom = byNew(sp.fcustom); }
       part.colorLines = JSON.parse(JSON.stringify(sp.colorLines || {})); part.colorSeq = sp.colorSeq || 0;
       part.letterLines = (sp.letterLines || []).map(l => Object.assign({}, l));
       part.drawPick = (sp.drawPick || []).slice();
@@ -2859,6 +3154,8 @@
           let inc = document.getElementById(`pinc-${part.uid}`); if (inc) inc.checked = part.enabled;
           let body = document.getElementById(`pbody-${part.uid}`); if (body) body.style.display = part.enabled ? 'block' : 'none';
           renderLetterLines(part);
+          part.fmode = Object.assign({}, sp.fmode || {}); part.fcustom = Object.assign({}, sp.fcustom || {});
+          applyFieldModes(part);
       });
       excludedDrawings = Object.assign({}, st.excludedDrawings || {});
       Object.keys(st.customer || {}).forEach(id => {
@@ -2878,9 +3175,6 @@
   }
 
   // ---------- save ----------
-  const STATUSES = ['Draft', 'Sent to Customer', 'Changes Requested', 'Approved', 'Cancelled'];
-  const STATUS_CLASS = { 'Draft': 'st-draft', 'Sent to Customer': 'st-sent', 'Changes Requested': 'st-changes', 'Approved': 'st-approved', 'Cancelled': 'st-cancelled' };
-  function statusChip(st) { st = st || 'Draft'; return `<span class="status-chip ${STATUS_CLASS[st] || 'st-draft'}">${esc(st)}</span>`; }
   function proofLabel() {
       let i = getCustomerInfo();
       return [i.ticket, i.custName, i.project].filter(Boolean).join(' - ') || 'Untitled proof';
@@ -2894,18 +3188,16 @@
       document.getElementById('save-new-row').style.display = currentProof ? 'flex' : 'none';
       document.getElementById('save-as-new').checked = false;
       document.getElementById('save-note').value = '';
-      document.getElementById('save-status').innerHTML = STATUSES.map(x => `<option ${x === ((currentProof && currentProof.status) || 'Draft') ? 'selected' : ''}>${x}</option>`).join('');
       document.getElementById('save-modal').style.display = 'flex';
       document.getElementById('save-note').focus();
   }
   function closeSaveDialog() { document.getElementById('save-modal').style.display = 'none'; }
   function saveProofNow() {
       let asNew = document.getElementById('save-as-new').checked, note = document.getElementById('save-note').value.trim();
-      let status = document.getElementById('save-status').value || 'Draft';
       let cap = captureState(), info = getCustomerInfo(), snap = snapOf(cap.state);
       let images = Object.keys(cap.images).map(h => ({ hash: h, data: cap.images[h].replace(/^data:[^,]*,/, ''), mime: 'image/jpeg' }));
       let meta = { ticket: info.ticket, customer: info.name, sub: info.sub, project: info.project, designer: info.designer,
-                   products: pkgItems.map(i => i.name).join(', '), note, status, appVersion: APP_VERSION };
+                   products: pkgItems.map(i => i.name).join(', '), note, appVersion: APP_VERSION };
       let btn = document.getElementById('save-go'); btn.disabled = true; btn.innerText = 'Saving…';
       let draftId = currentDraft && !currentDraft.proofId ? currentDraft.draftId : null;
       google.script.run
@@ -2914,7 +3206,7 @@
               currentProof = { proofId: r.proofId, rev: r.rev, savedAt: r.savedAt, status: r.status, label: proofLabel() };
               currentDraft = null; draftUploaded = {}; lastSavedSnap = snap; lastDraftSnap = snap; forgetLocalDraft();
               closeSaveDialog(); updateProofStatus();
-              toast(`Saved v${r.rev} (${r.status}): ${currentProof.label}`);
+              toast(`Saved v${r.rev}: ${currentProof.label}`);
           })
           .withFailureHandler(e => { btn.disabled = false; btn.innerText = 'Save'; alert('Could not save the proof: ' + (e && e.message || e)); })
           .saveProof({ proofId: asNew || !currentProof ? null : currentProof.proofId, draftId: asNew ? null : draftId, meta, state: JSON.stringify(cap.state), images });
@@ -2922,10 +3214,10 @@
   function updateProofStatus() {
       let el = document.getElementById('proof-status'); if (!el) return;
       let html = '';
-      if (currentProof) html += `<span class="ps-dot"></span>v${currentProof.rev} ${statusChip(currentProof.status)} <span class="ps-time">saved ${esc(currentProof.savedAt)}</span>`;
+      if (currentProof) html += `<span class="ps-dot"></span>v${currentProof.rev} <span class="ps-time">saved ${esc(currentProof.savedAt)}</span>`;
       if (currentDraft && currentDraft.savedAt) html += `<span class="ps-draft">Draft saved ${esc(String(currentDraft.savedAt).slice(11, 16))}</span>`;
       el.innerHTML = html;
-      el.title = currentProof ? `${currentProof.label} (${currentProof.proofId})` : (currentDraft ? 'Not saved as a proof yet; autosaved as a draft' : '');
+      el.title = currentProof ? `${currentProof.label} (${currentProof.proofId})` : (currentDraft ? 'Not saved yet; autosaved as a draft' : '');
       el.style.display = html ? 'inline-flex' : 'none';
   }
 
@@ -3051,7 +3343,7 @@
                   draftUploaded = {}; Object.keys(r.images || {}).forEach(h => { draftUploaded[h] = true; });
                   lastSavedSnap = ''; lastDraftSnap = currentSnap();                // restored work is not a saved revision yet
                   rememberLocalDraft(r.key);
-                  closeLibrary(); updateProofStatus(); showStep('specs');
+                  closeLibrary(); updateProofStatus(); showTab('tables');
                   toast(`Restored unsaved changes from ${String(r.savedAt).slice(0, 16)}. Use Save to keep them as a version.`);
                   if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
               } catch (e) { console.error(e); alert('Could not open the draft: ' + e.message); }
@@ -3068,7 +3360,7 @@
   }
 
   // ---------- library ----------
-  let libraryDrafts = [], libFilter = '';
+  let libraryDrafts = [];
   function openLibrary() {
       document.getElementById('library-modal').style.display = 'flex';
       document.getElementById('lib-search').value = '';
@@ -3083,16 +3375,10 @@
           .listProofs();
   }
   function closeLibrary() { document.getElementById('library-modal').style.display = 'none'; }
-  function setLibFilter(st) { libFilter = libFilter === st ? '' : st; renderLibrary(); }
   function renderLibrary() {
       let q = document.getElementById('lib-search').value.trim().toLowerCase();
       let match = p => !q || [p.ticket, p.customer, p.sub, p.project, p.designer, p.products, p.label].join(' ').toLowerCase().indexOf(q) !== -1;
-      let list = libraryList.filter(p => match(p) && (!libFilter || p.status === libFilter));
-      let drafts = libFilter ? [] : libraryDrafts.filter(match);
-      document.getElementById('lib-filters').innerHTML = STATUSES.map(st => {
-          let n = libraryList.filter(p => p.status === st).length;
-          return `<button type="button" class="lib-filter ${STATUS_CLASS[st]}${libFilter === st ? ' on' : ''}" onclick="setLibFilter('${st}')">${st} <small>${n}</small></button>`;
-      }).join('') + (libFilter ? `<button type="button" class="legend-clear" onclick="setLibFilter('')">Show all</button>` : '');
+      let list = libraryList.filter(match), drafts = libraryDrafts.filter(match);
       let box = document.getElementById('lib-list');
       if (!libraryList.length && !libraryDrafts.length) { box.innerHTML = '<div class="lib-empty">No saved proofs yet. Build a package, then use Save in the top bar.</div>'; return; }
       let html = '';
@@ -3106,14 +3392,13 @@
           let i = libraryList.indexOf(p), cur = p.revs[0] || {};
           return `<div class="lib-row">
             <div class="lib-main">
-              <div class="lib-title">${statusChip(p.status)} ${esc([p.customer + (p.sub ? ' - ' + p.sub : ''), p.project].filter(Boolean).join(' — ') || 'Untitled proof')}</div>
+              <div class="lib-title">${esc([p.customer + (p.sub ? ' - ' + p.sub : ''), p.project].filter(Boolean).join(' — ') || 'Untitled proof')}</div>
               <div class="lib-meta">${p.ticket ? `<span class="chip">Ticket ${esc(p.ticket)}</span>` : ''}${p.designer ? `<span class="chip">${esc(p.designer)}</span>` : ''}<span class="lib-products">${esc(p.products)}</span></div>
               ${p.draft ? `<div class="lib-draftnote">Unsaved changes autosaved ${esc(String(p.draft.savedAt).slice(0, 16))} · <a href="#" onclick="openDraft('${esc(p.draft.key)}'); return false;">Restore</a> · <a href="#" onclick="discardDraftUI('${esc(p.draft.key)}'); return false;">Discard</a></div>` : ''}
             </div>
             <div class="lib-side">
               <div class="lib-revbox">
-                <select class="lib-rev" id="lib-rev-${i}" title="Version" onchange="libRevChanged(${i})">${p.revs.map(r => `<option value="${r.rev}">v${r.rev} – ${esc(r.savedAt)}${r.note ? ' – ' + esc(r.note) : ''}</option>`).join('')}</select>
-                <select class="lib-status ${STATUS_CLASS[cur.status] || ''}" id="lib-st-${i}" title="Approval status of this version (${esc(cur.statusBy || '')} ${esc(cur.statusAt || '')})" onchange="changeStatus(${i}, this.value)">${STATUSES.map(x => `<option ${x === (cur.status || 'Draft') ? 'selected' : ''}>${x}</option>`).join('')}</select>
+                <select class="lib-rev" id="lib-rev-${i}" title="Version" >${p.revs.map(r => `<option value="${r.rev}">v${r.rev} – ${esc(r.savedAt)}${r.note ? ' – ' + esc(r.note) : ''}</option>`).join('')}</select>
               </div>
               <button type="button" class="btn-tonal" title="Start a new proof with these products, specs, images and measurements; customer info is cleared" onclick="newFromProof('${esc(p.proofId)}', document.getElementById('lib-rev-${i}').value)">New from this</button>
               <button type="button" class="btn-filled" onclick="openSavedProof('${esc(p.proofId)}', document.getElementById('lib-rev-${i}').value)">Open</button>
@@ -3121,22 +3406,6 @@
           </div>`;
       }).join('');
       box.innerHTML = html;
-  }
-  function libRevChanged(i) {
-      let p = libraryList[i], rev = Number(document.getElementById(`lib-rev-${i}`).value), r = p.revs.find(x => x.rev === rev) || {};
-      let sel = document.getElementById(`lib-st-${i}`); sel.value = r.status || 'Draft'; sel.className = `lib-status ${STATUS_CLASS[r.status] || ''}`;
-  }
-  function changeStatus(i, status) {
-      let p = libraryList[i], rev = Number(document.getElementById(`lib-rev-${i}`).value);
-      google.script.run
-          .withSuccessHandler(r => {
-              let rv = p.revs.find(x => x.rev === r.rev); if (rv) Object.assign(rv, { status: r.status, statusBy: r.statusBy, statusAt: r.statusAt });
-              if (r.rev === p.latest) p.status = r.status;
-              if (currentProof && currentProof.proofId === p.proofId && r.rev === currentProof.rev) { currentProof.status = r.status; updateProofStatus(); }
-              renderLibrary(); toast(`v${r.rev} marked ${r.status}`);
-          })
-          .withFailureHandler(e => { alert('Could not change the status: ' + (e && e.message || e)); renderLibrary(); })
-          .setProofStatus(p.proofId, rev, status);
   }
   function openSavedProof(proofId, rev) {
       let p = libraryList.find(x => x.proofId === proofId);
@@ -3148,10 +3417,10 @@
               try {
                   let missing = await applyLoaded(r);
                   let latest = (p || {}).latest || r.rev, rv = p ? (p.revs.find(x => x.rev === r.rev) || {}) : {};
-                  currentProof = { proofId: r.proofId, rev: latest, savedAt: r.savedAt, status: rv.status || 'Draft', label: proofLabel() };
+                  currentProof = { proofId: r.proofId, rev: latest, savedAt: r.savedAt, label: proofLabel() };
                   currentDraft = p && p.draft ? { key: p.draft.key, draftId: '', proofId: r.proofId, savedAt: '' } : null;
                   draftUploaded = {}; lastSavedSnap = currentSnap(); lastDraftSnap = lastSavedSnap;
-                  closeLibrary(); updateProofStatus(); showStep('specs');
+                  closeLibrary(); updateProofStatus(); showTab('tables');
                   toast(`Opened v${r.rev}: ${currentProof.label}` + (r.rev < latest ? ` (saving makes v${latest + 1})` : ''));
                   if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
               } catch (e) { console.error(e); alert('Could not open this proof: ' + e.message); renderLibrary(); }
@@ -3169,7 +3438,7 @@
                   let missing = await applyLoaded(r);
                   clearCustomerFields();
                   currentProof = null; currentDraft = null; draftUploaded = {}; lastSavedSnap = ''; lastDraftSnap = '';
-                  closeLibrary(); updateProofStatus(); showStep('customer'); refreshAll();
+                  closeLibrary(); updateProofStatus(); showTab('proof'); refreshAll();
                   toast('New proof started from a copy. Customer info is cleared; Save makes its own v1.');
                   if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
               } catch (e) { console.error(e); alert('Could not copy this proof: ' + e.message); renderLibrary(); }
@@ -3186,12 +3455,9 @@
       if (document.getElementById('swatch-modal').style.display === 'flex') { closeModal(); return; }
       if (document.getElementById('save-modal').style.display === 'flex') closeSaveDialog();
       if (document.getElementById('library-modal').style.display === 'flex') closeLibrary();
+      closeFieldMenu(); closeExportMenu();
   });
-  function newPackage() {
-      if (pkgItems.length && hasUnsavedChanges() && !confirm('Start a new package? Unsaved work in the current package will be lost (its autosaved draft stays in Saved proofs).')) return;
-      resetPackage(); clearCustomerFields(); lastSavedSnap = ''; lastDraftSnap = ''; forgetLocalDraft();
-      renderCustomCards(); updateSelectionBar(); updateProofStatus(); showStep('select');
-  }
+  function newPackage() { startNewProject(); }
 
   function toggleSubCustomer() {
       let on = document.getElementById('cf-has-sub').checked;
@@ -3228,79 +3494,107 @@
           .map(([k, v]) => k + '=' + clean(v)).join('\r\n') + '\r\n';
   }
 
-  async function generatePackage() {
-      let info = getCustomerInfo();
-      let missing = (info.hasSub && !info.sub ? ['sub'] : []).concat(['name', 'project', 'location', 'sales', 'inv', 'ticket', 'designer', 'orig', 'path'].filter(k => !info[k]));
-      if (missing.length && !confirm(`${missing.length} customer field(s) are empty and will print as yellow MISSING tags.\nGenerate anyway?`)) return;
-      let btn = document.getElementById('generate-btn'), label = btn.innerHTML;
-      let pages = packagePages();
-      let base = exportBase(info), pageNames = [];
-      let zip = (typeof JSZip !== 'undefined') ? new JSZip() : null;
-      // files INSIDE the zip get a short name (the zip and the folder Windows unpacks it to keep the full name):
-      // the full name twice in one path broke Windows' 260-character limit on QA_Checklist files
-      let fb = zip ? shortBase(info, base) : base;
-      // Ask where to save BEFORE generating (the browser only allows the Save As window right after the click).
-      // Chrome / Edge only; inside the Apps Script frame it is often blocked, then the normal download is used.
-      let fileHandle = null;
+  // one zip export: asks where to save first (Chrome / Edge, when allowed), shows progress on the button
+  async function exportZip(btn, zipName, fill) {
+      let zip = (typeof JSZip !== 'undefined') ? new JSZip() : null, fileHandle = null;
+      // the browser only allows the Save As window right after the click
       if (zip && window.showSaveFilePicker) {
           try {
-              fileHandle = await window.showSaveFilePicker({ suggestedName: `${base}.zip`,
-                  types: [{ description: 'Proof package (.zip)', accept: { 'application/zip': ['.zip'] } }] });
+              fileHandle = await window.showSaveFilePicker({ suggestedName: zipName, types: [{ description: 'Zip file', accept: { 'application/zip': ['.zip'] } }] });
           } catch (e) {
-              if (e && e.name === 'AbortError') return;   // user pressed Cancel
-              fileHandle = null;                           // blocked here: fall back to a normal download
+              if (e && e.name === 'AbortError') return false;   // Cancel
+              fileHandle = null;                                // blocked here: normal download
           }
       }
-      let off = coverOn() && pages.length ? 1 : 0, total = pages.length + off;
-      // every file in order: cover, proof pages, then the QA checklist.
-      // Zip layout:  SVG/  PNG/  QA_Checklist/SVG/  QA_Checklist/PNG/  QA_Checklist/qa_checklist.csv
-      let jobs = [];
-      // names: "<Ticket - Customer - Project> - p01" ... and "- qa01" ... (pageNames go to package_info.txt for CorelDRAW)
-      let pad = n => String(n).padStart(2, '0');
-      if (off) { jobs.push({ dir: '', file: `${fb} - p01`, svg: () => buildCoverSVG(pages, info, total) }); pageNames.push(['Page01', 'COVER']); }
-      pages.forEach((p, i) => {
-          jobs.push({ dir: '', file: `${fb} - p${pad(i + 1 + off)}`, svg: () => buildSheetSVG(p, i + 1 + off, total, info) });
-          pageNames.push([`Page${pad(i + 1 + off)}`, `${p.item.name.toUpperCase()}${p.blank ? ' ' + p.title.toUpperCase() : ''} ${p.n}/${p.total}`]);
-      });
-      if (qaOn() && pages.length) {
-          let qa = buildQAPages(pages, info, total);
-          qa.forEach((svg, i) => {
-              jobs.push({ dir: 'QA_Checklist/', file: `${fb} - qa${pad(i + 1)}`, svg: () => svg, pw: 2550, ph: 3300 });
-              pageNames.push([`QA${pad(i + 1)}`, `QA CHECKLIST ${i + 1}/${qa.length}`]);
-          });
-      }
+      closeExportMenu();
+      let label = btn.innerHTML; btn.disabled = true;
       let save = async (name, blob) => {
           if (zip) zip.file(name, blob);
           else { saveBlob(blob, name.split('/').pop()); await new Promise(r => setTimeout(r, 400)); }
       };
       try {
           EXPORTING = true;
-          let qaJpegs = [];
-          for (let i = 0; i < jobs.length; i++) {
-              btn.innerHTML = `Generating ${i + 1} of ${jobs.length}...`;
-              let j = jobs[i], svg = j.svg();
-              svgToPngBlob.wantJpeg = j.dir === 'QA_Checklist/';
-              let png = await svgToPngBlob(svg, j.pw, j.ph);
-              svgToPngBlob.wantJpeg = false;
-              if (png.jpeg) qaJpegs.push(png.jpeg);
-              await save(`${j.dir}SVG/${j.file}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
-              await save(`${j.dir}PNG/${j.file}.png`, png);
-          }
-          if (qaJpegs.length) await save(`QA_Checklist/PRINT - ${fb} - QA checklist.pdf`, jpegPagesToPdf(qaJpegs, `${base} - QA checklist`));
-          if (qaOn() && pages.length) await save(`QA_Checklist/${fb} - QA checklist.csv`, new Blob([buildQACsv(pages, info)], { type: 'text/csv' }));
-          // job details for the CorelDRAW macro (names the .cdr: Ticket - Customer - Project)
-          await save('package_info.txt', new Blob([packageInfoText(info, total, pageNames)], { type: 'text/plain' }));
+          await fill(save, msg => { btn.innerHTML = esc(msg); }, !!zip);
           if (zip) {
               btn.innerHTML = 'Zipping...';
               let blob = await zip.generateAsync({ type: 'blob' });
               if (fileHandle) { let w = await fileHandle.createWritable(); await w.write(blob); await w.close(); toast('Saved ' + fileHandle.name); }
-              else saveBlob(blob, `${base}.zip`);
+              else saveBlob(blob, zipName);
           }
+          return true;
       } catch (e) {
-          alert('Export failed: ' + e.message);
+          alert('Export failed: ' + e.message); return false;
       } finally {
           EXPORTING = false;
-          btn.innerHTML = label;
+          btn.innerHTML = label; btn.disabled = false;
       }
+  }
+  function missingCustomerOk(what) {
+      let info = getCustomerInfo();
+      let missing = (info.hasSub && !info.sub ? ['sub'] : []).concat(['name', 'project', 'location', 'sales', 'inv', 'ticket', 'designer', 'orig', 'path'].filter(k => !info[k]));
+      return !missing.length || confirm(`${missing.length} job info field(s) are empty and will print as yellow MISSING tags.\nExport the ${what} anyway?`);
+  }
+
+  // PROOF PACKAGE: proof pages p01 ... then the Proof Summary as the last page; SVG (editable) + PNG (300 ppi) + package_info.txt
+  // files inside the zip use the short name (Ticket - p01) so unpacked paths stay under Windows' 260-character limit
+  async function generatePackage() {
+      let pages = packagePages();
+      if (!pages.length) { toast('Add a product on the Tables tab first.'); return; }
+      if (!missingCustomerOk('proof package')) return;
+      let info = getCustomerInfo(), base = exportBase(info), total = summaryTotal(pages), pad = n => String(n).padStart(2, '0');
+      await exportZip(document.getElementById('export-btn'), `${base} - Proof.zip`, async (save, progress, zipped) => {
+          let fb = zipped ? shortBase(info, base) : base, pageNames = [];
+          let jobs = pages.map((p, i) => ({ file: `${fb} - p${pad(i + 1)}`, svg: () => buildSheetSVG(p, i + 1, total, info) }));
+          pages.forEach((p, i) => pageNames.push([`Page${pad(i + 1)}`, `${p.item.name.toUpperCase()}${p.blank ? ' ' + p.title.toUpperCase() : ''} ${p.n}/${p.total}`]));
+          jobs.push({ file: `${fb} - p${pad(total)}`, svg: () => buildCoverSVG(pages, info, total) }); pageNames.push([`Page${pad(total)}`, 'PROOF SUMMARY']);
+          for (let i = 0; i < jobs.length; i++) {
+              progress(`Page ${i + 1} of ${jobs.length}...`);
+              let svg = jobs[i].svg(), png = await svgToPngBlob(svg);
+              await save(`SVG/${jobs[i].file}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
+              await save(`PNG/${jobs[i].file}.png`, png);
+          }
+          // job details for the CorelDRAW macro (names the .cdr: Ticket - Customer - Project)
+          await save('package_info.txt', new Blob([packageInfoText(info, total, pageNames)], { type: 'text/plain' }));
+      });
+  }
+
+  // PRODUCTION PACKAGE: the QA sheet (SVG, PNG, print PDF, CSV), each spec table to print, optional proof pages for reference
+  async function generateProduction() {
+      let pages = packagePages();
+      if (!pages.length) { toast('Add a product on the Tables tab first.'); return; }
+      let want = id => { let el = document.getElementById(id); return !el || el.checked; };
+      let qa = want('prod-qa'), tables = want('prod-tables'), proof = !!(document.getElementById('prod-proof') || {}).checked;
+      if (!qa && !tables && !proof) { toast('Check at least one item in the production package.'); return; }
+      if (!missingCustomerOk('production package')) return;
+      let info = getCustomerInfo(), base = exportBase(info), total = summaryTotal(pages), pad = n => String(n).padStart(2, '0');
+      await exportZip(document.getElementById('export-btn'), `${base} - Production.zip`, async (save, progress, zipped) => {
+          let fb = zipped ? shortBase(info, base) : base;
+          if (qa) {
+              let qaPages = buildQAPages(pages, info, total), jpegs = [];
+              for (let i = 0; i < qaPages.length; i++) {
+                  progress(`QA sheet ${i + 1} of ${qaPages.length}...`);
+                  svgToPngBlob.wantJpeg = true;
+                  let png = await svgToPngBlob(qaPages[i], 2550, 3300);
+                  svgToPngBlob.wantJpeg = false;
+                  if (png.jpeg) jpegs.push(png.jpeg);
+                  await save(`QA/SVG/${fb} - qa${pad(i + 1)}.svg`, new Blob([qaPages[i]], { type: 'image/svg+xml' }));
+                  await save(`QA/PNG/${fb} - qa${pad(i + 1)}.png`, png);
+              }
+              if (jpegs.length) await save(`PRINT - ${fb} - QA sheet.pdf`, jpegPagesToPdf(jpegs, `${base} - QA sheet`));
+              await save(`${fb} - QA sheet.csv`, new Blob([buildQACsv(pages, info)], { type: 'text/csv' }));
+          }
+          if (tables) {
+              progress('Spec tables...');
+              for (let i = 0; i < pages.length; i++) if (pages[i].blocks.length)
+                  await save(`Tables/${fb} - p${pad(i + 1)} - table.svg`, new Blob([buildTableSVG(pages[i])], { type: 'image/svg+xml' }));
+          }
+          if (proof) {
+              for (let i = 0; i < pages.length; i++) {
+                  progress(`Proof page ${i + 1} of ${total}...`);
+                  await save(`Proof pages/${fb} - p${pad(i + 1)}.png`, await svgToPngBlob(buildSheetSVG(pages[i], i + 1, total, info)));
+              }
+              await save(`Proof pages/${fb} - p${pad(total)}.png`, await svgToPngBlob(buildCoverSVG(pages, info, total)));
+          }
+      });
   }
 </script>

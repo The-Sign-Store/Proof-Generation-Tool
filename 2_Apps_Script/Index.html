@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <base target="_top">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
   <?!= include('Stylesheet'); ?>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -12,112 +12,158 @@
 
   <!-- TOP BAR -->
   <div id="topbar">
-    <div class="brand">Sign Proof Generator</div>
-    <div class="stepper">
-      <span class="step active" id="stepper-select" onclick="goSelect()">1 &nbsp;Select</span>
-      <span class="step-sep">&rsaquo;</span>
-      <span class="step" id="stepper-specs" onclick="if(pkgItems.length) goSpecs()">2 &nbsp;Specs</span>
-      <span class="step-sep">&rsaquo;</span>
-      <span class="step" id="stepper-customer" onclick="if(pkgItems.length) goCustomer()">3 &nbsp;Customer Info</span>
-    </div>
+    <button type="button" class="brand" onclick="goStart()" title="Start screen: new or saved project"><span class="brand-mark"></span>Sign Proof Generator</button>
+    <div class="project-label" id="project-label"></div>
+    <nav class="tabs" id="tabs" aria-label="Steps" style="display:none;">
+      <button type="button" class="tab" id="tab-btn-tables" onclick="showTab('tables')">1 &middot; Tables</button>
+      <button type="button" class="tab" id="tab-btn-proof" onclick="showTab('proof')">2 &middot; Proof pages</button>
+      <button type="button" class="tab" id="tab-btn-production" onclick="showTab('production')">3 &middot; Production</button>
+    </nav>
     <div class="topbar-right">
       <span id="page-count"></span>
       <span id="proof-status" class="proof-status" style="display:none;"></span>
-      <button type="button" class="btn-plain" onclick="newPackage()" title="Start a new, empty package">New</button>
-      <button type="button" class="btn-tonal" onclick="openLibrary()" title="Open a saved proof to edit it">Saved proofs</button>
-      <button type="button" class="btn-filled" id="save-btn" onclick="openSaveDialog()" title="Save this package to the shared Proof Library">Save</button>
+      <button type="button" class="btn-tonal" onclick="openLibrary()" title="Open a saved project">Saved projects</button>
+      <button type="button" class="btn-filled" id="save-btn" onclick="openSaveDialog()" title="Save this project to the shared Proof Library">Save</button>
+      <div class="export-wrap" id="export-wrap" style="display:none;">
+        <button type="button" class="btn-dark" id="export-btn" aria-haspopup="menu" aria-expanded="false" onclick="toggleExportMenu(event)">Export &#9662;</button>
+        <div id="export-menu" role="menu" style="display:none;">
+          <div class="xm-head">Data tables (SVG)</div>
+          <button type="button" role="menuitem" class="xm-item" id="xb-tables" onclick="downloadAllTables()"><b>All tables in one SVG</b></button>
+          <button type="button" role="menuitem" class="xm-item" id="xb-tables-zip" onclick="downloadTablesZip()"><b>One SVG per table</b><span>zip</span></button>
+          <div class="xm-sep"></div>
+          <button type="button" role="menuitem" class="xm-item" id="generate-btn" onclick="generatePackage()"><b>Proof package</b><span>Every proof page (SVG + PNG), Proof Summary last &middot; zip</span></button>
+          <button type="button" role="menuitem" class="xm-item" id="prod-btn" onclick="generateProduction()"><b>Production package</b><span>QA sheet and spec tables; department sheets later &middot; zip</span></button>
+        </div>
+      </div>
     </div>
   </div>
 
   <div id="loading">Loading Database from Google Sheets...</div>
   <div class="app-notice" id="app-notice" role="status" style="display:none;"></div>
 
-  <!-- STEP 1: DASHBOARD -->
-  <div id="step-select" class="screen" style="display:none;">
-    <div class="dash">
+  <!-- START: new or saved project -->
+  <div id="step-start" class="screen" style="display:none;">
+    <div class="start">
       <div class="restore-banner" id="restore-banner" style="display:none;"></div>
-      <div class="dash-head">
-        <div>
-          <h1>Build a Proof Package</h1>
-          <p>Check every product and component this job needs. Each one gets its own proof page(s); the order you check them is the page order.</p>
-        </div>
-        <div class="dash-tools">
-          <input type="search" id="cat-search" placeholder="Search products and components" oninput="filterCatalog(this.value)">
-          <button type="button" class="btn-tonal" onclick="openLibrary()">Open a saved proof</button>
+      <h1>What are you working on?</h1>
+      <p class="start-sub">Start a new project, or open one you already saved so you keep adding to the same project and its versions.</p>
+      <div class="start-cards">
+        <button type="button" class="start-card" id="start-new" onclick="startNewProject()">
+          <span class="start-icon new">+</span>
+          <span class="start-title">Create a new project</span>
+          <span class="start-desc">A new customer job: build its tables, proof pages and production package.</span>
+        </button>
+        <div class="start-card">
+          <span class="start-icon open">&#8599;</span>
+          <span class="start-title">Open a saved project</span>
+          <label for="start-search" class="sr-only">Search saved projects</label>
+          <input type="search" id="start-search" placeholder="Ticket #, customer or project" oninput="renderStartList()">
         </div>
       </div>
-      <div class="cat-legend" id="cat-legend"></div>
-      <h3>Products</h3>
-      <div class="cat-grid" id="cat-products"></div>
-      <h3>Components</h3>
-      <div class="cat-grid" id="cat-components"></div>
-      <h3>Custom</h3>
-      <div class="cat-grid" id="cat-custom"></div>
-    </div>
-    <div class="dash-footer">
-      <span class="link-btn" onclick="clearSelection()">Clear selection</span>
-      <button class="primary-btn" id="build-btn" onclick="buildPackage()" disabled>Select at least one item</button>
+      <div class="start-list-head"><h2>Saved projects</h2><span id="start-count"></span></div>
+      <div class="start-list" id="start-list"><div class="lib-empty">Loading saved projects...</div></div>
     </div>
   </div>
 
-  <!-- STEPS 2 + 3: SIDEBAR + PROOF PREVIEW -->
+  <!-- THE THREE TABS -->
   <div id="step-build" class="screen" style="display:none;">
-    <div id="sidebar">
 
-      <!-- STEP 2: SPECS -->
-      <div id="builder-panel">
-        <div class="side-head">
-          <h2>Proof Specs
-            <button type="button" class="help-btn" onclick="openHelp()" title="Design Help Center: standards and CorelDRAW how-to's for this package">
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="none" stroke="currentColor" stroke-width="2"/>
-                <path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                <circle cx="12" cy="17.6" r="1.3" fill="currentColor"/></svg>
-              <span>Design Help</span>
-            </button>
-          </h2>
-          <span class="link-btn" onclick="goSelect()">&larr; Edit Selection</span>
+    <!-- 1 TABLES: left = pick products + key in specs; right = the tables as they will print, live -->
+    <div class="tab-panel" id="tab-tables">
+      <aside id="tables-side">
+        <section id="cat-rail" class="open">
+          <button type="button" class="side-section-head" id="cat-toggle" aria-expanded="true" onclick="toggleCatalog()">
+            <span>Add products &amp; components</span><span class="ssh-caret">&#9662;</span></button>
+          <div class="cat-body">
+            <label for="cat-search" class="sr-only">Search products and components</label>
+            <input type="search" id="cat-search" placeholder="Search products, components" oninput="filterCatalog(this.value)">
+            <div class="cat-legend" id="cat-legend"></div>
+            <div class="cat-scroll">
+              <h3>Products</h3>
+              <div class="cat-list" id="cat-products"></div>
+              <h3>Components</h3>
+              <div class="cat-list" id="cat-components"></div>
+              <h3>Custom</h3>
+              <div class="cat-list" id="cat-custom"></div>
+            </div>
+          </div>
+        </section>
+        <section id="builder-panel">
+          <div class="side-section-title">Specs</div>
+          <div id="items"></div>
+          <div class="tables-empty" id="tables-empty">
+            <b>No tables yet</b>
+            <span>Pick a product or component above, or build a custom table.</span>
+          </div>
+        </section>
+      </aside>
+      <main id="tables-preview">
+        <div class="tables-head">
+          <div>
+            <h1>Spec tables</h1>
+            <p id="tables-summary">Pick products and components on the left to add their tables.</p>
+          </div>
+          <span class="tables-actions">
+            <button type="button" class="btn-outline" id="dl-all-tables" onclick="downloadAllTables()">Download all tables (1 SVG)</button>
+            <button type="button" class="btn-dark" onclick="showTab('proof')">Next: Proof pages &rarr;</button>
+          </span>
         </div>
-        <div id="items"></div>
-        <button class="primary-btn full" onclick="goCustomer()">Next: Add Customer Info &rarr;</button>
-      </div>
+        <div id="table-previews"></div>
+      </main>
+    </div>
 
-      <!-- STEP 3: CUSTOMER INFO -->
-      <div id="customer-panel" style="display:none;">
-        <div class="side-head">
-          <h2>Customer Info</h2>
-          <span class="link-btn" onclick="goSpecs()">&larr; Back to Specs</span>
-        </div>
+    <!-- 2 PROOF PAGES: proof pages first, the Proof Summary last; job info on the right -->
+    <div class="tab-panel" id="tab-proof" style="display:none;">
+      <aside id="customer-panel">
+        <h2>Job info</h2>
         <div class="cf-note">Fields left blank print as yellow <b>MISSING</b> tags so they can be filled in later.</div>
-        <div class="cf-group"><label>Customer Name *</label><input type="text" id="cf-name" oninput="schedulePreview()">
+        <div class="cf-group"><label for="cf-name">Customer Name *</label><input type="text" id="cf-name" oninput="schedulePreview(); updateProjectLabel()">
           <label class="cf-check"><input type="checkbox" id="cf-has-sub" onchange="toggleSubCustomer()"> Sub-customer</label>
         </div>
-        <div class="cf-group" id="cf-sub-group" style="display:none;"><label>Sub-Customer Name *</label>
+        <div class="cf-group" id="cf-sub-group" style="display:none;"><label for="cf-sub">Sub-Customer Name *</label>
           <input type="text" id="cf-sub" placeholder="e.g. tenant, location or division" oninput="schedulePreview()"></div>
-        <div class="cf-group"><label>Project Name *</label><input type="text" id="cf-project" placeholder="e.g. Main Entry Monument + Wayfinding" oninput="schedulePreview()"></div>
-        <div class="cf-group"><label>Installation Location *</label><input type="text" id="cf-location" placeholder="Site name, street, city" oninput="schedulePreview()"></div>
+        <div class="cf-group"><label for="cf-project">Project Name *</label><input type="text" id="cf-project" placeholder="e.g. Main Entry Monument + Wayfinding" oninput="schedulePreview(); updateProjectLabel()"></div>
+        <div class="cf-group"><label for="cf-location">Installation Location *</label><input type="text" id="cf-location" placeholder="Site name, street, city" oninput="schedulePreview()"></div>
         <div class="cf-row">
-          <div class="cf-group"><label>Sales Person *</label><input type="text" id="cf-sales" oninput="schedulePreview()"></div>
-          <div class="cf-group"><label>Designer Initials *</label><input type="text" id="cf-designer" maxlength="6" oninput="schedulePreview()"></div>
+          <div class="cf-group"><label for="cf-sales">Sales Person *</label><input type="text" id="cf-sales" oninput="schedulePreview()"></div>
+          <div class="cf-group"><label for="cf-designer">Designer Initials *</label><input type="text" id="cf-designer" maxlength="6" oninput="schedulePreview()"></div>
         </div>
         <div class="cf-row">
-          <div class="cf-group"><label>Invoice / Estimate # *</label><input type="text" id="cf-inv" oninput="schedulePreview()"></div>
-          <div class="cf-group"><label>Ticket # *</label><input type="text" id="cf-ticket" oninput="schedulePreview()"></div>
+          <div class="cf-group"><label for="cf-inv">Invoice / Estimate # *</label><input type="text" id="cf-inv" oninput="schedulePreview()"></div>
+          <div class="cf-group"><label for="cf-ticket">Ticket # *</label><input type="text" id="cf-ticket" oninput="schedulePreview(); updateProjectLabel()"></div>
         </div>
         <div class="cf-row">
-          <div class="cf-group"><label>Original Request Date *</label><input type="date" id="cf-orig" onchange="schedulePreview()"></div>
-          <div class="cf-group"><label>Revision Date (today)</label><input type="text" id="cf-rev" readonly></div>
+          <div class="cf-group"><label for="cf-orig">Original Request Date *</label><input type="date" id="cf-orig" onchange="schedulePreview()"></div>
+          <div class="cf-group"><label for="cf-rev">Revision Date (today)</label><input type="text" id="cf-rev" readonly></div>
         </div>
-        <div class="cf-group"><label>File Location *</label>
+        <div class="cf-group"><label for="cf-path">File Location *</label>
           <input type="text" id="cf-path" placeholder="P:\PROOF SHEETS\..." oninput="schedulePreview()">
           <div class="cf-help">In Windows File Explorer, open the job folder, click the address bar, copy (Ctrl+C) and paste here.</div>
         </div>
-        <div class="cf-group optional"><label>Project Notes (optional)</label><textarea id="cf-notes" rows="5" oninput="schedulePreview()"></textarea></div>
-        <button class="primary-btn full" id="generate-btn" onclick="generatePackage()">&#128229; Generate Sales Proof Package</button>
-        <div class="cf-help" style="text-align:center;">Downloads one .zip: cover page + every proof page as an editable SVG (Illustrator / CorelDRAW) and a 300 ppi PNG, plus the QA checklist (pages + .csv).</div>
-      </div>
+        <div class="cf-group optional"><label for="cf-notes">Project Notes (optional)</label><textarea id="cf-notes" rows="4" oninput="schedulePreview()"></textarea></div>
+        <div class="cf-help">The <b>Proof Summary</b> (customer, job info and everything in the package) is always the last page.</div>
+        <button type="button" class="btn-dark full" onclick="showTab('production')">Next: Production &rarr;</button>
+      </aside>
+      <div id="preview-area"><div id="sheets"></div></div>
     </div>
 
-    <div id="preview-area"><div id="sheets"></div></div>
+    <!-- 3 PRODUCTION: QA sheet now, a sheet per department later -->
+    <div class="tab-panel" id="tab-production" style="display:none;">
+      <aside id="prod-panel">
+        <h1>Production package</h1>
+        <p class="prod-sub">Everything production needs to build this job. Export it whenever the job goes to the shop.</p>
+        <div class="prod-box">
+          <label class="prod-opt"><input type="checkbox" id="prod-qa" checked onchange="renderProdCounts()"> QA sheet <span id="prod-qa-n"></span></label>
+          <label class="prod-opt"><input type="checkbox" id="prod-tables" checked onchange="renderProdCounts()"> Spec tables to print <span id="prod-tables-n"></span></label>
+          <label class="prod-opt"><input type="checkbox" id="prod-proof" onchange="renderProdCounts()"> Proof pages (reference copy) <span id="prod-proof-n"></span></label>
+        </div>
+        <div class="prod-later">
+          <span class="prod-later-h">LATER: A SHEET PER DEPARTMENT</span>
+          <span class="prod-chips"><span>Vinyl</span><span>Metal fabrication</span><span>CNC / routing</span><span>Electrical</span><span>Paint</span><span>Installation</span></span>
+        </div>
+      </aside>
+      <div id="qa-area"><div id="qa-sheets"></div></div>
+    </div>
   </div>
 
   <!-- DESIGN HELP CENTER (plain text, filtered to this package) -->
@@ -139,14 +185,12 @@
   <!-- SAVE TO THE PROOF LIBRARY -->
   <div id="save-modal" class="dialog-scrim" onclick="if (event.target === this) closeSaveDialog()">
     <div class="dialog" role="dialog" aria-labelledby="save-h">
-      <h3 id="save-h">Save proof</h3>
+      <h3 id="save-h">Save project</h3>
       <div class="dialog-sub" id="save-title"></div>
       <p class="dialog-text" id="save-where"></p>
-      <label class="dialog-label" for="save-status">Status</label>
-      <select id="save-status"></select>
       <label class="dialog-label" for="save-note">Version note (optional)</label>
       <input type="text" id="save-note" maxlength="120" placeholder="e.g. Customer changed the return color" onkeydown="if (event.key === 'Enter') saveProofNow()">
-      <label class="cf-check" id="save-new-row"><input type="checkbox" id="save-as-new"> Save as a new proof (a copy with its own versions)</label>
+      <label class="cf-check" id="save-new-row"><input type="checkbox" id="save-as-new"> Save as a new project (a copy with its own versions)</label>
       <div class="dialog-actions">
         <button type="button" class="btn-plain" onclick="closeSaveDialog()">Cancel</button>
         <button type="button" class="btn-filled" id="save-go" onclick="saveProofNow()">Save</button>
@@ -157,9 +201,8 @@
   <!-- PROOF LIBRARY -->
   <div id="library-modal" class="dialog-scrim" onclick="if (event.target === this) closeLibrary()">
     <div class="dialog dialog-wide" role="dialog" aria-labelledby="lib-h">
-      <div class="dialog-head"><h3 id="lib-h">Saved proofs</h3><span class="close-btn" onclick="closeLibrary()">&times;</span></div>
+      <div class="dialog-head"><h3 id="lib-h">Saved projects</h3><span class="close-btn" onclick="closeLibrary()">&times;</span></div>
       <input type="search" id="lib-search" placeholder="Search by customer, project, ticket, designer or product" oninput="renderLibrary()">
-      <div class="lib-filters" id="lib-filters"></div>
       <div id="lib-list"></div>
     </div>
   </div>

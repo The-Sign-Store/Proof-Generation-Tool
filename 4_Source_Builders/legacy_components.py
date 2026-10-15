@@ -77,10 +77,9 @@ LEGACY["ACRYLIC_PANEL"] = ("Acrylic", "Acrylic panel; second surface print on cl
 ])
 
 LEGACY["PVC_ROUTED_LETTERS"] = ("PVC - Routed Letters", "Routed PVC dimensional letters.", [
-    (C1, "QUANTITY", "QTY", "autoqty", "6", "LETTER HEIGHT", "", "Yes", "", "Counts letters in TEXT", ""),
-    (C1, "LETTER HEIGHT", "LETTER HEIGHT", "number", "12", "", "", "Yes", "", "", ""),
+    (C1, "TEXT", "TEXT", "text", "SAMPLE", "", "", "Yes", "", "What the letters say", ""),
+    (C1, "QTY & SIZES", "QTY / SIZE", "text", "", "", "", "Yes", "", "Quantity @ letter height; separate sizes with commas, e.g. 10 @ 18\", 4 @ 12\"", ""),
     (C1, "THICKNESS", "THICKNESS", "select", '1/2"', '3mm|6mm|1/4"|1/2"|3/4"|1"|1.5"|2"', "", "Yes", "", "", ""),
-    (C1, "TEXT", "TEXT", "text", "SAMPLE", "", "", "Yes", "", "", ""),
     (C2, "MATERIAL COLOR", "MATERIAL COLOR", "color", "White", "White|Black", "", "Yes", "", "", ""),
     (C2, "FINISH", "FINISH", "select", "Paint", "Paint|None", "", "Yes", "", "", "None"),
     (C2, "PAINT COLOR", "COLOR", "paint", "", "", "FINISH=Paint", "Yes", "", "", ""),
@@ -133,9 +132,8 @@ LEGACY["BANNER"] = ("Banner", "Vinyl banner with hems, grommets and pole pockets
 ])
 
 LEGACY["CHANNEL_LETTERS_FL"] = ("Channel Letters - Front Lit", "Front lit channel letters, one line of copy per block.", [
-    (C1, "QUANTITY", "QTY", "autoqty", "1", "LETTER HEIGHT", "", "Yes", "", "Counts letters in TEXT", ""),
-    (C1, "LETTER HEIGHT", "LETTER HEIGHT", "number", "18", "", "", "Yes", "", "", ""),
-    (C1, "TEXT", "TEXT", "text", "", "", "", "Yes", "", "", ""),
+    (C1, "TEXT", "TEXT", "text", "", "", "", "Yes", "", "What the letters say", ""),
+    (C1, "QTY & SIZES", "QTY / SIZE", "text", "", "", "", "Yes", "", "Quantity @ letter height; separate sizes with commas, e.g. 10 @ 18\", 4 @ 12\"", ""),
     (C2, "FACE MATERIAL", "FACE", "select", '3/16" Acrylic', '3/16" Acrylic|3/16" Polycarbonate', "", "Yes", "", "", ""),
     (C2, "FACE COLOR", "FACE COLOR", "color", "White", "Clear|White|Red", "", "Yes", "", "", ""),
     (C2, "FACE VINYL", "VINYL", "select", "None", "None|Translucent Vinyl|Translucent Digital Print", "", "Yes", "", "", "None"),

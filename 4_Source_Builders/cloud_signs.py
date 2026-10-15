@@ -11,7 +11,7 @@ in step. A project with letters on a cloud simply selects both products.
 """
 import re
 C1, C5 = "COLUMN 1", "COLUMN 5"
-LETTER_ONLY = {"QUANTITY", "LETTER HEIGHT", "TEXT"}          # replaced by QUANTITY + CLOUD SIZE
+LETTER_ONLY = {"QUANTITY", "LETTER HEIGHT", "TEXT", "QTY & SIZES"}          # replaced by QUANTITY + CLOUD SIZE
 RENAME = {"LETTER TYPE": "LIGHTING TYPE"}                     # halo: Reverse Lit (Halo) / Reverse Non-Lit
 MIRROR = {"CHANNEL_LETTERS_FL": ["CLOUD_SIGN_FL"], "HALO_LETTERS": ["CLOUD_SIGN_HALO"], "ILLUMINATION": ["CLOUD_SIGN_HALO"]}
 NOT_FOR_CLOUDS = {"L01", "L03", "L06"}                        # letter cap height, letter cut files, halo letter stroke

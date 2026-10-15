@@ -22,9 +22,8 @@ GAUGES, RET_GAUGES = ".040|.050|.063|.080|.090|.125", ".040|.050|.063"
 
 # (zone, variable, label, type, default, options, show_if, required, signos_ref, notes, hide_values)
 FIELDS = [
-    (C1, "QUANTITY", "QTY", "autoqty", "1", "LETTER HEIGHT", "", "Yes", "", "Counted from TEXT", ""),
-    (C1, "LETTER HEIGHT", "LETTER HEIGHT", "number", "12", '"', "", "Yes", "", "Cap height, inches", ""),
-    (C1, "TEXT", "TEXT", "text", "", "", "", "Yes", "", "", ""),
+    (C1, "TEXT", "TEXT", "text", "", "", "", "Yes", "", "What the letters say", ""),
+    (C1, "QTY & SIZES", "QTY / SIZE", "text", "", "", "", "Yes", "", "Quantity @ letter height; separate sizes with commas, e.g. 10 @ 18\", 4 @ 12\"", ""),
     (C1, "FONT", "FONT", "text", "", "", "", "", "", "Typeface name", ""),
 
     # ---- construction (depends on LIGHTING)
@@ -80,7 +79,7 @@ REGISTRY = ("MONUMENT_LETTERS", "Monument Letters", "Yes", "Yes",
 ASSEMBLY = ("Monument Signs", 8, "MONUMENT_LETTERS", "Monument Letters", "Optional-Off", "Yes", "")
 
 GUIDE = ("L08", "CHANNEL LETTERS AND HALO LETTERS", "MONUMENT_LETTERS", "",
-         "Monument letters: draw them standing on the monument cap in the elevation at real size (cap height {LETTER HEIGHT|per spec}), "
+         "Monument letters: draw them standing on the monument cap in the elevation at real size (qty / size {QTY & SIZES|per spec}), "
          "{LIGHTING|Non-Lit}, {MATERIAL THICKNESS|}{LETTER DEPTH|}{LETTER DEPTH - UNLIT|} thick / deep. "
          "Note the mounting ({MOUNTING|per spec}) and that a full-size pin / stud pattern goes with the letters.",
          "Installers set pins from the pattern; the cap must be wide enough for the letter depth plus pin edge distance.",

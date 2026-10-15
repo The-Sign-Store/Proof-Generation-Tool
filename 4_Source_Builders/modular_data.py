@@ -213,9 +213,8 @@ F["PANEL_FRAME"] = [
 ]
 
 F["HALO_LETTERS"] = [
- (C1, "QUANTITY", "QTY", "autoqty", "6", "LETTER HEIGHT", "", "Yes", "", "Counts letters in TEXT"),
- (C1, "LETTER HEIGHT", "LETTER HEIGHT", "number", "18", "", "", "Yes", "", "Inches, tallest letter"),
- (C1, "TEXT", "TEXT", "text", "SAMPLE", "", "", "Yes", "", ""),
+ (C1, "TEXT", "TEXT", "text", "SAMPLE", "", "", "Yes", "", "What the letters say"),
+ (C1, "QTY & SIZES", "QTY / SIZE", "text", "", "", "", "Yes", "", "Quantity @ letter height; separate sizes with commas, e.g. 10 @ 18\", 4 @ 12\""),
  (C1, "LETTER TYPE", "TYPE", "select", "Reverse Lit (Halo)", "Reverse Lit (Halo)|Reverse Non-Lit", "", "Yes", "", ""),
  (C2, "FACE", "FACE", "select", ".080 Aluminum", ".080 Aluminum|.063 Aluminum|.125 Aluminum|Brushed Aluminum|Stainless Steel", "", "Yes",
   "Master_Mat_Metals: ALM_SHT_080 / ALM_SHT_063", '.063 OK under 12"'),
