@@ -333,7 +333,7 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 CHANGELOG
 -----------------------------------------------------------------------------
 v4.4  (2026-10-15)
-  - Production tab: shop info (work order #, due, install, priority) typed
+  - Production tab: shop info (work order #, due date, install date) typed
     once, printed on every production page; blank = empty box.
   - Answer "TBD by Production" fields on the Production tab; answers print on
     production pages only (the design proof keeps TBD). Saved with the

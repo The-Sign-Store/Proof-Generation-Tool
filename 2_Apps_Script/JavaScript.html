@@ -2332,11 +2332,10 @@
       return lay;
   }
 
-  // WORK ORDER # / DUE / INSTALL (/ RUSH): values typed on the Production tab, empty boxes when blank (right-aligned at x)
+  // WORK ORDER # / DUE / INSTALL: values typed on the Production tab, empty boxes when blank (right-aligned at x)
   function prodInfoStrip(x, y) {
       const H = 26, VS = 13, LS = 10;
       let cells = [['WORK ORDER #', shopInfo.wo, 120], ['DUE', fmtDate(shopInfo.due), 92], ['INSTALL', fmtDate(shopInfo.install), 92]], o = `<g id="Shop_Info">`, cx = x;
-      if (shopInfo.priority === 'Rush') { let w = tw('RUSH', 13, true) * 1.15 + 20; cx -= w; o += R(cx, y, w, H, '#C62828', null, 0, ' rx="5"') + T(cx + w / 2, y + 18, 'RUSH', 13, { anchor: 'middle', bold: true, fill: '#FFFFFF', ls: 1 }); cx -= 14; }
       cells.reverse().forEach(([lab, v, bw]) => {
           let vw = Math.max(bw, v ? tw(v, VS, true) * 1.1 + 16 : bw);
           cx -= vw; o += R(cx, y, vw, H, '#FFFFFF', PROD, 1.2, ' rx="4"') + (v ? T(cx + 8, y + 17.5, v, VS, { bold: true }) : '');
@@ -2464,7 +2463,7 @@
       o += T(X, A.y + 40, 'PRODUCTION SNAPSHOT', 30, { bold: true, fill: PROD, ls: 1.6 }) +
            (info.custName ? T(X + W, A.y + 40, info.custName, 22, { anchor: 'end', bold: true, fill: PROD }) : '') +
            workOrderBox(X + W - 320, A.y + 70, 320, 13) +
-           T(X, A.y + 86, [shopInfo.due ? 'DUE ' + fmtDate(shopInfo.due) : '', shopInfo.install ? 'INSTALL ' + fmtDate(shopInfo.install) : '', shopInfo.priority === 'Rush' ? 'RUSH' : ''].filter(Boolean).join('   ·   '), 14, { bold: true, fill: shopInfo.priority === 'Rush' ? '#C62828' : PROD }) +
+           T(X, A.y + 86, [shopInfo.due ? 'DUE ' + fmtDate(shopInfo.due) : '', shopInfo.install ? 'INSTALL ' + fmtDate(shopInfo.install) : ''].filter(Boolean).join('   ·   '), 14, { bold: true, fill: PROD }) +
            T(X, A.y + 64, [info.project, `${pkgItems.length} product${pkgItems.length === 1 ? '' : 's'}`, `${pages.length} production proof${pages.length === 1 ? '' : 's'}`].filter(Boolean).join('  ·  '), 14, { fill: '#444444' });
       // departments: 5 big tiles
       let ty = A.y + 104, th = 76, tw5 = (W - 4 * 12) / 5;
@@ -2520,8 +2519,7 @@
               o += R(A.x + 18, A.y + 14, 10, 34, x.color, null, 0, ' rx="3"') +
                    T(A.x + 38, A.y + 40, `${x.name.toUpperCase()} — DEPARTMENT SHEET${chunks.length > 1 ? `  (${ci + 1}/${chunks.length})` : ''}`, 20, { bold: true, fill: '#1F2328', ls: 0.8 }) +
                    (info.custName ? T(A.x + A.w - 18, A.y + 40, info.custName, 15, { anchor: 'end', bold: true, fill: PROD }) : '') +
-                   T(A.x + 38, A.y + 60, [info.project, shopInfo.wo ? 'Work order # ' + shopInfo.wo : '', shopInfo.due ? 'Due ' + fmtDate(shopInfo.due) : '', shopInfo.install ? 'Install ' + fmtDate(shopInfo.install) : ''].filter(Boolean).join('  ·  '), 11, { fill: '#555555' }) +
-                   (shopInfo.priority === 'Rush' ? R(A.x + A.w - 90, A.y + 46, 72, 20, '#C62828', null, 0, ' rx="4"') + T(A.x + A.w - 54, A.y + 60.5, 'RUSH', 11, { anchor: 'middle', bold: true, fill: '#FFFFFF', ls: 1 }) : '');
+                   T(A.x + 38, A.y + 60, [info.project, shopInfo.wo ? 'Work order # ' + shopInfo.wo : '', shopInfo.due ? 'Due ' + fmtDate(shopInfo.due) : '', shopInfo.install ? 'Install ' + fmtDate(shopInfo.install) : ''].filter(Boolean).join('  ·  '), 11, { fill: '#555555' });
               let y = A.y + head, c1 = A.x + 18, cw = A.w - 36, w1 = cw * 0.30, w2 = cw * 0.24, w3 = cw - w1 - w2 - 60;
               o += R(c1, y, cw, 22, PROD) + T(c1 + 10, y + 15, 'PRODUCT · SECTION', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) +
                    T(c1 + w1 + 10, y + 15, 'SPEC', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) + T(c1 + w1 + w2 + 10, y + 15, 'WHAT IS NEEDED', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) +
@@ -3065,7 +3063,7 @@
   let pageArt = {}, activeArtKey = null;
   const ART_MAX_PX = 2400;   // longest side kept; larger images are scaled down before embedding
   // v4.4: production-only job info and answers to "TBD by Production" fields (never shown on the design proof)
-  let shopInfo = { wo: '', due: '', install: '', priority: '' }, prodAnswers = {};
+  let shopInfo = { wo: '', due: '', install: '' }, prodAnswers = {};
   function prodPhase() { return (ART_PHASE || step) === 'production'; }
   function tbdKey(part, fi) {            // stable across save / reopen: item, section number within the item, field
       let k = allParts.filter(p => p.iid === part.iid).indexOf(part);
@@ -3546,7 +3544,7 @@
   function renderProdPanel() {
       let box = document.getElementById('prod-tbd'); if (!box) return;
       let list = tbdFields(), sig = list.map(t => t.key + '|' + t.product + '|' + t.section).join(';');
-      ['wo', 'due', 'install', 'priority'].forEach(k => { let el = document.getElementById('pi-' + k); if (el && document.activeElement !== el) el.value = shopInfo[k] || ''; });
+      ['wo', 'due', 'install'].forEach(k => { let el = document.getElementById('pi-' + k); if (el && document.activeElement !== el) el.value = shopInfo[k] || ''; });
       if (sig === prodPanelSig) return;                       // same fields: keep the boxes (and the cursor) as they are
       prodPanelSig = sig;
       let n = document.getElementById('prod-tbd-n'); if (n) n.innerText = list.length ? `${list.filter(t => String(prodAnswers[t.key] || '').trim()).length} of ${list.length} answered` : '';
@@ -3875,7 +3873,7 @@
       document.getElementById('items').innerHTML = '';
       pkgItems = []; allParts = []; selection = [];
       pageArt = {}; pageMeasures = {}; excludedDrawings = {}; activeArtKey = null; measureKey = null; selArt = null; pageOrder = []; withCover = true;
-      shopInfo = { wo: '', due: '', install: '', priority: '' }; prodAnswers = {}; prodPanelSig = null;
+      shopInfo = { wo: '', due: '', install: '' }; prodAnswers = {}; prodPanelSig = null;
       Object.keys(appData.components).forEach(id => { if (appData.components[id].custom) delete appData.components[id]; });
       customProducts = {};
       currentProof = null; currentDraft = null; draftUploaded = {};
@@ -3926,7 +3924,7 @@
       });
       document.getElementById('cf-sub-group').style.display = document.getElementById('cf-has-sub').checked ? 'flex' : 'none';
       pageMeasures = JSON.parse(JSON.stringify(st.measures || {})); pageOrder = (st.pageOrder || []).slice(); withCover = st.cover === undefined ? false : !!st.cover;
-      shopInfo = Object.assign({ wo: '', due: '', install: '', priority: '' }, (st.prod || {}).info || {}); prodAnswers = Object.assign({}, (st.prod || {}).answers || {}); prodPanelSig = null;
+      shopInfo = Object.assign({ wo: '', due: '', install: '' }, (st.prod || {}).info || {}); prodAnswers = Object.assign({}, (st.prod || {}).answers || {}); prodPanelSig = null;
       for (let key of Object.keys(st.art || {})) {
           let list = [];
           for (let a of st.art[key]) { let src = images[a.img]; if (!src) continue; let ok = await artFromSrc(src, a); if (ok) list.push(ok); }

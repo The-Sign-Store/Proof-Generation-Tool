@@ -120,7 +120,7 @@ All notable changes, newest first.
 
 ### [4.4] – 2026-10-15
 #### Changed
-- **Shop info on the Production tab:** work order #, due date, install date and priority (Standard / Rush), typed once. Printed on every production proof (a strip at the top right), the QA sheet (work order # box, QA due / ship date), the Production Snapshot and the department sheets. Blank fields print as empty boxes. The work order # is searchable in Saved projects.
+- **Shop info on the Production tab:** work order #, due date and install date, typed once. Printed on every production proof (a strip at the top right), the QA sheet (work order # box, QA due / ship date), the Production Snapshot and the department sheets. Blank fields print as empty boxes. The work order # is searchable in Saved projects.
 - **Answer "TBD by Production" fields on the Production tab:** every TBD field is listed with an answer box; answers print on the production proofs, QA sheet, snapshot and department sheets. The design proof keeps "TBD by Production".
 - Shop info and answers are saved with the project.
 
