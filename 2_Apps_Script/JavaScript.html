@@ -149,7 +149,7 @@
       let pt = document.querySelector('#sp-proof .sp-t'); if (pt) pt.innerText = phase === 'production' ? 'Production proof' : 'Design proof';
       let set = (id, on, done) => { let el = document.getElementById(id); if (!el) return; el.classList.toggle('on', on); el.classList.toggle('done', done);
                                     el.querySelector('.sp-n').innerHTML = done ? '&#10003;' : el.dataset.n; };
-      let sp = document.getElementById('stepper'); if (sp) sp.classList.toggle('phase-prod', phase === 'production' && step !== 'start');
+      let sp = document.getElementById('stepper'); if (sp) { sp.classList.toggle('phase-prod', phase === 'production' && step !== 'start'); sp.style.display = step === 'start' ? 'none' : ''; }   // hidden on the home screen
       set('sp-start', step === 'start', step !== 'start');
       set('sp-proof', step !== 'start', false);
       set('sp-export', false, step !== 'start' && !!exportedPhase[phase]);
