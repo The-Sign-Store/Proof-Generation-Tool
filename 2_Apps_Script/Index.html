@@ -53,7 +53,20 @@
         <section class="home-card home-new">
           <div class="home-head"><span class="start-icon new">+</span><div><h1>Create a new project</h1>
             <p>Fill in the job info (anything blank prints as a yellow MISSING tag), then create the project.</p></div></div>
-          <div class="hf-grid"><div class="hf wide"><label for="hf-name">Customer Name</label><input type="text" id="hf-name"></div><label class="cf-check hf-sub"><input type="checkbox" id="hf-has-sub" onchange="document.getElementById('hf-sub-wrap').style.display = this.checked ? 'flex' : 'none'"> Sub-customer</label><div class="hf wide" id="hf-sub-wrap" style="display:none;"><label for="hf-sub">Sub-Customer Name</label><input type="text" id="hf-sub" placeholder="e.g. tenant, location or division"></div><div class="hf wide"><label for="hf-project">Project Name</label><input type="text" id="hf-project" placeholder="e.g. Main Entry Monument + Wayfinding"></div><div class="hf wide"><label for="hf-location">Installation Location</label><input type="text" id="hf-location" placeholder="Site name, street, city"></div><div class="hf"><label for="hf-sales">Sales Person</label><input type="text" id="hf-sales"></div><div class="hf"><label for="hf-designer">Designer Initials</label><input type="text" id="hf-designer" maxlength="6"></div><div class="hf"><label for="hf-inv">Invoice / Estimate #</label><input type="text" id="hf-inv"></div><div class="hf"><label for="hf-ticket">Ticket #</label><input type="text" id="hf-ticket"></div><div class="hf"><label for="hf-orig">Original Request Date</label><input type="date" id="hf-orig"></div><div class="hf wide"><label for="hf-path">File Location</label><input type="text" id="hf-path" placeholder="P:\PROOF SHEETS\..."></div><div class="hf wide"><label for="hf-notes">Project Notes (optional)</label><textarea id="hf-notes" rows="2"></textarea></div></div>
+          <div class="hf-grid">
+            <div class="hf span2"><label for="hf-name">Customer Name</label><input type="text" id="hf-name"></div>
+            <div class="hf span2"><label for="hf-project">Project Name</label><input type="text" id="hf-project" placeholder="e.g. Main Entry Monument + Wayfinding"></div>
+            <label class="cf-check hf-sub"><input type="checkbox" id="hf-has-sub" onchange="document.getElementById('hf-sub-wrap').style.display = this.checked ? 'flex' : 'none'"> Sub-customer</label>
+            <div class="hf span2" id="hf-sub-wrap" style="display:none;"><label for="hf-sub">Sub-Customer Name</label><input type="text" id="hf-sub" placeholder="e.g. tenant, location or division"></div>
+            <div class="hf span2"><label for="hf-location">Installation Location</label><input type="text" id="hf-location" placeholder="Site name, street, city"></div>
+            <div class="hf span2"><label for="hf-path">File Location</label><input type="text" id="hf-path" placeholder="P:\PROOF SHEETS\..."></div>
+            <div class="hf"><label for="hf-sales">Sales Person</label><input type="text" id="hf-sales"></div>
+            <div class="hf"><label for="hf-designer">Designer Initials</label><input type="text" id="hf-designer" maxlength="6"></div>
+            <div class="hf"><label for="hf-inv">Invoice / Estimate #</label><input type="text" id="hf-inv"></div>
+            <div class="hf"><label for="hf-ticket">Ticket #</label><input type="text" id="hf-ticket"></div>
+            <div class="hf"><label for="hf-orig">Original Request Date</label><input type="date" id="hf-orig"></div>
+            <div class="hf span3"><label for="hf-notes">Project Notes (optional)</label><textarea id="hf-notes" rows="1"></textarea></div>
+          </div>
           <div class="home-actions"><button type="button" class="btn-filled home-create" id="start-new" onclick="createProject()">Create project</button></div>
         </section>
         <section class="home-card home-open">
@@ -63,6 +76,7 @@
           <button type="button" class="btn-blue" id="start-open" onclick="openLibrary()">Open a saved project</button>
         </section>
       </div>
+      <footer class="home-foot">&copy; Property of The Sign Store <span id="copy-year">2026</span> &middot; Designed by Evan Zebley and Victoria Hawkins</footer>
     </div>
   </div>
 

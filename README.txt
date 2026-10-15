@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.1  (October 15, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.2  (October 15, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -332,6 +332,10 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.2  (2026-10-15)
+  - Home screen: wider four-column form that fits one screen, more space
+    under the top bar, copyright line pinned to the bottom. No data changes.
+
 v4.1  (2026-10-15)
   - The step guide is hidden on the home screen; it shows once a project is
     created or opened. No data tab changes.
