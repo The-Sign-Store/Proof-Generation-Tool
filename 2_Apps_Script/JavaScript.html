@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.1  -  Design + Production
+  //  SIGNSTUDIO v4.2  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.1';
+  const APP_VERSION = '4.2';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -4324,4 +4324,6 @@
       if (jpegs.length) await save(`${prefix}${fb} - Production package.pdf`, jpegPagesToPdf(jpegs, `${base} - Production package`));
   }
 
+  // home footer: the current year
+  (function () { let y = document.getElementById('copy-year'); if (y) y.textContent = String(new Date().getFullYear()); })();
 </script>

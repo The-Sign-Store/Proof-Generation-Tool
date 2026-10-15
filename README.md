@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.1** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.2** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -117,6 +117,15 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.2] – 2026-10-15
+#### Changed
+- Home screen: wider, four-column job info form that fits on one screen, more space under the top bar, and a copyright line pinned to the bottom (Property of The Sign Store, current year, designed by Evan Zebley and Victoria Hawkins).
+
+#### Data
+- No changes to the data tabs or Proof_Template.
+
+---
 
 ### [4.1] – 2026-10-15
 #### Changed
