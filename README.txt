@@ -1,4 +1,4 @@
-SIGN PROOF GENERATOR  v3.0  (October 13, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.0  (October 15, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -332,6 +332,27 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.0  (2026-10-15)  SignStudio
+  - Home screen: create a project with job info, or open a saved one.
+  - 3-step guide under the top bar (red on Design, purple on Production):
+    Create project > Design proof / Production proof > Approve and export.
+  - Job info is edited in Save Project.
+  - Layout: 30% specs | 60% proof pages | 10% Pages + Layers (fold either).
+  - Images + measurements on design and production pages (separate per
+    phase), bounding boxes, layers under the table and watermark.
+  - Click a table cell on a page to jump to its field (red flash).
+  - Cover page built into the Design tab (Remove / Add back).
+  - + Add Blank Page back; Same page / New page connectors.
+  - + Add Color on every color field; custom color = one CMYK/RGB/HEX field.
+  - Approve and export review window (replaces the Export button).
+    Design package: SVG/ + PNG/. Production package: SVG/ + PNG/ + one PDF.
+  - Production: thinner border, no border labels, bigger tables; QA sheet in
+    purple with CUSTOMER - PRODUCT headers; Production Snapshot and
+    department sheets; WORK ORDER # boxes; no design ticket # anywhere.
+  - Watermark at true 2-5% opacity, design proof only.
+  - CorelDRAW macro reads the new Production SVG/ folder.
+  - No data tab changes.
+
 v3.0  (2026-10-15)
   Changed
     - New layout in three tabs: 1 · Tables, 2 · Proof pages, 3 · Production.
