@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.0  -  Design + Production
+  //  SIGNSTUDIO v4.1  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.0';
+  const APP_VERSION = '4.1';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -149,7 +149,7 @@
       let pt = document.querySelector('#sp-proof .sp-t'); if (pt) pt.innerText = phase === 'production' ? 'Production proof' : 'Design proof';
       let set = (id, on, done) => { let el = document.getElementById(id); if (!el) return; el.classList.toggle('on', on); el.classList.toggle('done', done);
                                     el.querySelector('.sp-n').innerHTML = done ? '&#10003;' : el.dataset.n; };
-      let sp = document.getElementById('stepper'); if (sp) sp.classList.toggle('phase-prod', phase === 'production' && step !== 'start');
+      let sp = document.getElementById('stepper'); if (sp) { sp.classList.toggle('phase-prod', phase === 'production' && step !== 'start'); sp.style.display = step === 'start' ? 'none' : ''; }   // hidden on the home screen
       set('sp-start', step === 'start', step !== 'start');
       set('sp-proof', step !== 'start', false);
       set('sp-export', false, step !== 'start' && !!exportedPhase[phase]);
