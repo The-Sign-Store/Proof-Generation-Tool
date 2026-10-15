@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.3  -  Design + Production
+  //  SIGNSTUDIO v4.4  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.3';
+  const APP_VERSION = '4.4';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -1747,7 +1747,12 @@
           if (g && g.style.display === 'none') return;
           let mode = fieldMode(part, fi), base = { zone: f.zone, label: f.label, variable: f.variable.toUpperCase(), opts: f.options, hex: '', svg: null, gradient: false, warnLabel: 'MISSING', fid: `${part.uid}_${fi}` };
           if (mode === 'removed') return;
-          if (mode === 'tbd') { items.push(Object.assign(base, { type: 'tbd', val: 'TBD BY PRODUCTION', tbd: true, warn: false })); return; }
+          if (mode === 'tbd') {
+              let ans = prodPhase() ? String(prodAnswers[tbdKey(part, fi)] || '').trim() : '';
+              items.push(Object.assign(base, ans ? { type: 'prodans', val: ans, tbd: false, warn: false, prodAns: true }
+                                                 : { type: 'tbd', val: 'TBD BY PRODUCTION', tbd: true, warn: false }));
+              return;
+          }
           if (mode === 'missing') { items.push(Object.assign(base, { type: 'missing', val: 'Enter ' + formLabel(f), warn: true })); return; }
           if (mode === 'custom') {
               let v = String((part.fcustom || {})[fi] || '').trim();
@@ -2314,8 +2319,10 @@
   function prodTicket(info) { return String(info.custName || '').toUpperCase(); }   // staging: production pages never show the design ticket #
   // blank box for the shop's work order number
   function workOrderBox(x, y, w, size) {
+      let bx = x + tw('WORK ORDER #', size, true) * 1.12 + 14;
       return T(x, y, 'WORK ORDER #', size, { bold: true, fill: PROD, ls: 0.8 }) +
-             R(x + tw('WORK ORDER #', size, true) * 1.12 + 14, y - size - 4, w - tw('WORK ORDER #', size, true) * 1.12 - 14, size + 12, '#FFFFFF', PROD, 1.2, ' rx="4"');
+             R(bx, y - size - 4, w - tw('WORK ORDER #', size, true) * 1.12 - 14, size + 12, '#FFFFFF', PROD, 1.2, ' rx="4"') +
+             (shopInfo.wo ? T(bx + 8, y + 1, shopInfo.wo, size + 1, { bold: true }) : '');
   }
   // the table as large as the production artboard allows (up to 1.35x the proof size)
   function fitProdTable(page) {
@@ -2325,11 +2332,23 @@
       return lay;
   }
 
+  // WORK ORDER # / DUE / INSTALL (/ RUSH): values typed on the Production tab, empty boxes when blank (right-aligned at x)
+  function prodInfoStrip(x, y) {
+      const H = 26, VS = 13, LS = 10;
+      let cells = [['WORK ORDER #', shopInfo.wo, 120], ['DUE', fmtDate(shopInfo.due), 92], ['INSTALL', fmtDate(shopInfo.install), 92]], o = `<g id="Shop_Info">`, cx = x;
+      if (shopInfo.priority === 'Rush') { let w = tw('RUSH', 13, true) * 1.15 + 20; cx -= w; o += R(cx, y, w, H, '#C62828', null, 0, ' rx="5"') + T(cx + w / 2, y + 18, 'RUSH', 13, { anchor: 'middle', bold: true, fill: '#FFFFFF', ls: 1 }); cx -= 14; }
+      cells.reverse().forEach(([lab, v, bw]) => {
+          let vw = Math.max(bw, v ? tw(v, VS, true) * 1.1 + 16 : bw);
+          cx -= vw; o += R(cx, y, vw, H, '#FFFFFF', PROD, 1.2, ' rx="4"') + (v ? T(cx + 8, y + 17.5, v, VS, { bold: true }) : '');
+          let lw = tw(lab, LS, true) * 1.18 + 10; cx -= lw; o += T(cx, y + 17, lab, LS, { bold: true, fill: PROD, ls: 0.6 }); cx -= 18;
+      });
+      return o + `</g>`;
+  }
   function prodArtRegion(lay) {
       const A = PROD_IN, pad = 16;
       let tableTop = A.y + A.h - 14;
       if (lay) tableTop -= lay.h + 12 * Math.max(lay.s, 0.8) * 1.9;
-      return { x: A.x + pad, y: A.y + pad, w: A.w - 2 * pad, h: tableTop - pad - (A.y + pad) };
+      return { x: A.x + pad, y: A.y + pad + 30, w: A.w - 2 * pad, h: tableTop - pad - (A.y + pad + 30) };   // below the shop info strip
   }
   // PRODUCTION PROOF: the same page as the design proof, artboard + tables only (purple), customer name just above the tables
   function buildProductionSVG(page, n, total, info) {
@@ -2345,7 +2364,7 @@
           let keep = TBL; TBL = TBL_PROD; BADGE_PREFIX = String(info.custName || '').toUpperCase();
           try { o += drawTable(page, lay, x, bottom); } finally { TBL = keep; BADGE_PREFIX = ''; }
       }
-      o += drawArtHandles(page, region) + `</g>`;
+      o += drawArtHandles(page, region) + prodInfoStrip(A.x + A.w - 10, A.y + 8) + `</g>`;
       let what = `${prName(page.item).toUpperCase()}${page.total > 1 ? ` ${page.n}/${page.total}` : ''}`;
       return o + productionFrame(`PRODUCTION PROOF ${n} / ${total}`, [prodTicket(info), what].filter(Boolean).join(' · ')) + `</svg>`;
   }
@@ -2445,9 +2464,10 @@
       o += T(X, A.y + 40, 'PRODUCTION SNAPSHOT', 30, { bold: true, fill: PROD, ls: 1.6 }) +
            (info.custName ? T(X + W, A.y + 40, info.custName, 22, { anchor: 'end', bold: true, fill: PROD }) : '') +
            workOrderBox(X + W - 320, A.y + 70, 320, 13) +
+           T(X, A.y + 86, [shopInfo.due ? 'DUE ' + fmtDate(shopInfo.due) : '', shopInfo.install ? 'INSTALL ' + fmtDate(shopInfo.install) : '', shopInfo.priority === 'Rush' ? 'RUSH' : ''].filter(Boolean).join('   ·   '), 14, { bold: true, fill: shopInfo.priority === 'Rush' ? '#C62828' : PROD }) +
            T(X, A.y + 64, [info.project, `${pkgItems.length} product${pkgItems.length === 1 ? '' : 's'}`, `${pages.length} production proof${pages.length === 1 ? '' : 's'}`].filter(Boolean).join('  ·  '), 14, { fill: '#444444' });
       // departments: 5 big tiles
-      let ty = A.y + 94, th = 76, tw5 = (W - 4 * 12) / 5;
+      let ty = A.y + 104, th = 76, tw5 = (W - 4 * 12) / 5;
       d.depts.forEach((x, k) => {
           let tx = X + k * (tw5 + 12), on = x.rows.length > 0;
           o += R(tx, ty, tw5, th, on ? '#FFFFFF' : '#F4F5F7', on ? x.color : '#D5D9DF', on ? 3 : 1.2, ' rx="10"') +
@@ -2500,7 +2520,8 @@
               o += R(A.x + 18, A.y + 14, 10, 34, x.color, null, 0, ' rx="3"') +
                    T(A.x + 38, A.y + 40, `${x.name.toUpperCase()} — DEPARTMENT SHEET${chunks.length > 1 ? `  (${ci + 1}/${chunks.length})` : ''}`, 20, { bold: true, fill: '#1F2328', ls: 0.8 }) +
                    (info.custName ? T(A.x + A.w - 18, A.y + 40, info.custName, 15, { anchor: 'end', bold: true, fill: PROD }) : '') +
-                   T(A.x + 38, A.y + 60, info.project || '', 11, { fill: '#555555' });
+                   T(A.x + 38, A.y + 60, [info.project, shopInfo.wo ? 'Work order # ' + shopInfo.wo : '', shopInfo.due ? 'Due ' + fmtDate(shopInfo.due) : '', shopInfo.install ? 'Install ' + fmtDate(shopInfo.install) : ''].filter(Boolean).join('  ·  '), 11, { fill: '#555555' }) +
+                   (shopInfo.priority === 'Rush' ? R(A.x + A.w - 90, A.y + 46, 72, 20, '#C62828', null, 0, ' rx="4"') + T(A.x + A.w - 54, A.y + 60.5, 'RUSH', 11, { anchor: 'middle', bold: true, fill: '#FFFFFF', ls: 1 }) : '');
               let y = A.y + head, c1 = A.x + 18, cw = A.w - 36, w1 = cw * 0.30, w2 = cw * 0.24, w3 = cw - w1 - w2 - 60;
               o += R(c1, y, cw, 22, PROD) + T(c1 + 10, y + 15, 'PRODUCT · SECTION', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) +
                    T(c1 + w1 + 10, y + 15, 'SPEC', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) + T(c1 + w1 + w2 + 10, y + 15, 'WHAT IS NEEDED', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) +
@@ -2940,9 +2961,9 @@
               let col3 = [X, 330, 590], r1 = 106, r2 = 134, r3 = 162;
               [[col3[0], r1, 'CUSTOMER', info.custName], [col3[1], r1, 'PROJECT', info.project], [col3[2], r1, 'WORK ORDER #', '__WO__'],
                [col3[0], r2, 'INSTALLATION LOCATION', info.location], [col3[1], r2, 'SALESPERSON', info.sales], [col3[2], r2, 'INV/EST #', info.inv],
-               [col3[0], r3, 'DESIGNER', info.designer], [col3[1], r3, 'REVISION DATE', info.rev], [col3[2], r3, 'QA DUE / SHIP DATE', '__________']].forEach(([x, yy, lab, v]) => {
+               [col3[0], r3, 'DESIGNER', info.designer], [col3[1], r3, 'REVISION DATE', info.rev], [col3[2], r3, 'QA DUE / SHIP DATE', fmtDate(shopInfo.due) || '__________']].forEach(([x, yy, lab, v]) => {
                   o += T(x, yy - 10, lab, 7.5, { bold: true, fill: lab === 'WORK ORDER #' ? PROD : '#666666', ls: 0.8 });
-                  if (v === '__WO__') { o += R(x, yy - 7, XR - x, 17, '#FFFFFF', PROD, 1.2, ' rx="3"'); return; }
+                  if (v === '__WO__') { o += R(x, yy - 7, XR - x, 17, '#FFFFFF', PROD, 1.2, ' rx="3"') + (shopInfo.wo ? T(x + 6, yy + 5, shopInfo.wo, 11, { bold: true }) : ''); return; }
                   let cw = x === col3[2] ? XR - x : (x === col3[0] ? col3[1] : col3[2]) - x - 12, sz = 11, shown = v;
                   while (v && tw(v, sz, true) > cw && sz > 8) sz -= 0.25;
                   if (v && tw(v, sz, true) > cw) { while (shown.length > 3 && tw(shown + '...', sz, true) > cw) shown = shown.slice(0, -1); shown += '...'; }
@@ -2951,7 +2972,7 @@
               o += L(X, 172, XR, 172, '#CCCCCC', 0.6);
           } else {
               o += T(X, 104, [info.custName || 'MISSING CUSTOMER', info.project].filter(Boolean).join('  ·  '), 11, { bold: true }) +
-                   T(XR - 200, 104, 'WORK ORDER #', 9, { bold: true, fill: PROD, ls: 0.8 }) + R(XR - 118, 92, 118, 16, '#FFFFFF', PROD, 1.2, ' rx="3"');
+                   T(XR - 200, 104, 'WORK ORDER #', 9, { bold: true, fill: PROD, ls: 0.8 }) + R(XR - 118, 92, 118, 16, '#FFFFFF', PROD, 1.2, ' rx="3"') + (shopInfo.wo ? T(XR - 112, 104, shopInfo.wo, 10, { bold: true }) : '');
           }
           o += `</g><g id="QA_List">`;
           if (rowsOnPage.some(r => r.col === 1)) o += L(X + CW + GAP / 2, pi ? TOPN : TOP1, X + CW + GAP / 2, BOTTOM - (rowsOnPage.some(r => r.t === 'final') ? rowsOnPage.find(r => r.t === 'final').h + 10 : 0), '#DDDDDD', 0.6);
@@ -3043,6 +3064,14 @@
   // =====================================================================
   let pageArt = {}, activeArtKey = null;
   const ART_MAX_PX = 2400;   // longest side kept; larger images are scaled down before embedding
+  // v4.4: production-only job info and answers to "TBD by Production" fields (never shown on the design proof)
+  let shopInfo = { wo: '', due: '', install: '', priority: '' }, prodAnswers = {};
+  function prodPhase() { return (ART_PHASE || step) === 'production'; }
+  function tbdKey(part, fi) {            // stable across save / reopen: item, section number within the item, field
+      let k = allParts.filter(p => p.iid === part.iid).indexOf(part);
+      return `${part.iid}#${k}#${String(appData.components[part.comp].fields[fi].variable).toUpperCase()}`;
+  }
+  function fmtDate(v) { let m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[2]}/${+m[3]}/${m[1]}` : String(v || ''); }
   let ART_PHASE = null;                                // export: force the phase whose images are drawn
   function pageKey(p) { return `${p.item.iid}:${p.n}`; }
   function artKey(p) { return ((ART_PHASE || step) === 'production' ? 'prod-' : '') + pageKey(p); }
@@ -3503,7 +3532,42 @@
       sec.classList.toggle('open', open);
       document.getElementById('cat-toggle').setAttribute('aria-expanded', open);
   }
+  let prodPanelSig = null;
+  function tbdFields() {                    // every field set to "TBD by Production", in package order
+      let out = [];
+      pkgItems.forEach(it => allParts.filter(p => p.iid === it.iid && p.enabled !== false).forEach(part => {
+          appData.components[part.comp].fields.forEach((f, fi) => {
+              if (fieldMode(part, fi) !== 'tbd' || f.removed) return;
+              out.push({ key: tbdKey(part, fi), product: prName(it), section: partLabel(part), label: formLabel(f) });
+          });
+      }));
+      return out;
+  }
+  function renderProdPanel() {
+      let box = document.getElementById('prod-tbd'); if (!box) return;
+      let list = tbdFields(), sig = list.map(t => t.key + '|' + t.product + '|' + t.section).join(';');
+      ['wo', 'due', 'install', 'priority'].forEach(k => { let el = document.getElementById('pi-' + k); if (el && document.activeElement !== el) el.value = shopInfo[k] || ''; });
+      if (sig === prodPanelSig) return;                       // same fields: keep the boxes (and the cursor) as they are
+      prodPanelSig = sig;
+      let n = document.getElementById('prod-tbd-n'); if (n) n.innerText = list.length ? `${list.filter(t => String(prodAnswers[t.key] || '').trim()).length} of ${list.length} answered` : '';
+      if (!list.length) { box.innerHTML = '<div class="pt-empty">No fields are marked TBD by Production. Mark one in a field\'s &#8943; menu on the Design tab and it shows up here.</div>'; return; }
+      let html = '', last = '';
+      list.forEach(t => {
+          let head = t.product + (t.section && t.section !== t.product ? ' · ' + t.section : '');
+          if (head !== last) { html += `<div class="pt-group">${esc(head)}</div>`; last = head; }
+          html += `<label class="pt-row"><span>${esc(t.label)}</span><input type="text" data-key="${esc(t.key)}" value="${esc(prodAnswers[t.key] || '')}" placeholder="TBD by Production" oninput="setProdAnswer(this.dataset.key, this.value)"></label>`;
+      });
+      box.innerHTML = html;
+  }
+  function setShopInfo(k, v) { shopInfo[k] = v; schedulePreview(); }
+  function setProdAnswer(k, v) {
+      if (String(v).trim()) prodAnswers[k] = v; else delete prodAnswers[k];
+      let list = tbdFields(), n = document.getElementById('prod-tbd-n');
+      if (n) n.innerText = `${list.filter(t => String(prodAnswers[t.key] || '').trim()).length} of ${list.length} answered`;
+      schedulePreview();
+  }
   function renderProdCounts(pages) {
+      renderProdPanel();
       pages = pages || packagePages();
       let n = (id, t) => { let el = document.getElementById(id); if (el) el.innerText = t; };
       n('prod-qa-n', qaCount ? `${qaCount} page${qaCount > 1 ? 's' : ''}` : '');
@@ -3741,7 +3805,8 @@
                                       fmode: Object.assign({}, p.fmode || {}), fcustom: Object.assign({}, p.fcustom || {}),
                                       fields: appData.components[p.comp].custom ? null : appData.components[p.comp].fields.map(f => String(f.variable).toUpperCase()),
                                       values: captureValues(document.getElementById(`part-${p.uid}`), p.uid) })),
-          excludedDrawings: Object.assign({}, excludedDrawings), customer, art, measures: JSON.parse(JSON.stringify(pageMeasures)), pageOrder: pageOrder.slice(), cover: withCover
+          excludedDrawings: Object.assign({}, excludedDrawings), customer, art, measures: JSON.parse(JSON.stringify(pageMeasures)), pageOrder: pageOrder.slice(), cover: withCover,
+          prod: { info: Object.assign({}, shopInfo), answers: Object.assign({}, prodAnswers) }
       };
       return { state, images };
   }
@@ -3810,6 +3875,7 @@
       document.getElementById('items').innerHTML = '';
       pkgItems = []; allParts = []; selection = [];
       pageArt = {}; pageMeasures = {}; excludedDrawings = {}; activeArtKey = null; measureKey = null; selArt = null; pageOrder = []; withCover = true;
+      shopInfo = { wo: '', due: '', install: '', priority: '' }; prodAnswers = {}; prodPanelSig = null;
       Object.keys(appData.components).forEach(id => { if (appData.components[id].custom) delete appData.components[id]; });
       customProducts = {};
       currentProof = null; currentDraft = null; draftUploaded = {};
@@ -3860,6 +3926,7 @@
       });
       document.getElementById('cf-sub-group').style.display = document.getElementById('cf-has-sub').checked ? 'flex' : 'none';
       pageMeasures = JSON.parse(JSON.stringify(st.measures || {})); pageOrder = (st.pageOrder || []).slice(); withCover = st.cover === undefined ? false : !!st.cover;
+      shopInfo = Object.assign({ wo: '', due: '', install: '', priority: '' }, (st.prod || {}).info || {}); prodAnswers = Object.assign({}, (st.prod || {}).answers || {}); prodPanelSig = null;
       for (let key of Object.keys(st.art || {})) {
           let list = [];
           for (let a of st.art[key]) { let src = images[a.img]; if (!src) continue; let ok = await artFromSrc(src, a); if (ok) list.push(ok); }
@@ -3873,6 +3940,7 @@
   // ---------- save ----------
   function searchWords() {
       let names = [], add = n => { n = String(n || '').trim(); if (n && !/^MISSING/i.test(n) && names.indexOf(n) === -1) names.push(n); };
+      if (shopInfo.wo) add('WO ' + shopInfo.wo);
       pkgItems.forEach(it => { add(prName(it)); allParts.filter(p => p.iid === it.iid && p.enabled !== false).forEach(p => add(partLabel(p))); });
       return names.join(', ');
   }

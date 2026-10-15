@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.3  (October 15, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.4  (October 15, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -332,6 +332,13 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.4  (2026-10-15)
+  - Production tab: shop info (work order #, due, install, priority) typed
+    once, printed on every production page; blank = empty box.
+  - Answer "TBD by Production" fields on the Production tab; answers print on
+    production pages only (the design proof keeps TBD). Saved with the
+    project. No data changes.
+
 v4.3  (2026-10-15)
   - Next button under Pages + Layers opens Approve and export (red/yellow on
     Design, purple/white on Production); Back to proof pages in the review.

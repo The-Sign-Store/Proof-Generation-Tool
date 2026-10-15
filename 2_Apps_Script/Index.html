@@ -136,6 +136,21 @@
           <div class="prod-opt"><b>Production proofs</b> <span id="prod-proof-n"></span></div>
           <div class="prod-opt"><b>Production snapshot</b> <span id="prod-chart-n"></span></div>
         </div>
+        <section class="pi-box">
+          <h2>Shop info</h2>
+          <p class="pi-sub">Prints on every production page. Leave a field blank to print an empty box.</p>
+          <div class="pi-grid">
+            <div class="hf"><label for="pi-wo">Work order #</label><input type="text" id="pi-wo" oninput="setShopInfo('wo', this.value)"></div>
+            <div class="hf"><label for="pi-priority">Priority</label><select id="pi-priority" onchange="setShopInfo('priority', this.value)"><option value="">Standard</option><option value="Rush">Rush</option></select></div>
+            <div class="hf"><label for="pi-due">Due date</label><input type="date" id="pi-due" onchange="setShopInfo('due', this.value)"></div>
+            <div class="hf"><label for="pi-install">Install date</label><input type="date" id="pi-install" onchange="setShopInfo('install', this.value)"></div>
+          </div>
+        </section>
+        <section class="pi-box">
+          <h2>TBD by Production <span id="prod-tbd-n"></span></h2>
+          <p class="pi-sub">Answer them here: the answers print on the production pages only. The design proof keeps "TBD by Production".</p>
+          <div id="prod-tbd"></div>
+        </section>
         </aside>
       <div id="qa-area"><div id="qa-sheets"></div></div>
     </div>

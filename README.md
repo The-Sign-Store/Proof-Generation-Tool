@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.3** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.4** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -117,6 +117,17 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.4] – 2026-10-15
+#### Changed
+- **Shop info on the Production tab:** work order #, due date, install date and priority (Standard / Rush), typed once. Printed on every production proof (a strip at the top right), the QA sheet (work order # box, QA due / ship date), the Production Snapshot and the department sheets. Blank fields print as empty boxes. The work order # is searchable in Saved projects.
+- **Answer "TBD by Production" fields on the Production tab:** every TBD field is listed with an answer box; answers print on the production proofs, QA sheet, snapshot and department sheets. The design proof keeps "TBD by Production".
+- Shop info and answers are saved with the project.
+
+#### Data
+- No changes to the data tabs or Proof_Template.
+
+---
 
 ### [4.3] – 2026-10-15
 #### Changed
