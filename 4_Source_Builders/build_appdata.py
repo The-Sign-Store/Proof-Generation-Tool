@@ -24,6 +24,11 @@ REGISTRY = REGISTRY + [monument_letters.REGISTRY]
 F["MONUMENT_LETTERS"] = monument_letters.FIELDS
 ASSEMBLIES = ASSEMBLIES + [monument_letters.ASSEMBLY + (2,)]
 GUIDE = list(GUIDE) + [monument_letters.GUIDE]
+import magnetics                                         # v4.5: Magnetics product
+REGISTRY = REGISTRY + [magnetics.REGISTRY]
+F["MAGNETIC"] = magnetics.FIELDS
+ASSEMBLIES = ASSEMBLIES + [magnetics.ASSEMBLY + (1,)]
+GUIDE = list(GUIDE) + list(magnetics.GUIDE)
 DRAWINGS = [(d[0], d[1], d[2], cloud_signs.mirror_comps(d[3]), cloud_signs.mirror_rule(d[4])) + tuple(d[5:]) for d in DRAWINGS]
 GUIDE = [(g[0], g[1], cloud_signs.mirror_comps(g[2], g[0]), cloud_signs.mirror_rule(g[3], g[0])) + tuple(g[4:]) for g in GUIDE]
 

@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.4** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.5** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -117,6 +117,16 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.5] – 2026-10-15
+#### Added
+- **Magnetics** (Vinyl family): vehicle and indoor magnets. QTY (1 pair default), dimensions, application (vehicle door / tailgate / indoor), substrate (30 mil vehicle, 20 / 15 mil indoor), magnet face (white / black), graphic (Arlon 4500GLX mounted print, direct print or Oracal 751 cut vinyl), overlaminate and full color for printed graphics, vinyl color for cut vinyl, corners (1" rounded default). Every magnet spec goes to the Vinyl department sheet.
+- Design help rules M01-M03: steel only and flat area, 30 mil and rounded corners for vehicles, customer care.
+
+#### Data
+- Component_Registry, Component_Schema, Product_Assembly and Design_Guide gain the Magnetics rows (source: `4_Source_Builders/magnetics.py`). SignOS_Ref is blank until a magnetic sheeting SKU is set up.
+
+---
 
 ### [4.4] – 2026-10-15
 #### Changed

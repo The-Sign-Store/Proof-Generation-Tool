@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.4  -  Design + Production
+  //  SIGNSTUDIO v4.5  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + PNG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.4';
+  const APP_VERSION = '4.5';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -336,7 +336,7 @@
       [/ada/i, 'ada', 'ada'],
       [/acm/i, 'acm', 'panels'], [/acrylic/i, 'acrylic', 'panels'], [/pvc/i, 'pvc', 'panels'], [/coro/i, 'coro', 'panels'],
       [/hdu/i, 'hdu', 'panels'], [/sign panel/i, 'panel', 'panels'],
-      [/cut vinyl/i, 'vinyl_cut', 'vinyl'], [/digital print/i, 'vinyl_print', 'vinyl'], [/banner/i, 'banner', 'vinyl']
+      [/cut vinyl/i, 'vinyl_cut', 'vinyl'], [/digital print/i, 'vinyl_print', 'vinyl'], [/banner/i, 'banner', 'vinyl'], [/magnet/i, 'magnet', 'vinyl']
   ];
   const ST = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"';
   const FL = 'fill="currentColor"';
@@ -374,6 +374,7 @@
       vinyl_cut: `<path d="M5 6h30v20l-9 9H5z" ${ST}/><path d="M35 26h-9v9" ${ST}/><text x="17" y="24" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="14" ${FL}>A</text>`,
       vinyl_print: `<path d="M5 6h30v20l-9 9H5z" ${FL}/><path d="M35 26h-9v9" fill="none" stroke="#fff" stroke-width="2"/><path d="M8 26l7-9 5 6 3-3 4 6" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>`,
       banner: `<rect x="4" y="9" width="32" height="20" rx="1" ${FL}/>` + [7, 20, 33].map(x => `<circle cx="${x}" cy="12" r="1.5" fill="#fff"/><circle cx="${x}" cy="26" r="1.5" fill="#fff"/>`).join(''),
+      magnet: `<path d="M9 7v13a11 11 0 0 0 22 0V7h-7v13a4 4 0 0 1-8 0V7z" ${ST}/><path d="M9 12h7M24 12h7" ${ST} stroke-width="3"/>`,
       custom: `<rect x="4" y="7" width="32" height="26" rx="2" ${ST}/><path d="M4 15h32M4 24h32M16 7v26" ${ST}/><path d="M28 27v-6M25 24h6" ${ST} stroke-width="2.4"/>`,
       generic: `<rect x="5" y="8" width="30" height="24" rx="2" ${ST}/>`
   };
@@ -2437,6 +2438,7 @@
       return out;
   }
   function specDepts(sp) {
+      if (/magnet/i.test(sp.product)) return ['vinyl'];          // v4.5: magnets are printed, laminated and cut in the Vinyl department
       let L = sp.label, V = String(sp.val || '').toUpperCase(), d = [];
       DEPTS.forEach(x => { if (x.re.test(L)) d.push(x.slug); });
       if (/\bCOLOR\b/.test(L) && /SW |PMS|PAINT/.test(V) && d.indexOf('paint') === -1) d.push('paint');

@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.4  (October 15, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.5  (October 15, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -332,6 +332,12 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.5  (2026-10-15)
+  - New product: Magnetics (vehicle and indoor magnets) in the Vinyl family,
+    with design help rules M01-M03. All magnet specs go to the Vinyl
+    department sheet. Data tabs updated (Component_Registry,
+    Component_Schema, Product_Assembly, Design_Guide).
+
 v4.4  (2026-10-15)
   - Production tab: shop info (work order #, due date, install date) typed
     once, printed on every production page; blank = empty box.
