@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.6  (October 16, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.6.1  (October 16, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -296,6 +296,10 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.6.1  (2026-10-16)
+  - Fixed: the app would not start after v4.6 ("Invalid or unexpected
+    token"): a "//" inside a JavaScript string, which Apps Script cuts off.
+
 v4.6  (2026-10-16)
   - Production tab: "Missing information" lists every TBD by Production
     field (purple TBD tag) and every blank field (yellow MISSING tag) with an

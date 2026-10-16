@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.6  -  Design + Production
+  //  SIGNSTUDIO v4.6.1  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.6';
+  const APP_VERSION = '4.6.1';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -3665,7 +3665,7 @@
   function renderProdPanel() {
       let box = document.getElementById('prod-missing'); if (!box) return;
       let list = missingInfo(), job = jobInfoMissing(getCustomerInfo());
-      let sig = list.map(t => [t.key, t.kind, t.product, t.section].join('|')).join(';') + '//' + job.join(',');
+      let sig = list.map(t => [t.key, t.kind, t.product, t.section].join('|')).join(';') + '##' + job.join(',');
       missingCount(list, job);
       if (sig === prodPanelSig) return;                       // same fields: keep the boxes (and the cursor) as they are
       prodPanelSig = sig;
