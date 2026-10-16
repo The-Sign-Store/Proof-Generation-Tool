@@ -1220,4 +1220,12 @@
   #review-modal .rv-mini { font-size: 16px; line-height: 1.55; padding-left: 22px; }
   #review-modal .rv-mini li { margin: 6px 0; }
   #review-modal .rv-mini code { font-size: 14.5px; }
+  /* v4.8.3: letter QTY (counted) + tallest letter height */
+  .qh-row { align-items: center; gap: 8px; flex-wrap: nowrap; }
+  .qh-row .qh-q { flex: 0 0 92px; }
+  .qh-row .qh-h { flex: 1 1 auto; position: relative; }
+  .qh-row .qh-h em { font-style: normal; color: #6E7781; margin-left: 2px; }
+  .qh-row input.manual { color: #8A5300; font-weight: 600; }
+  .qh-auto { flex: none; height: 28px; padding: 0 10px; border: 1px solid #D0D5DB; border-radius: 14px; background: #FFFFFF; color: #0B57D0; font: 600 12px var(--font); cursor: pointer; }
+  .qh-auto:hover { background: #EEF3FC; }
 </style>

@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.8.2  -  Design + Production
+  //  SIGNSTUDIO v4.8.3  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.8.2';
+  const APP_VERSION = '4.8.3';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -1552,7 +1552,47 @@
   }
 
   // "FACE GAUGE - UNLIT", "OVERALL DEPTH - DS": the part after " - " only tells same-named variants apart
-  function formLabel(f) { return f.custom ? f.variable : String(f.variable).replace(/ - [A-Z0-9]+$/, ''); }
+  function formLabel(f) { if (!f.custom && String(f.variable).toUpperCase() === 'QTY & SIZES') return 'QTY & HEIGHT';
+                          return f.custom ? f.variable : String(f.variable).replace(/ - [A-Z0-9]+$/, ''); }
+  // ---------- QTY & SIZES on letter components: counted quantity + tallest letter height ----------
+  function qhParse(v) {                                    // "12 @ 18\"" (older: "10 @ 18\", 4 @ 12\"") -> { q: total, h: tallest }
+      let q = 0, h = '', any = false;
+      String(v || '').split(',').forEach(x => {
+          let m = x.match(/(\d+)\s*@\s*([\d.]+(?:\s+\d+\/\d+)?)/); if (!m) return;
+          any = true; q += +m[1];
+          if (!h || parseFloat(m[2]) > parseFloat(h)) h = m[2].trim();
+      });
+      return any ? { q: String(q), h } : { q: '', h: '' };
+  }
+  function qhPart(fid) { let uid = fid.split('_')[0]; return allParts.find(p => p.uid === uid); }
+  function qhEdit(fid, which) {
+      let p = qhPart(fid); if (!p) return;
+      if (which === 'q') { let v = document.getElementById(`mqq-${fid}`).value.trim(); p.qtyManual = p.qtyManual || {};
+                           if (v === '' || +v === letterCount(getRaw(p, 'TEXT'))) delete p.qtyManual[fid]; else p.qtyManual[fid] = v; }
+      refreshAll();
+  }
+  function qhAuto(fid) { let p = qhPart(fid); if (p && p.qtyManual) delete p.qtyManual[fid]; refreshAll(); }
+  function qhSync(part, fi) {
+      let fid = `${part.uid}_${fi}`, hid = document.getElementById(`mf-${fid}`), qi = document.getElementById(`mqq-${fid}`), hi = document.getElementById(`mqh-${fid}`);
+      if (!hid || !qi || !hi) return;
+      let n = letterCount(getRaw(part, 'TEXT'));
+      part.qtyManual = part.qtyManual || {};
+      if (hid.value !== (hid.dataset.last || '')) {         // set from outside (opening a project, defaults): read it back in
+          let pr = qhParse(hid.value);
+          if (pr.q && +pr.q !== n) part.qtyManual[fid] = pr.q; else delete part.qtyManual[fid];
+          if (document.activeElement !== hi) hi.value = pr.h;
+      }
+      let manual = part.qtyManual[fid], q = manual != null ? manual : (n ? String(n) : '');
+      if (document.activeElement !== qi) qi.value = q;
+      qi.placeholder = n ? String(n) : 'count';
+      qi.title = manual != null ? `Typed in (TEXT has ${n} letter${n === 1 ? '' : 's'})` : 'Counted from TEXT (spaces ignored); type to change';
+      qi.classList.toggle('manual', manual != null);
+      let a = document.getElementById(`mqa-${fid}`); if (a) a.style.display = manual != null ? '' : 'none';
+      let h = String(hi.value || '').replace(/"/g, '').trim();
+      let qv = document.activeElement === qi ? qi.value.trim() : q;
+      hid.value = qv && h ? `${qv} @ ${h}"` : '';            // no height yet: the proof shows MISSING
+      hid.dataset.last = hid.value;
+  }
 
   function renderField(part, f, fi) {
       let fid = `${part.uid}_${fi}`;
@@ -1617,6 +1657,13 @@
           case 'pictogram':
               html += swatchBtn(fid, `openPictoModal('${fid}')`, '', '', 'Select Pictogram', true); break;
           default:
+              if (up === 'QTY & SIZES') {                   // quantity (counted from TEXT) + tallest letter height -> "12 @ 18\""
+                  html += `<div class="dims-row qh-row"><div class="dim-box qh-q"><span>QTY</span><input type="number" min="0" id="mqq-${fid}" oninput="qhEdit('${fid}', 'q')"></div>` +
+                          `<div class="dim-box qh-h"><span>HEIGHT</span><input type="text" inputmode="decimal" id="mqh-${fid}" placeholder="letter height" oninput="qhEdit('${fid}', 'h')"><em>"</em></div>` +
+                          `<button type="button" class="qh-auto" id="mqa-${fid}" onclick="qhAuto('${fid}')" title="Count the letters in TEXT again" style="display:none">Auto</button></div>` +
+                          `<input type="hidden" id="mf-${fid}" value="${esc(def)}">`;
+                  break;
+              }
               html += `<input type="text" id="mf-${fid}" value="${esc(def)}" oninput="refreshAll()">`;
       }
       if (COLOR_TYPES.indexOf(f.type) !== -1 && f.type !== 'vinyl')
@@ -2009,11 +2056,7 @@
               let el = document.getElementById(`mf-${part.uid}_${fi}`);
               if (el && t !== '') el.value = t.replace(/\s/g, '').length;
           });
-          fields.forEach((f, fi) => {
-              if (String(f.variable).toUpperCase() !== 'QTY & SIZES') return;
-              let el = document.getElementById(`mf-${part.uid}_${fi}`), n = letterCount(getRaw(part, 'TEXT'));
-              if (el) el.placeholder = `e.g. ${n || 10} @ 18", or ${n || 10} @ 18", 4 @ 12"`;
-          });
+          fields.forEach((f, fi) => { if (String(f.variable).toUpperCase() === 'QTY & SIZES') qhSync(part, fi); });
           fields.forEach((f, fi) => {
               if (f.type !== 'calc') return;
               let el = document.getElementById(`mf-${part.uid}_${fi}`); if (el) el.value = calcText(part, f);

@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.8.2** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.8.3** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,12 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.8.3] – 2026-10-16
+#### Changed
+- **Letter quantity is counted again.** On Channel Letters – Front Lit, Reverse / Halo Lit, PVC Routed Letters and Monument Letters, **QTY & HEIGHT** is two boxes: **QTY** fills in from TEXT (letters only, spaces ignored) and follows it as you type; type a different number to override it (**Auto** recounts). **HEIGHT** is the letter height. The proof prints `11 @ 24"` as before; no height yet shows MISSING. Older multi-size entries open as the total at the largest height. No sheet changes.
+
+---
 
 ### [4.8.2] – 2026-10-16
 #### Changed

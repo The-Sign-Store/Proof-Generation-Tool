@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.8.2  (October 16, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.8.3  (October 16, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -296,6 +296,10 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.8.3  (2026-10-16)
+  - Letter components: QTY counted from TEXT (spaces ignored; type to
+    change, Auto to recount) + HEIGHT. Prints "11 @ 24"" as before.
+
 v4.8.2  (2026-10-16)
   - Freshdesk panel: editable note preview + the attachments (no activity
     list, no notify checkbox); step 3 points to it. Bigger step text; step 1
