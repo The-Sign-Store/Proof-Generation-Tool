@@ -1,15 +1,15 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.5  -  Design + Production
+  //  SIGNSTUDIO v4.6  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
-  //  Step 3: customer info, then export editable SVG + PNG per page (zip)
+  //  Step 3: customer info, then export editable SVG + JPG per page (zip)
   //  Everything is driven by the Google Sheet:
   //    Product_Assembly, Component_Registry, Component_Schema, color tabs, Proof_Template
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.5';
+  const APP_VERSION = '4.6';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -172,7 +172,7 @@
   function openReview() {
       closeExportMenu();
       let prod = step === 'production';
-      document.getElementById('rv-title').innerText = prod ? 'Approve and export: Production package' : 'Approve and export: Design package';
+      document.getElementById('rv-title').innerText = prod ? 'Production package' : 'Design package';
       document.getElementById('rv-go').innerText = prod ? 'Export Production Package' : 'Export Design Package';
       document.getElementById('rv-go').classList.toggle('prod', prod);
       document.getElementById('rv-opts').style.display = 'none';
@@ -192,8 +192,8 @@
           if (prod) {
               let qa = qaOn() ? buildQAPages(pages, info, summaryTotal(pages)) : [];
               pages.forEach((p, i) => cards.push({ svg: buildProductionSVG(p, i + 1, pages.length, info), label: `Production proof ${i + 1} / ${pages.length} · ${prName(p.item)}` }));
-              cards.push({ svg: buildSnapshotSVG(pages, info), label: 'Production snapshot' });
-              buildDeptSheets(pages, info).forEach(d => cards.push({ svg: d.svg, label: `${d.name} department sheet` }));
+              let snaps = buildSnapshotPages(pages, info);
+              snaps.forEach((svg, i) => cards.push({ svg, label: `Production snapshot${snaps.length > 1 ? ` ${i + 1} / ${snaps.length}` : ''}` }));
               qa.forEach((svg, i) => cards.push({ svg, label: `QA sheet ${i + 1} / ${qa.length}`, portrait: true }));
           } else {
               let cover = withCover, off = cover ? 1 : 0, total = summaryTotal(pages);
@@ -207,8 +207,111 @@
       document.getElementById('rv-grid').innerHTML = cards.map(c =>
           `<figure class="rv-card${c.portrait ? ' portrait' : ''}"><div class="rv-thumb">${inlineSvg(c.svg)}</div><figcaption>${esc(c.label)}</figcaption></figure>`).join('');
       let miss = cards.reduce((n, c) => n + (c.svg.match(/id="MISSING_/g) || []).length, 0);
-      document.getElementById('rv-count').innerHTML = `${cards.length} page${cards.length === 1 ? '' : 's'} · ${prod ? 'SVG + PNG + one PDF' : 'SVG + PNG'}` +
+      renderReviewSteps(prod, info, cards.length);
+      document.getElementById('rv-count').innerHTML = `${cards.length} page${cards.length === 1 ? '' : 's'} · ${prod ? 'SVG + JPG + one PDF' : 'SVG + JPG'}` +
           (miss ? ` · <b class="rv-miss">${miss} MISSING tag${miss === 1 ? '' : 's'} still on the pages</b>` : '');
+  }
+  // ---------- v4.6: what to do with the package, step by step, using this job's names ----------
+  const RV_ICONS = {
+      check: '<circle cx="11" cy="11" r="7"/><path d="M8 11l2 2 4-4M16.5 16.5L21 21"/>',
+      save: '<path d="M12 3v12M7 10l5 5 5-5M4 17v3h16v-3"/>',
+      folder: '<path d="M3 6h6l2 2h10v11H3z"/><path d="M12 11v5M9.5 13.5L12 16l2.5-2.5"/>',
+      ticket: '<path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7-7l8.5-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l8-8"/>',
+      note: '<path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/>'
+  };
+  function freshdeskUrl(ticket) {
+      let n = String(ticket || '').replace(/\D/g, '');
+      return n ? 'https:' + '/' + '/signstoremacon.freshdesk.com/a/tickets/' + n : '';
+  }
+  // P:\<first letter>\<customer>\<ticket - customer - project>\<Proof | Production>; blanks show as [placeholders].
+  // A typed File Location is used as is when it already names the project folder (has the ticket #), else the project folder goes under it.
+  function projectFolder(info, sub) {
+      let name = String(info.name || '').trim(), ticket = String(info.ticket || '').trim(), project = String(info.project || '').trim();
+      let proj = [ticket || '[ticket #]', name || '[customer name]', project || '[project description]'].join(' - ');
+      let typed = String(info.path || '').trim().replace(/[\\\/\s]+$/, ''), base;
+      if (typed) base = ticket && typed.indexOf(ticket) !== -1 ? typed : typed + '\\' + proj;
+      else base = 'P:\\' + ((name.match(/[A-Za-z0-9]/) || ['[first letter]'])[0].toUpperCase()) + '\\' + (name || '[customer name]') + '\\' + proj;
+      return base + '\\' + sub;
+  }
+  function firstName(full) { return String(full || '').trim().split(/\s+/)[0] || ''; }
+  function productNames() {
+      let out = [];
+      pkgItems.forEach(it => { let n = prName(it); if (!/^MISSING/.test(n) && out.indexOf(n) === -1) out.push(n); });
+      return out;
+  }
+  // production note: each product with its quantity and size, when they are filled in
+  function productSummary() {
+      return pkgItems.map(it => {
+          let specs = [];
+          allParts.filter(p => p.iid === it.iid && p.enabled !== false).forEach(part => collectPartItems(part).forEach(i => specs.push(i)));
+          let ok = i => i && !i.warn && !i.tbd && String(i.val || '').trim() && !/^(NONE|N\/A)$/i.test(String(i.val).trim());
+          let qty = specs.find(i => ok(i) && /^(QTY|QUANTITY)\b/i.test(String(i.label))), size = specs.find(i => ok(i) && i !== qty && /SIZE|DIMENSION|HEIGHT/i.test(String(i.label)));
+          let bits = [qty ? (/@/.test(qty.val) ? qty.val : 'Qty ' + qty.val) : '', size ? size.val : ''].filter(Boolean);
+          return `- ${prName(it)}${bits.length ? ': ' + bits.join(', ') : ''}`;
+      });
+  }
+  function handoffNote(info, pageCount, prod) {
+      let hi = firstName(info.sales), job = `${info.custName || 'this job'}${info.project ? ' (' + info.project + ')' : ''}`, lines;
+      if (prod) {
+          let open = missingInfo().filter(t => !String(prodAnswers[t.key] || '').trim()).length;
+          let folder = projectFolder(info, 'Production');
+          lines = [`Hi${hi ? ' ' + hi : ''},`, '', `The production proof for ${job} is complete and ready for a work order. The production pages (JPG) and the full package PDF are attached.`, ''];
+          [['Ticket', info.ticket ? '#' + info.ticket : ''], ['Customer', info.custName], ['Project', info.project], ['Install location', info.location],
+           ['Inv/Est #', info.inv], ['Production files', folder]].forEach(([k, v]) => { if (v) lines.push(`${k}: ${v}`); });
+          lines.push('', 'Products:', ...productSummary());
+          if (open) lines.push('', `Open items: ${open} field${open === 1 ? '' : 's'} still marked TBD or MISSING.`);
+          lines.push('', 'Please create the work order to start production. All files are subject to review by the Production Coordinator.', '', 'Thank you,');
+      } else {
+          lines = [`Hi${hi ? ' ' + hi : ''},`, '', `The design proof for ${job} is ready to send. The proof pages are attached as JPEGs.`, ''];
+          [['Ticket', info.ticket ? '#' + info.ticket : ''], ['Customer', info.custName], ['Project', info.project], ['Install location', info.location],
+           ['Products', productNames().join(', ')], ['Proof pages', String(pageCount)]].forEach(([k, v]) => { if (v) lines.push(`${k}: ${v}`); });
+          lines.push('', `Please send it to ${info.custName || 'the customer'} for approval and let me know if anything needs to change.`, '', 'Thanks!');
+      }
+      if (info.designer) lines.push(info.designer);
+      return lines.join('\n');
+  }
+  let rvNote = '';
+  function renderReviewSteps(prod, info, pageCount) {
+      let box = document.getElementById('rv-steps'); if (!box) return;
+      let job = [info.custName, info.project].filter(Boolean).join(' · ');
+      let el = document.getElementById('rv-job'); if (el) el.innerText = job;
+      let b = t => `<b>${esc(t)}</b>`, code = t => `<code>${esc(t)}</code>`;
+      let sales = info.sales ? b(info.sales) : 'The salesperson', salesTo = info.sales ? b(info.sales) : 'the salesperson';
+      let cust = info.custName ? b(info.custName) : 'the customer';
+      let sub = name => code(projectFolder(info, name));
+      let url = freshdeskUrl(info.ticket);
+      let ticket = url ? `<a href="${url}" target="_blank" rel="noopener">Freshdesk ticket #${esc(String(info.ticket).replace(/\D/g, ''))}</a>` : 'the Freshdesk ticket';
+      let steps;
+      if (prod) {
+          steps = [['check', 'Check every page', `Make sure each page below is accurate. ${sales} creates a work order from it, which starts production. ` +
+                                                 `Confirm a production-ready CorelDRAW (.cdr) file is in the ${b('Production')} folder. The Production Coordinator reviews all files.`],
+                   ['save', 'Export and save', `Click ${b('Export Production Package')} and save the ZIP to ${sub('Production')}.`],
+                   ['folder', 'Unzip it', `Extract the ZIP. It holds the ${b('JPG')} and ${b('SVG')} pages and a ${b('PDF')} of the whole package.`],
+                   ['ticket', 'Attach to the ticket', `Open ${ticket}, attach the JPGs and the PDF to a note and notify ${salesTo}.`]];
+      } else {
+          steps = [['check', 'Check every page', `Make sure each page below is accurate. ${sales} sends it straight to ${cust}.`],
+                   ['save', 'Export and save', `Click ${b('Export Design Package')} and save the ZIP to ${sub('Proof')}.`],
+                   ['folder', 'Unzip and file the JPGs', `Extract the ZIP and move the images in its ${b('JPG')} folder to ${code('P:\\JPEGS')}.`],
+                   ['ticket', 'Attach to the ticket', `Open ${ticket}, attach the JPGs to a note and notify ${salesTo}.`]];
+      }
+      rvNote = handoffNote(info, pageCount, prod);
+      let icon = k => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RV_ICONS[k]}</svg>`;
+      let html = steps.map(([k, h, t], i) => `<li class="rv-step"><div class="rv-step-top"><span class="rv-ico">${icon(k)}</span><span class="rv-n">Step ${i + 1}</span></div><h3>${esc(h)}</h3><p>${t}</p></li>`).join('');
+      html += `<li class="rv-step rv-note-step"><div class="rv-step-top"><span class="rv-ico">${icon('note')}</span><span class="rv-n">Step 5</span>` +
+                         `<button type="button" class="rv-copy" id="rv-copy" onclick="copyHandoff()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg><span>Copy note</span></button></div>` +
+                         `<h3>Paste this note in the ticket</h3><pre class="rv-note" id="rv-note">${esc(rvNote)}</pre></li>`;
+      box.className = 'rv-steps' + (prod ? ' prod' : '');
+      box.innerHTML = html;
+  }
+  function copyHandoff() {
+      let btn = document.getElementById('rv-copy'), lab = btn && btn.querySelector('span');
+      let done = () => { if (lab) { lab.innerText = 'Copied'; btn.classList.add('done'); setTimeout(() => { lab.innerText = 'Copy note'; btn.classList.remove('done'); }, 1600); } };
+      let fallback = () => {
+          let r = document.createRange(); r.selectNodeContents(document.getElementById('rv-note'));
+          let sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+          try { document.execCommand('copy'); done(); } catch (e) { if (lab) lab.innerText = 'Press Ctrl+C'; }
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(rvNote).then(done, fallback); else fallback();
   }
   async function reviewExport() {
       let prod = step === 'production', ok = prod ? await generateProduction() : await generatePackage();
@@ -1754,13 +1857,16 @@
                                                  : { type: 'tbd', val: 'TBD BY PRODUCTION', tbd: true, warn: false }));
               return;
           }
-          if (mode === 'missing') { items.push(Object.assign(base, { type: 'missing', val: 'Enter ' + formLabel(f), warn: true })); return; }
+          let ans = prodPhase() ? String(prodAnswers[tbdKey(part, fi)] || '').trim() : '';          // v4.6: blanks answered on the Production tab
+          let answered = () => Object.assign(base, { type: 'prodans', val: ans, warn: false, tbd: false, prodAns: true });
+          if (mode === 'missing') { items.push(ans ? answered() : Object.assign(base, { type: 'missing', val: 'Enter ' + formLabel(f), warn: true })); return; }
           if (mode === 'custom') {
               let v = String((part.fcustom || {})[fi] || '').trim();
-              items.push(Object.assign(base, v ? { type: 'custom', val: v, warn: false } : { type: 'custom', val: 'Enter ' + formLabel(f), warn: true }));
+              items.push(Object.assign(base, v ? { type: 'custom', val: v, warn: false } : ans ? answered() : { type: 'custom', val: 'Enter ' + formLabel(f), warn: true }));
               return;
           }
           let d = getDisplay(part, f, fi);
+          if (d.warn && (d.warnLabel || 'MISSING') === 'MISSING' && ans) d = Object.assign({}, d, { type: 'prodans', val: ans, hex: '', svg: null, gradient: false, warn: false, prodAns: true });
           let extra = COLOR_TYPES.indexOf(f.type) !== -1 ? (part.colorLines[fi] || []) : [];
           if (!d.warn && (d.val === '' || d.val.toUpperCase() === 'N/A') && !extra.length) return;
           if (!d.warn && splitOpts(f.hideValues).indexOf(d.val) !== -1 && !extra.length) return;
@@ -2318,13 +2424,6 @@
       return `<g id="Production_Frame">` + R(PF / 2, PF / 2, PG.W - PF, PG.H - PF, 'none', PROD, PF) + `</g>`;   // staging: no labels on the border
   }
   function prodTicket(info) { return String(info.custName || '').toUpperCase(); }   // staging: production pages never show the design ticket #
-  // blank box for the shop's work order number
-  function workOrderBox(x, y, w, size) {
-      let bx = x + tw('WORK ORDER #', size, true) * 1.12 + 14;
-      return T(x, y, 'WORK ORDER #', size, { bold: true, fill: PROD, ls: 0.8 }) +
-             R(bx, y - size - 4, w - tw('WORK ORDER #', size, true) * 1.12 - 14, size + 12, '#FFFFFF', PROD, 1.2, ' rx="4"') +
-             (shopInfo.wo ? T(bx + 8, y + 1, shopInfo.wo, size + 1, { bold: true }) : '');
-  }
   // the table as large as the production artboard allows (up to 1.35x the proof size)
   function fitProdTable(page) {
       const maxW = PROD_IN.w - 40, maxH = PROD_IN.h * 0.62;
@@ -2333,22 +2432,11 @@
       return lay;
   }
 
-  // WORK ORDER # / DUE / INSTALL: values typed on the Production tab, empty boxes when blank (right-aligned at x)
-  function prodInfoStrip(x, y) {
-      const H = 26, VS = 13, LS = 10;
-      let cells = [['WORK ORDER #', shopInfo.wo, 120], ['DUE', fmtDate(shopInfo.due), 92], ['INSTALL', fmtDate(shopInfo.install), 92]], o = `<g id="Shop_Info">`, cx = x;
-      cells.reverse().forEach(([lab, v, bw]) => {
-          let vw = Math.max(bw, v ? tw(v, VS, true) * 1.1 + 16 : bw);
-          cx -= vw; o += R(cx, y, vw, H, '#FFFFFF', PROD, 1.2, ' rx="4"') + (v ? T(cx + 8, y + 17.5, v, VS, { bold: true }) : '');
-          let lw = tw(lab, LS, true) * 1.18 + 10; cx -= lw; o += T(cx, y + 17, lab, LS, { bold: true, fill: PROD, ls: 0.6 }); cx -= 18;
-      });
-      return o + `</g>`;
-  }
   function prodArtRegion(lay) {
       const A = PROD_IN, pad = 16;
       let tableTop = A.y + A.h - 14;
       if (lay) tableTop -= lay.h + 12 * Math.max(lay.s, 0.8) * 1.9;
-      return { x: A.x + pad, y: A.y + pad + 30, w: A.w - 2 * pad, h: tableTop - pad - (A.y + pad + 30) };   // below the shop info strip
+      return { x: A.x + pad, y: A.y + pad, w: A.w - 2 * pad, h: tableTop - pad - (A.y + pad) };
   }
   // PRODUCTION PROOF: the same page as the design proof, artboard + tables only (purple), customer name just above the tables
   function buildProductionSVG(page, n, total, info) {
@@ -2364,7 +2452,7 @@
           let keep = TBL; TBL = TBL_PROD; BADGE_PREFIX = String(info.custName || '').toUpperCase();
           try { o += drawTable(page, lay, x, bottom); } finally { TBL = keep; BADGE_PREFIX = ''; }
       }
-      o += drawArtHandles(page, region) + prodInfoStrip(A.x + A.w - 10, A.y + 8) + `</g>`;
+      o += drawArtHandles(page, region) + `</g>`;
       let what = `${prName(page.item).toUpperCase()}${page.total > 1 ? ` ${page.n}/${page.total}` : ''}`;
       return o + productionFrame(`PRODUCTION PROOF ${n} / ${total}`, [prodTicket(info), what].filter(Boolean).join(' · ')) + `</svg>`;
   }
@@ -2458,104 +2546,119 @@
       let depts = DEPTS.map(d => Object.assign({}, d, { rows: specs.filter(sp => specDepts(sp).indexOf(d.slug) !== -1 && !/^(NONE|NO|N\/A)$/i.test(String(sp.val).trim())) }));
       return { specs, colors, mats, depts };
   }
-  function buildSnapshotSVG(pages, info) {
-      const A = PROD_IN, d = snapshotData(pages), X = A.x + 20, W = A.w - 40;
-      let o = sheetHead() + `<g id="Production_Snapshot">`;
-      // header: big title, customer, job line
-      o += T(X, A.y + 40, 'PRODUCTION SNAPSHOT', 30, { bold: true, fill: PROD, ls: 1.6 }) +
-           (info.custName ? T(X + W, A.y + 40, info.custName, 22, { anchor: 'end', bold: true, fill: PROD }) : '') +
-           workOrderBox(X + W - 320, A.y + 70, 320, 13) +
-           T(X, A.y + 86, [shopInfo.due ? 'DUE ' + fmtDate(shopInfo.due) : '', shopInfo.install ? 'INSTALL ' + fmtDate(shopInfo.install) : ''].filter(Boolean).join('   ·   '), 14, { bold: true, fill: PROD }) +
-           T(X, A.y + 64, [info.project, `${pkgItems.length} product${pkgItems.length === 1 ? '' : 's'}`, `${pages.length} production proof${pages.length === 1 ? '' : 's'}`].filter(Boolean).join('  ·  '), 14, { fill: '#444444' });
-      // departments: 5 big tiles
-      let ty = A.y + 104, th = 76, tw5 = (W - 4 * 12) / 5;
-      d.depts.forEach((x, k) => {
-          let tx = X + k * (tw5 + 12), on = x.rows.length > 0;
-          o += R(tx, ty, tw5, th, on ? '#FFFFFF' : '#F4F5F7', on ? x.color : '#D5D9DF', on ? 3 : 1.2, ' rx="10"') +
-               R(tx, ty, 10, th, on ? x.color : '#D5D9DF', null, 0, ' rx="4"') +
-               T(tx + 22, ty + 31, x.name.toUpperCase(), x.name.length > 12 ? 13.5 : 16, { bold: true, fill: on ? '#1F2328' : '#9AA1A9', ls: 0.4 }) +
-               T(tx + 22, ty + 60, on ? `✓ ${x.rows.length} spec${x.rows.length === 1 ? '' : 's'}` : 'Not needed', on ? 19 : 15, { bold: on, fill: on ? x.color : '#9AA1A9' });
+  // v4.6: the pre-production coordinator's sheet: colors, materials, then every department's tasks as concise tables
+  // (one row per product section, its specs flowed across the row). Runs onto more pages when the job is big.
+  function buildSnapshotPages(pages, info) {
+      const A = PROD_IN, d = snapshotData(pages), X = A.x + 20, W = A.w - 40, BOTTOM = A.y + A.h - 12;
+      let out = [], o = '', y = 0;
+      const job = [info.project, `${pkgItems.length} product${pkgItems.length === 1 ? '' : 's'}`, `${pages.length} production proof${pages.length === 1 ? '' : 's'}`].filter(Boolean).join('  ·  ');
+      function start(first) {
+          o = sheetHead() + `<g id="Production_Snapshot">`;
+          if (first) {
+              o += T(X, A.y + 34, 'PRODUCTION SNAPSHOT', 26, { bold: true, fill: PROD, ls: 1.4 }) +
+                   (info.custName ? T(X + W, A.y + 34, info.custName, 20, { anchor: 'end', bold: true, fill: PROD }) : '') +
+                   T(X, A.y + 56, job, 13, { fill: '#444444' });
+              y = A.y + 68;
+          } else {
+              o += T(X, A.y + 26, 'PRODUCTION SNAPSHOT (CONT.)', 15, { bold: true, fill: PROD, ls: 1 }) +
+                   (info.custName ? T(X + W, A.y + 26, info.custName, 13, { anchor: 'end', bold: true, fill: PROD }) : '');
+              y = A.y + 36;
+          }
+          o += L(X, y, X + W, y, PROD, 1.2); y += 12;
+      }
+      function finish() { out.push(o + `</g>`); }
+      function valueMark(x, by, v, fs, r) {                  // value text; yellow MISSING / purple TBD highlight like the proofs
+          let w = tw(v, fs, true), m = '';
+          if (r.warn) { missN++; m = `<g id="MISSING_${missN}">` + R(x - 2, by - fs, w + 4, fs * 1.3, TAG_BG, '#D6A100', 0.6) + T(x, by, v, fs, { bold: true, fill: TAG_TX }) + `</g>`; }
+          else if (r.tbd) m = `<g id="TBD_${++missN}">` + R(x - 2, by - fs, w + 4, fs * 1.3, TBD_BG, null, 0, ' rx="2"') + `</g>` + T(x, by, v, fs, { bold: true, fill: TBD_TX });
+          else m = T(x, by, v, fs, { bold: true, fill: '#111111' });
+          return m;
+      }
+      function swatch(x, y0, r, w, h) {
+          return R(x, y0, w, h, r.gradient ? 'url(#fullcolor)' : (!r.hex || normHex(r.hex) === 'transparent' ? '#FFFFFF' : normHex(r.hex)), '#555555', 0.6, ' rx="2"');
+      }
+      start(true);
+      // ---- colors | materials (compact, up to 6 rows each, two sub-columns when long) ----
+      const gap = 28, colW = (W - gap) / 2, rh = 22, fs = 11.5, MAXR = 6;
+      function listBlock(x, title, list, row) {
+          let s2 = T(x, y + 2, title, 13, { bold: true, fill: PROD, ls: 1.2 }) + L(x, y + 8, x + colW, y + 8, PROD, 1);
+          if (!list.length) return { svg: s2 + T(x, y + 30, title === 'COLORS' ? 'No colors yet.' : 'No materials yet.', 12, { fill: '#888888' }), rows: 1 };
+          let cols = list.length > MAXR ? 2 : 1, shown = list.slice(0, MAXR * cols), per = Math.ceil(shown.length / cols), cw = (colW - (cols - 1) * 14) / cols;
+          shown.forEach((it, k) => { s2 += row(x + Math.floor(k / per) * (cw + 14), y + 14 + (k % per) * rh, cw, it); });
+          if (list.length > shown.length) s2 += T(x, y + 14 + per * rh + 10, `+ ${list.length - shown.length} more in the department tasks below`, 10, { fill: '#555555', italic: true });
+          return { svg: s2, rows: per + (list.length > shown.length ? 0.6 : 0) };
+      }
+      let cb = listBlock(X, 'COLORS', d.colors, (x, ry, cw, c) => {
+          let nm = wrapText(c.val, fs, true, cw - 44)[0] || '', w = tw(nm, fs, true), use = wrapText(c.use || '', 9.5, false, Math.max(10, cw - 52 - w))[0] || '';
+          return swatch(x, ry + 4, c, 30, rh - 8) + valueMark(x + 38, ry + rh / 2 + 4, nm, fs, c) + T(x + 44 + w, ry + rh / 2 + 4, use, 9.5, { fill: '#666666' });
       });
-      // colors (left) and materials (right)
-      let top = ty + th + 34, bottom = A.y + A.h - 14, gap = 28, colW = (W - gap) / 2, cx = X, mx = X + colW + gap;
-      o += T(cx, top, 'COLORS', 18, { bold: true, fill: PROD, ls: 1.4 }) + T(mx, top, 'MATERIALS', 18, { bold: true, fill: PROD, ls: 1.4 }) +
-           L(cx, top + 7, cx + colW, top + 7, PROD, 1.2) + L(mx, top + 7, mx + colW, top + 7, PROD, 1.2);
-      let avail = bottom - top - 16;
-      // colors: one column of big rows; two columns only when the list is long
-      let n = d.colors.length, cols = n * 38 > avail ? 2 : 1, perCol = Math.ceil(n / cols) || 1;
-      let rh = Math.max(24, Math.min(46, avail / perCol)), fs = Math.min(17, rh * 0.40), cw = (colW - (cols - 1) * 14) / cols;
-      let maxColors = Math.floor(avail / rh) * cols;
-      d.colors.slice(0, maxColors).forEach((c, k) => {
-          let x = cx + Math.floor(k / perCol) * (cw + 14), y = top + 14 + (k % perCol) * rh, sw = Math.min(48, rh * 1.25), sh = rh - 10;
-          let fill = c.gradient ? 'url(#fullcolor)' : (!c.hex || normHex(c.hex) === 'transparent' ? '#FFFFFF' : normHex(c.hex));
-          o += R(x, y + 5, sw, sh, fill, c.hex || c.gradient ? '#444444' : '#BBBBBB', 1, c.hex || c.gradient ? ' rx="4"' : ' rx="4" stroke-dasharray="3,2"');
-          let tx = x + sw + 12, tw2 = cw - sw - 16;
-          let name = wrapText(c.val, fs, true, tw2)[0] || '', use = wrapText(c.use, fs * 0.72, false, tw2)[0] || '';
-          if (c.warn) o += R(tx - 3, y + rh / 2 - fs - 1, tw(name, fs, true) + 6, fs * 1.25, TAG_BG, '#D6A100', 0.6);
-          o += T(tx, y + rh / 2 + 1, name, fs, { bold: true, fill: c.warn ? TAG_TX : '#111111' }) + T(tx, y + rh / 2 + fs * 0.95, use, fs * 0.72, { fill: '#555555' });
+      let mb = listBlock(X + colW + gap, 'MATERIALS', d.mats, (x, ry, cw, m) => {
+          let nm = wrapText(m.val, fs, true, cw - 16)[0] || '', w = tw(nm, fs, true), use = wrapText(m.uses.join(', '), 9.5, false, Math.max(10, cw - 22 - w))[0] || '';
+          return T(x + 4, ry + rh / 2 + 4, nm, fs, { bold: true, fill: '#111111' }) + T(x + 12 + w, ry + rh / 2 + 4, use, 9.5, { fill: '#666666' });
       });
-      if (n > maxColors) o += T(cx, bottom, `+ ${n - maxColors} more colors on the department sheets`, 12, { fill: '#555555', italic: true });
-      if (!n) o += T(cx, top + 34, 'No colors yet.', 15, { fill: '#888888' });
-      // materials: big value, where it goes underneath
-      let mrh = Math.max(24, Math.min(46, avail / Math.max(1, d.mats.length))), mfs = Math.min(17, mrh * 0.40), maxM = Math.floor(avail / mrh);
-      d.mats.slice(0, maxM).forEach((m, k) => {
-          let y = top + 14 + k * mrh;
-          o += R(mx, y + 3, colW, mrh - 6, k % 2 ? '#FFFFFF' : '#F3EEF9', null, 0, ' rx="5"') +
-               T(mx + 12, y + mrh / 2 + 1, wrapText(m.val, mfs, true, colW - 24)[0] || '', mfs, { bold: true, fill: '#111111' }) +
-               T(mx + 12, y + mrh / 2 + mfs * 0.95, wrapText(m.uses.join(', '), mfs * 0.72, false, colW - 24)[0] || '', mfs * 0.72, { fill: '#555555' });
-      });
-      if (d.mats.length > maxM) o += T(mx, bottom, `+ ${d.mats.length - maxM} more on the department sheets`, 12, { fill: '#555555', italic: true });
-      if (!d.mats.length) o += T(mx, top + 34, 'No materials yet.', 15, { fill: '#888888' });
-      o += `</g>`;
-      return o + productionFrame('PRODUCTION · SNAPSHOT', [prodTicket(info), String(info.project || '').toUpperCase()].filter(Boolean).join(' · ')) + `</svg>`;
-  }
-  // one sheet per department that has work: what it needs (product / spec / value), notes, supervisor sign-off
-  function buildDeptSheets(pages, info) {
-      const A = PROD_IN, d = snapshotData(pages), out = [];
-      d.depts.filter(x => x.rows.length).forEach(x => {
-          const head = 78, signH = 150, rowH = 26, fs = 12.5;
-          let rows = x.rows, per = Math.max(4, Math.floor((A.h - head - signH - 20) / rowH)), chunks = [];
-          for (let i = 0; i < rows.length; i += per) chunks.push(rows.slice(i, i + per));
-          chunks.forEach((chunk, ci) => {
-              let o = sheetHead() + `<g id="Department_${x.slug}">`;
-              o += R(A.x + 18, A.y + 14, 10, 34, x.color, null, 0, ' rx="3"') +
-                   T(A.x + 38, A.y + 40, `${x.name.toUpperCase()} — DEPARTMENT SHEET${chunks.length > 1 ? `  (${ci + 1}/${chunks.length})` : ''}`, 20, { bold: true, fill: '#1F2328', ls: 0.8 }) +
-                   (info.custName ? T(A.x + A.w - 18, A.y + 40, info.custName, 15, { anchor: 'end', bold: true, fill: PROD }) : '') +
-                   T(A.x + 38, A.y + 60, [info.project, shopInfo.wo ? 'Work order # ' + shopInfo.wo : '', shopInfo.due ? 'Due ' + fmtDate(shopInfo.due) : '', shopInfo.install ? 'Install ' + fmtDate(shopInfo.install) : ''].filter(Boolean).join('  ·  '), 11, { fill: '#555555' });
-              let y = A.y + head, c1 = A.x + 18, cw = A.w - 36, w1 = cw * 0.30, w2 = cw * 0.24, w3 = cw - w1 - w2 - 60;
-              o += R(c1, y, cw, 22, PROD) + T(c1 + 10, y + 15, 'PRODUCT · SECTION', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) +
-                   T(c1 + w1 + 10, y + 15, 'SPEC', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) + T(c1 + w1 + w2 + 10, y + 15, 'WHAT IS NEEDED', 9.5, { bold: true, fill: '#FFFFFF', ls: 0.8 }) +
-                   T(c1 + cw - 30, y + 15, 'DONE', 9.5, { anchor: 'middle', bold: true, fill: '#FFFFFF', ls: 0.8 });
-              y += 22;
-              chunk.forEach((r, k) => {
-                  o += R(c1, y, cw, rowH, k % 2 ? '#FFFFFF' : '#F7F5FB', TBL_PROD.line, 0.6);
-                  o += T(c1 + 10, y + rowH / 2 + 4, wrapText(r.product + (r.section && r.section !== r.product ? ' · ' + r.section : ''), 10.5, false, w1 - 16)[0] || '', 10.5, { fill: '#333333' });
-                  o += T(c1 + w1 + 10, y + rowH / 2 + 4, wrapText(r.label, 10.5, true, w2 - 16)[0] || '', 10.5, { bold: true, fill: '#4A3A66' });
-                  let vx = c1 + w1 + w2 + 10;
-                  if (r.hex || r.gradient) { o += R(vx, y + 6, 26, rowH - 12, r.gradient ? 'url(#fullcolor)' : (normHex(r.hex) === 'transparent' ? '#FFFFFF' : normHex(r.hex)), '#555555', 0.6, ' rx="2"'); vx += 34; }
-                  let v = wrapText(r.val, fs, true, w3 - (vx - (c1 + w1 + w2)) - 6)[0] || '';
-                  if (r.warn) { missN++; o += valueField({ x: vx, y: y + rowH / 2 + 4.5, size: fs, bold: true }) + R(vx - 3, y + 5, tw(v, fs, true) + 6, rowH - 10, TAG_BG, '#D6A100', 0.6); }
-                  if (r.tbd) o += R(vx - 3, y + 5, tw(v, fs, true) + 6, rowH - 10, TBD_BG, null, 0, ' rx="2"');
-                  o += T(vx, y + rowH / 2 + 4.5, v, fs, { bold: true, fill: r.warn ? TAG_TX : (r.tbd ? TBD_TX : '#000000') });
-                  o += R(c1 + cw - 38, y + 6, 15, 15, '#FFFFFF', '#555555', 0.9, ' rx="2"');
-                  y += rowH;
+      o += cb.svg + mb.svg;
+      y += 14 + Math.max(cb.rows, mb.rows) * rh + 22;
+      // ---- department tasks ----
+      o += T(X, y, 'DEPARTMENT TASKS', 15, { bold: true, fill: PROD, ls: 1.2 }) +
+           T(X + W, y, 'Pre-production: check every task against the proofs before the job is released', 10.5, { anchor: 'end', italic: true, fill: '#555555' });
+      y += 10;
+      const SEC_W = 230, VX = X + SEC_W + 12, VW = X + W - VX - 8, LS = 8.5, VS = 11, LINE_H = 17;
+      let active = d.depts.filter(x => x.rows.length);
+      function deptHead(x, cont) {
+          o += R(X, y, W, 24, '#F3EEF9', null, 0, ' rx="4"') + R(X, y, 8, 24, x.color, null, 0, ' rx="3"') +
+               T(X + 18, y + 16.5, x.name.toUpperCase() + (cont ? ' (CONT.)' : ''), 12.5, { bold: true, fill: '#1F2328', ls: 0.6 }) +
+               T(X + W - 10, y + 16.5, `${x.rows.length} spec${x.rows.length === 1 ? '' : 's'}`, 10.5, { anchor: 'end', fill: '#555555' });
+          y += 24;
+      }
+      active.forEach(x => {
+          // group this department's specs by product section, in package order
+          let groups = [];
+          x.rows.forEach(r => {
+              let k = r.product + (r.section && r.section !== r.product ? ' · ' + r.section : '');
+              let g = groups.find(q => q.k === k); if (!g) { g = { k, rows: [] }; groups.push(g); } g.rows.push(r);
+          });
+          // flow each group's "LABEL value" tokens across the row
+          groups.forEach(g => {
+              let lines = [[]], cx = 0;
+              g.rows.forEach(r => {
+                  let lab = r.label, lw = tw(lab, LS, true) * 1.07 + 5, sw = r.hex || r.gradient ? 18 : 0;
+                  let room = VW - lw - sw, v = String(r.val || '');
+                  if (tw(v, VS, true) > room) { v = wrapText(v, VS, true, room - tw('...', VS, true))[0] + '...'; }
+                  let w = lw + sw + tw(v, VS, true);
+                  if (cx && cx + w > VW) { lines.push([]); cx = 0; }
+                  lines[lines.length - 1].push({ r, lab, v, lw, sw, x: cx }); cx += w + 20;
               });
-              if (ci === chunks.length - 1) {
-                  let sy = A.y + A.h - signH;
-                  o += T(c1, sy + 4, 'NOTES', 11, { bold: true, fill: PROD, ls: 1 });
-                  for (let k = 0; k < 3; k++) o += L(c1, sy + 30 + k * 26, c1 + cw, sy + 30 + k * 26, '#999999', 0.6);
-                  let by = sy + 118;
-                  o += R(c1, by, cw, 30, '#F3EEF9', TBL_PROD.line, 0.8, ' rx="6"') +
-                       T(c1 + 12, by + 20, 'SUPERVISOR SIGN-OFF', 11, { bold: true, fill: PROD, ls: 0.8 }) + L(c1 + 165, by + 22, c1 + cw * 0.58, by + 22, '#555555', 0.6) +
-                       T(c1 + cw * 0.61, by + 20, 'DATE', 11, { bold: true, fill: PROD }) + L(c1 + cw * 0.61 + 40, by + 22, c1 + cw * 0.80, by + 22, '#555555', 0.6) +
-                       R(c1 + cw * 0.83, by + 9, 13, 13, '#FFFFFF', '#555555', 0.9, ' rx="2"') + T(c1 + cw * 0.83 + 19, by + 20, 'COMPLETE', 11, { bold: true, fill: PROD });
-              }
-              o += `</g>`;
-              out.push({ name: x.name, slug: x.slug + (chunks.length > 1 ? '-' + (ci + 1) : ''), svg: o + productionFrame(`PRODUCTION · ${x.name.toUpperCase()}`, [prodTicket(info), String(info.project || '').toUpperCase()].filter(Boolean).join(' · ')) + `</svg>` });
+              let secLines = wrapText(g.k, 10.5, true, SEC_W - 12).slice(0, 3);
+              g.lines = lines; g.sec = secLines; g.h = Math.max(lines.length, secLines.length) * LINE_H + 9;
+          });
+          y += 12;
+          if (y + 24 + groups[0].h > BOTTOM) { finish(); start(false); }
+          deptHead(x, false);
+          groups.forEach((g, k) => {
+              if (y + g.h > BOTTOM) { finish(); start(false); deptHead(x, true); }
+              o += R(X, y, W, g.h, k % 2 ? '#FFFFFF' : '#FAF8FD', null, 0) + L(X, y + g.h, X + W, y + g.h, '#E2D9EE', 0.6);
+              g.sec.forEach((t, li) => o += T(X + 12, y + 17 + li * LINE_H, t, 10.5, { bold: li === 0, fill: '#333333' }));
+              g.lines.forEach((ln, li) => ln.forEach(tk => {
+                  let bx = VX + tk.x, by = y + 17 + li * LINE_H;
+                  o += T(bx, by, tk.lab, LS, { bold: true, fill: TBL_PROD.label, ls: 0.5 });
+                  bx += tk.lw;
+                  if (tk.sw) { o += swatch(bx, by - 9, tk.r, 14, 11); bx += tk.sw; }
+                  o += valueMark(bx, by, tk.v, VS, tk.r);
+              }));
+              y += g.h;
           });
       });
-      return out;
+      let idle = d.depts.filter(x => !x.rows.length).map(x => x.name);
+      if (!active.length) { y += 24; o += T(X, y, 'No department tasks yet: add specs on the Design tab.', 12, { fill: '#888888' }); }
+      if (idle.length) {
+          if (y + 26 > BOTTOM) { finish(); start(false); }
+          y += 22; o += T(X, y, 'Not needed on this job: ' + idle.join(', '), 10.5, { italic: true, fill: '#777777' });
+      }
+      finish();
+      const right = [prodTicket(info), String(info.project || '').toUpperCase()].filter(Boolean).join(' · ');
+      return out.map((svg, k) => svg + productionFrame(`PRODUCTION · SNAPSHOT${out.length > 1 ? ` ${k + 1}/${out.length}` : ''}`, right) + `</svg>`);
   }
+  function buildSnapshotSVG(pages, info) { return buildSnapshotPages(pages, info)[0]; }
 
   // =====================================================================
   //  DESIGN HELP CENTER  (Design_Guide tab -> plain text for this package)
@@ -2959,11 +3062,10 @@
           let val = (v, x, yy) => v ? T(x, yy, v, 11, { bold: true }) : missingTag(x + tw('MISSING', 8, true) + 6, yy, 'MISSING', 8, { x, y: yy, size: 11, bold: true });
           if (pi === 0) {
               let col3 = [X, 330, 590], r1 = 106, r2 = 134, r3 = 162;
-              [[col3[0], r1, 'CUSTOMER', info.custName], [col3[1], r1, 'PROJECT', info.project], [col3[2], r1, 'WORK ORDER #', '__WO__'],
-               [col3[0], r2, 'INSTALLATION LOCATION', info.location], [col3[1], r2, 'SALESPERSON', info.sales], [col3[2], r2, 'INV/EST #', info.inv],
-               [col3[0], r3, 'DESIGNER', info.designer], [col3[1], r3, 'REVISION DATE', info.rev], [col3[2], r3, 'QA DUE / SHIP DATE', fmtDate(shopInfo.due) || '__________']].forEach(([x, yy, lab, v]) => {
-                  o += T(x, yy - 10, lab, 7.5, { bold: true, fill: lab === 'WORK ORDER #' ? PROD : '#666666', ls: 0.8 });
-                  if (v === '__WO__') { o += R(x, yy - 7, XR - x, 17, '#FFFFFF', PROD, 1.2, ' rx="3"') + (shopInfo.wo ? T(x + 6, yy + 5, shopInfo.wo, 11, { bold: true }) : ''); return; }
+              [[col3[0], r1, 'CUSTOMER', info.custName], [col3[1], r1, 'PROJECT', info.project], [col3[2], r1, 'INV/EST #', info.inv],
+               [col3[0], r2, 'INSTALLATION LOCATION', info.location], [col3[1], r2, 'SALESPERSON', info.sales], [col3[2], r2, 'DESIGNER', info.designer],
+               [col3[0], r3, 'ORIGINAL DATE', info.orig], [col3[1], r3, 'REVISION DATE', info.rev], [col3[2], r3, 'QA DUE / SHIP DATE', '__________']].forEach(([x, yy, lab, v]) => {
+                  o += T(x, yy - 10, lab, 7.5, { bold: true, fill: '#666666', ls: 0.8 });
                   let cw = x === col3[2] ? XR - x : (x === col3[0] ? col3[1] : col3[2]) - x - 12, sz = 11, shown = v;
                   while (v && tw(v, sz, true) > cw && sz > 8) sz -= 0.25;
                   if (v && tw(v, sz, true) > cw) { while (shown.length > 3 && tw(shown + '...', sz, true) > cw) shown = shown.slice(0, -1); shown += '...'; }
@@ -2971,8 +3073,7 @@
               });
               o += L(X, 172, XR, 172, '#CCCCCC', 0.6);
           } else {
-              o += T(X, 104, [info.custName || 'MISSING CUSTOMER', info.project].filter(Boolean).join('  ·  '), 11, { bold: true }) +
-                   T(XR - 200, 104, 'WORK ORDER #', 9, { bold: true, fill: PROD, ls: 0.8 }) + R(XR - 118, 92, 118, 16, '#FFFFFF', PROD, 1.2, ' rx="3"') + (shopInfo.wo ? T(XR - 112, 104, shopInfo.wo, 10, { bold: true }) : '');
+              o += T(X, 104, [info.custName || 'MISSING CUSTOMER', info.project].filter(Boolean).join('  ·  '), 11, { bold: true });
           }
           o += `</g><g id="QA_List">`;
           if (rowsOnPage.some(r => r.col === 1)) o += L(X + CW + GAP / 2, pi ? TOPN : TOP1, X + CW + GAP / 2, BOTTOM - (rowsOnPage.some(r => r.t === 'final') ? rowsOnPage.find(r => r.t === 'final').h + 10 : 0), '#DDDDDD', 0.6);
@@ -3064,7 +3165,7 @@
   // =====================================================================
   let pageArt = {}, activeArtKey = null;
   const ART_MAX_PX = 2400;   // longest side kept; larger images are scaled down before embedding
-  // v4.4: production-only job info and answers to "TBD by Production" fields (never shown on the design proof)
+  // v4.4: answers typed on the Production tab (never shown on the design proof). v4.6: shop info no longer prints; kept only so older saves round-trip
   let shopInfo = { wo: '', due: '', install: '' }, prodAnswers = {};
   function prodPhase() { return (ART_PHASE || step) === 'production'; }
   function tbdKey(part, fi) {            // stable across save / reopen: item, section number within the item, field
@@ -3501,8 +3602,8 @@
               let html = pages.map((p, i) => artToolbar(p, i + 1) +
                   `<div class="sheet prod${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildProductionSVG(p, i + 1, pages.length, info))}</div>`).join('');
               if (pages.length) {
-                  html += bar('Production snapshot <span class="st-note">colors, materials and departments</span>', 'snapshot', 0, ' prod') + `<div class="sheet prod">${strip(buildSnapshotSVG(pages, info))}</div>`;
-                  buildDeptSheets(pages, info).forEach(d => html += bar(`${esc(d.name)} department sheet`, 'dept', 0, ' prod') + `<div class="sheet prod">${strip(d.svg)}</div>`);
+                  let snaps = buildSnapshotPages(pages, info);
+                  snaps.forEach((svg, i) => html += bar(`Production snapshot${snaps.length > 1 ? ` ${i + 1} / ${snaps.length}` : ''} <span class="st-note">colors, materials and department tasks</span>`, 'snapshot', i, ' prod') + `<div class="sheet prod">${strip(svg)}</div>`);
               }
               html += qa.map((svg, i) => bar(`QA sheet ${i + 1} / ${qa.length}`, 'qa', i, ' portrait') + `<div class="sheet portrait">${strip(svg)}</div>`).join('');   // v4.3: QA last
               document.getElementById('qa-sheets').innerHTML = html || '<div class="sheets-empty">Add a product on the Design tab to see its QA sheet and production proofs.</div>';
@@ -3533,37 +3634,56 @@
       document.getElementById('cat-toggle').setAttribute('aria-expanded', open);
   }
   let prodPanelSig = null;
-  function tbdFields() {                    // every field set to "TBD by Production", in package order
+  // v4.6: everything still open on the job, in package order: fields marked TBD by Production and fields left blank (MISSING)
+  function missingInfo() {
       let out = [];
       pkgItems.forEach(it => allParts.filter(p => p.iid === it.iid && p.enabled !== false).forEach(part => {
           appData.components[part.comp].fields.forEach((f, fi) => {
-              if (fieldMode(part, fi) !== 'tbd' || f.removed) return;
-              out.push({ key: tbdKey(part, fi), product: prName(it), section: partLabel(part), label: formLabel(f) });
+              if (f.removed) return;
+              let g = document.getElementById(`mg-${part.uid}_${fi}`); if (g && g.style.display === 'none') return;
+              let mode = fieldMode(part, fi), kind = '';
+              if (mode === 'removed') return;
+              if (mode === 'tbd') kind = 'tbd';
+              else if (mode === 'missing') kind = 'miss';
+              else if (mode === 'custom') kind = String((part.fcustom || {})[fi] || '').trim() ? '' : 'miss';
+              else { let d = getDisplay(part, f, fi); if (d.warn && (d.warnLabel || 'MISSING') === 'MISSING') kind = 'miss'; }
+              if (kind) out.push({ key: tbdKey(part, fi), kind, product: prName(it), section: partLabel(part), label: formLabel(f) });
           });
       }));
       return out;
   }
+  function tbdFields() { return missingInfo().filter(t => t.kind === 'tbd'); }
+  const JOB_LABELS = { name: 'Customer', sub: 'Sub-customer', project: 'Project', location: 'Installation location', sales: 'Salesperson', inv: 'Inv/Est #', designer: 'Designer' };
+  function jobInfoMissing(info) {
+      return ['name', 'sub', 'project', 'location', 'sales', 'inv', 'designer'].filter(k => k === 'sub' ? info.hasSub && !info.sub : !info[k]).map(k => JOB_LABELS[k]);
+  }
+  function missingCount(list, job) {
+      let n = document.getElementById('prod-missing-n'); if (!n) return;
+      let tbd = list.filter(t => t.kind === 'tbd').length, miss = list.length - tbd + job.length, done = list.filter(t => String(prodAnswers[t.key] || '').trim()).length;
+      n.innerText = list.length || job.length ? [tbd ? `${tbd} TBD` : '', miss ? `${miss} missing` : '', `${done} of ${list.length} answered`].filter(Boolean).join(' · ') : '';
+  }
   function renderProdPanel() {
-      let box = document.getElementById('prod-tbd'); if (!box) return;
-      let list = tbdFields(), sig = list.map(t => t.key + '|' + t.product + '|' + t.section).join(';');
-      ['wo', 'due', 'install'].forEach(k => { let el = document.getElementById('pi-' + k); if (el && document.activeElement !== el) el.value = shopInfo[k] || ''; });
+      let box = document.getElementById('prod-missing'); if (!box) return;
+      let list = missingInfo(), job = jobInfoMissing(getCustomerInfo());
+      let sig = list.map(t => [t.key, t.kind, t.product, t.section].join('|')).join(';') + '//' + job.join(',');
+      missingCount(list, job);
       if (sig === prodPanelSig) return;                       // same fields: keep the boxes (and the cursor) as they are
       prodPanelSig = sig;
-      let n = document.getElementById('prod-tbd-n'); if (n) n.innerText = list.length ? `${list.filter(t => String(prodAnswers[t.key] || '').trim()).length} of ${list.length} answered` : '';
-      if (!list.length) { box.innerHTML = '<div class="pt-empty">No fields are marked TBD by Production. Mark one in a field\'s &#8943; menu on the Design tab and it shows up here.</div>'; return; }
+      if (!list.length && !job.length) { box.innerHTML = '<div class="pt-empty">Nothing is missing. Fields marked TBD by Production or left blank on the Design tab show up here.</div>'; return; }
       let html = '', last = '';
+      if (job.length) html += `<div class="pt-group">Job info</div><div class="mi-job">${job.map(l => `<span class="mi-chip"><span class="mi-tag miss">MISSING</span>${esc(l)}</span>`).join('')}</div>` +
+                              `<button type="button" class="mi-open" onclick="openSaveDialog()">Fill in job info</button>`;
       list.forEach(t => {
           let head = t.product + (t.section && t.section !== t.product ? ' · ' + t.section : '');
           if (head !== last) { html += `<div class="pt-group">${esc(head)}</div>`; last = head; }
-          html += `<label class="pt-row"><span>${esc(t.label)}</span><input type="text" data-key="${esc(t.key)}" value="${esc(prodAnswers[t.key] || '')}" placeholder="TBD by Production" oninput="setProdAnswer(this.dataset.key, this.value)"></label>`;
+          html += `<label class="pt-row mi-${t.kind}"><span><span class="mi-tag ${t.kind}">${t.kind === 'tbd' ? 'TBD' : 'MISSING'}</span>${esc(t.label)}</span>` +
+                  `<input type="text" data-key="${esc(t.key)}" value="${esc(prodAnswers[t.key] || '')}" placeholder="${t.kind === 'tbd' ? 'TBD by Production' : 'Missing'}" oninput="setProdAnswer(this.dataset.key, this.value)"></label>`;
       });
       box.innerHTML = html;
   }
-  function setShopInfo(k, v) { shopInfo[k] = v; schedulePreview(); }
   function setProdAnswer(k, v) {
       if (String(v).trim()) prodAnswers[k] = v; else delete prodAnswers[k];
-      let list = tbdFields(), n = document.getElementById('prod-tbd-n');
-      if (n) n.innerText = `${list.filter(t => String(prodAnswers[t.key] || '').trim()).length} of ${list.length} answered`;
+      missingCount(missingInfo(), jobInfoMissing(getCustomerInfo()));
       schedulePreview();
   }
   function renderProdCounts(pages) {
@@ -3572,7 +3692,8 @@
       let n = (id, t) => { let el = document.getElementById(id); if (el) el.innerText = t; };
       n('prod-qa-n', qaCount ? `${qaCount} page${qaCount > 1 ? 's' : ''}` : '');
       n('prod-proof-n', pages.length ? `${pages.length} page${pages.length > 1 ? 's' : ''}` : '');
-      n('prod-chart-n', pages.length ? `snapshot + ${buildDeptSheets(pages, getCustomerInfo()).length} department sheet(s)` : '');
+      let sn = pages.length ? buildSnapshotPages(pages, getCustomerInfo()).length : 0;
+      n('prod-chart-n', sn ? `${sn} page${sn > 1 ? 's' : ''}` : '');
   }
   // "2 products · 1 field TBD by Production · 1 missing"
   function updateTablesSummary() {
@@ -3592,7 +3713,7 @@
   }
 
   // =====================================================================
-  //  EXPORT: zip of SVG (editable) + PNG (300 ppi) per page
+  //  EXPORT: zip of SVG (editable) + JPG (300 ppi) per page
   // =====================================================================
   // Multi-page letter PDF from JPEG page images (8.5 x 11 portrait = 612 x 792 pt), no library needed
   function jpegPagesToPdf(pages, title) {
@@ -3642,6 +3763,15 @@
       });
   }
 
+  // v4.6: every export image is a JPG (300 ppi, quality 0.9); the blob carries its bytes for the production PDF
+  async function svgToJpgBlob(svg, pw, ph) {
+      svgToPngBlob.wantJpeg = true;
+      let png;
+      try { png = await svgToPngBlob(svg, pw, ph); } finally { svgToPngBlob.wantJpeg = false; }
+      let jpg = new Blob([png.jpeg.bytes], { type: 'image/jpeg' });
+      jpg.jpeg = png.jpeg;
+      return jpg;
+  }
   // one page as a single SVG file, built exactly like the package export (same name it has inside the zip)
   function downloadPageSVG(kind, i) {
       let pages = packagePages(), info = getCustomerInfo(), base = shortBase(info, exportBase(info));   // same short name as inside the zip
@@ -3940,7 +4070,6 @@
   // ---------- save ----------
   function searchWords() {
       let names = [], add = n => { n = String(n || '').trim(); if (n && !/^MISSING/i.test(n) && names.indexOf(n) === -1) names.push(n); };
-      if (shopInfo.wo) add('WO ' + shopInfo.wo);
       pkgItems.forEach(it => { add(prName(it)); allParts.filter(p => p.iid === it.iid && p.enabled !== false).forEach(p => add(partLabel(p))); });
       return names.join(', ');
   }
@@ -4251,7 +4380,7 @@
       schedulePreview();
   }
 
-  // File names: "Ticket - Customer - [Sub-Customer -] Project" (same as the CorelDRAW macro), Windows-safe
+  // File names: "Ticket - Customer - [Sub-Customer -] Project", Windows-safe
   function exportBase(info) {
       let clean = v => String(v == null ? '' : v).replace(/[\\\/:*?"<>|\t\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
       let b = [info.ticket, info.name, info.sub, info.project].map(clean).filter(x => x).join(' - ') || 'Proof Package';
@@ -4267,16 +4396,6 @@
       let b = base;
       if (b.length > 24) { b = b.slice(0, 24); let cut = b.lastIndexOf(' '); if (cut > 10) b = b.slice(0, cut); b = b.replace(/[^A-Za-z0-9)\]]+$/, ''); }
       return b || 'Proof';
-  }
-
-  // package_info.txt: plain key=value lines read by the CorelDRAW ImportProofPackage macro
-  function packageInfoText(info, total, pageNames) {
-      let clean = v => String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim();
-      return [['Ticket', info.ticket], ['Customer', info.name], ['SubCustomer', info.sub], ['Project', info.project], ['Invoice', info.inv],
-              ['Salesperson', info.sales], ['Designer', info.designer], ['Location', info.location],
-              ['OriginalDate', info.orig], ['RevisionDate', info.rev], ['FileLocation', info.path], ['Pages', total],
-              ['FileBase', exportBase(info)]].concat(pageNames || [])
-          .map(([k, v]) => k + '=' + clean(v)).join('\r\n') + '\r\n';
   }
 
   // one zip export: asks where to save first (Chrome / Edge, when allowed), shows progress on the button
@@ -4315,13 +4434,14 @@
       }
   }
   function missingCustomerOk(what) {
+      if (what === 'production package') return true;              // v4.6: the Missing information panel shows it; export goes ahead
       let info = getCustomerInfo();
       let keys = /production/.test(what) ? ['name', 'project', 'location', 'sales', 'inv', 'designer'] : ['name', 'project', 'location', 'sales', 'inv', 'ticket', 'designer', 'orig', 'path'];
       let missing = (info.hasSub && !info.sub ? ['sub'] : []).concat(keys.filter(k => !info[k]));
       return !missing.length || confirm(`${missing.length} job info field(s) are empty and will print as yellow MISSING tags.\nExport the ${what} anyway?`);
   }
 
-  // DESIGN PROOF: [cover page] + proof pages + Proof Summary, SVG only (ready for CorelDRAW) + package_info.txt for the macro
+  // DESIGN PROOF: [cover page] + proof pages + Proof Summary, SVG + JPG
   let exportWhat = 'design';
   function askDesignExport(what) {
       exportWhat = what || 'design';
@@ -4345,10 +4465,9 @@
               progress(`Design page ${i + 1} of ${jobs.length}...`);
               let svg = jobs[i]();
               await save(`${prefix}SVG/${fb} - p${pad(i + 1)}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
-              await save(`${prefix}PNG/${fb} - p${pad(i + 1)}.png`, await svgToPngBlob(svg, 3300, 2550));
+              await save(`${prefix}JPG/${fb} - p${pad(i + 1)}.jpg`, await svgToJpgBlob(svg, 3300, 2550));
           }
       } finally { ART_PHASE = null; }
-      await save(`${prefix}package_info.txt`, new Blob([packageInfoText(info, total, pageNames)], { type: 'text/plain' }));
   }
   async function generatePackage(cover) {
       let pages = packagePages();
@@ -4370,7 +4489,7 @@
       });
   }
 
-  // PRODUCTION PACKAGE: QA sheet (SVG, PNG, print PDF, CSV) + production proofs and the color chart (SVG, PNG, print PDF)
+  // PRODUCTION PACKAGE: production proofs, snapshot and QA sheet (SVG + JPG) and one print PDF
   function prodInfo(info) { return Object.assign({}, info, { ticket: '' }); }      // production files: no design ticket #
   async function generateProduction() {
       closeExportMenu();
@@ -4382,7 +4501,7 @@
       if (r) { exportedPhase.production = true; updateStepper(); }
       return r;
   }
-  // production package = SVG + PDF only: QA sheet, production proofs, snapshot and department sheets
+  // production package = SVG + PDF only: production proofs, snapshot (with department tasks) and QA sheet
   async function fillProduction(save, progress, zipped, prefix) {
       ART_PHASE = 'production';
       try { return await fillProductionInner(save, progress, zipped, prefix); } finally { ART_PHASE = null; }
@@ -4391,17 +4510,15 @@
       let pages = packagePages(), info = getCustomerInfo(), base = exportBase(prodInfo(info)), total = summaryTotal(pages), pad = n => String(n).padStart(2, '0');
       let fb = zipped ? shortBase(prodInfo(info), base) : base, jobs = [], jpegs = [];
       pages.forEach((p, i) => jobs.push({ file: `${fb} - prod${pad(i + 1)}`, svg: () => buildProductionSVG(p, i + 1, pages.length, info) }));
-      jobs.push({ file: `${fb} - prod${pad(pages.length + 1)} - snapshot`, svg: () => buildSnapshotSVG(pages, info) });
-      buildDeptSheets(pages, info).forEach((d, k) => jobs.push({ file: `${fb} - prod${pad(pages.length + 2 + k)} - dept ${d.slug}`, svg: () => d.svg }));
+      let snaps = buildSnapshotPages(pages, info);
+      snaps.forEach((svg, k) => jobs.push({ file: `${fb} - prod${pad(pages.length + 1 + k)} - snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, svg: () => svg }));
       if (qaOn()) buildQAPages(pages, info, total).forEach((svg, i) => jobs.push({ file: `${fb} - qa${pad(i + 1)}`, svg: () => svg, w: 2550, h: 3300 }));   // v4.3: QA last
       for (let i = 0; i < jobs.length; i++) {
           progress(`Production page ${i + 1} of ${jobs.length}...`);
-          svgToPngBlob.wantJpeg = true;
-          let png;
-          try { png = await svgToPngBlob(jobs[i].svg(), jobs[i].w || 3300, jobs[i].h || 2550); } finally { svgToPngBlob.wantJpeg = false; }
-          if (png.jpeg) jpegs.push(png.jpeg);
+          let jpg = await svgToJpgBlob(jobs[i].svg(), jobs[i].w || 3300, jobs[i].h || 2550);
+          jpegs.push(jpg.jpeg);
           await save(`${prefix}SVG/${jobs[i].file}.svg`, new Blob([jobs[i].svg()], { type: 'image/svg+xml' }));
-          await save(`${prefix}PNG/${jobs[i].file}.png`, png);
+          await save(`${prefix}JPG/${jobs[i].file}.jpg`, jpg);
       }
       if (jpegs.length) await save(`${prefix}${fb} - Production package.pdf`, jpegPagesToPdf(jpegs, `${base} - Production package`));
   }

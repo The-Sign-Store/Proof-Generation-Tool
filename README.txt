@@ -1,11 +1,11 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.5  (October 15, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.6  (October 16, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
 A Google Apps Script web app, bound to a Google Sheet, that builds 11" x 8.5"
 proof packages: pick products and components, fill in specs, add customer info,
 then download a zip with an editable SVG (Illustrator / CorelDRAW) and a
-300 ppi PNG for every page.
+300 ppi JPG for every page.
 
 
 WHAT IS IN THIS PACKAGE
@@ -23,8 +23,6 @@ WHAT IS IN THIS PACKAGE
    Assets.html        logo + ETL artwork (image data, split into short lines)
    Updater.gs         server: Proof Generator menu (update / import, v2.3)
    appsscript.json    project manifest (permissions, Drive service, V8)
-   ProofPages_CorelDRAW_Macro.bas   CorelDRAW macros (not for Apps Script).
-                      See CORELDRAW below.
 
 3_Samples/
    Sample_Proof_Package_Export.zip          what "Generate Proof Package" downloads
@@ -134,44 +132,6 @@ Two Apps Script quirks the code already works around; avoid them in edits:
     treats them as its own tags);
   * never put two slashes in a row inside a JavaScript string, e.g. a web
     address (Apps Script reads it as a comment and cuts the line).
-
-
-CORELDRAW: PROOF TEMPLATE + IMPORT MACRO
------------------------------------------------------------------------------
-One-time setup
-1. Macro: CorelDRAW > Alt+F11 (Tools > Scripts > Script Editor) > click
-   GlobalMacros > File > Import File > ProofPages_CorelDRAW_Macro.bas >
-   Ctrl+S. Optional toolbar button: Tools > Options > Customization >
-   Commands > Macros, drag ImportProofPackage onto a toolbar.
-2. Template: File > New, Letter 8.5 x 11 (either orientation), one page.
-   Add your standard layers (NOTES, PRODUCTION, ART, MOCKUP, PROOF
-   TEMPLATE) and color settings if you like. File > Save As Template
-   (name it e.g. "Sign Store Proof Package"). It then appears under
-   File > New from Template > My Templates.
-
-Every job
-1. Unzip the proof package from the Proof Generator.
-2. File > New from Template > Sign Store Proof Package.
-3. Run ImportProofPackage (Tools > Scripts > Run Script, or the button).
-   In the "Browse for Folder" window click the unzipped package folder
-   (or its SVG folder) and click OK (a path can also be pasted in the box).
-   - One page per SVG in order (p01 cover, p02 ...). The template's blank
-     page is used first; pages are added as needed.
-   - Each sheet is scaled to fill its page and centered; the page turns
-     landscape (proof pages) or portrait (QA pages) to match. Pages are
-     named from the files (COVER, POLE SIGN SPECS 1 ...).
-   - Asks whether to add the QA checklist pages at the end.
-   - One Edit > Undo removes the whole import.
-4. It then offers to save the file as
-       Ticket# - Customer - Project.cdr
-   (e.g. 47391 - Macon Housing Authority - Central City Apartments.cdr)
-   in the job folder from the proof's File Location (or the unzipped
-   package folder). Edit the name / folder in the box, or Cancel to save
-   later. The values come from package_info.txt in the zip; anything
-   missing is asked for.
-Other macros: BuildFromPackage (same import into a new document),
-AddProofPages (add blank pages up to a total).
-If SVG import shows an options window, click OK; the sheets are exact size.
 
 
 THE GOOGLE SHEET (tab names and headers are read by the code; do not rename)
@@ -307,16 +267,20 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
         file before downloading" makes every download ask):
           File names inside the zip: "Ticket - p01" (no ticket: the first
           words of the customer name), e.g.  47391 - p01.svg
-          SVG/  PNG/                p01 = cover (logo, customer, project,
+          Design package (... - Design Proof.zip):
+            SVG/  JPG/              p01 = cover (logo, customer, project,
                                     project info, package contents, project
                                     notes, company contact info), p02 ... =
-                                    proof pages (SVG editable, PNG 300 ppi)
-          QA_Checklist/SVG/ + PNG/  "... - qa01" ... for the QA manager
-          QA_Checklist/"PRINT - ... - QA checklist.pdf"   all QA pages in one
-                                    letter-size PDF, ready to print
-          QA_Checklist/"... - QA checklist.csv"   (Excel / Sheets)
-          package_info.txt          ticket, customer, project, file location,
-                                    page names (read by the CorelDRAW macro)
+                                    proof pages (SVG editable, JPG 300 ppi)
+          Production package (... - Production.zip):
+            SVG/  JPG/              production proofs, Production Snapshot
+                                    (colors, materials, department tasks),
+                                    QA sheet
+            "... - Production package.pdf"   every page in one PDF
+          Save it in P:\[first letter]\[customer]\[ticket] - [customer] -
+          [project]\Proof (design) or ...\Production (production); the
+          Approve and export window shows the exact path, the Freshdesk
+          ticket link and a hand-off note to copy into the ticket.
           The zip itself is "Ticket - Customer - [Sub-Customer -] Project.zip"
           (shortened to 80 characters if needed); the short file names keep
           unpacked paths under Windows' 260-character limit.
@@ -332,6 +296,22 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.6  (2026-10-16)
+  - Production tab: "Missing information" lists every TBD by Production
+    field (purple TBD tag) and every blank field (yellow MISSING tag) with an
+    answer box, plus missing job info. Answers print on production pages
+    only. Exporting the production package no longer asks about missing info.
+  - Removed shop info (work order #, due date, install date) everywhere, and
+    the description under "Production package".
+  - Department sheets removed: the Production Snapshot now has one concise
+    task table per department for the pre-production coordinator (no
+    supervisor sign-off, no department tiles; runs onto a 2nd page if needed).
+  - Approve and export: 5 illustrated steps filled in from the job info
+    (who it goes to, the exact save folder, the Freshdesk ticket link) and a
+    hand-off note with a Copy note button for the ticket's note.
+  - JPG instead of PNG: design = SVG/ + JPG/; production = SVG/ + JPG/ + PDF.
+  - CorelDRAW macro and package_info.txt retired.
+
 v4.5  (2026-10-15)
   - New product: Magnetics (vehicle and indoor magnets) in the Vinyl family,
     with design help rules M01-M03. All magnet specs go to the Vinyl
