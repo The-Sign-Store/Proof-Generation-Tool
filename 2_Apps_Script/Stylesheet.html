@@ -1116,4 +1116,62 @@
   .rv-note-wrap .rv-note { margin: 0; padding-right: 130px; }
   #review-modal .rv-n { font-size: 15px; font-weight: 800; letter-spacing: .06em; color: #D32F2F; }
   #review-modal.prod .rv-n { color: #5B2C8F; }
+
+  /* v4.8 Freshdesk panel */
+  .rv-side:has(.fd-panel) { align-items: stretch; justify-content: stretch; }
+  .fd-panel { flex: 1; display: flex; flex-direction: column; gap: 12px; max-width: 760px; margin: 0 auto; width: 100%; padding: 20px 22px; border-radius: 16px; background: #FFFFFF; box-shadow: 0 2px 14px rgba(20, 30, 50, .08); overflow: auto; min-height: 0; }
+  .fd-loading { display: flex; align-items: center; gap: 14px; margin: auto; color: #3A414A; font-size: 14px; }
+  .fd-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .fd-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .fd-title b { font-size: 18px; color: #1F2328; line-height: 1.3; }
+  .fd-num { font-size: 12.5px; font-weight: 700; color: #0B57D0; letter-spacing: .02em; }
+  .fd-link { flex: none; border: 1px solid #C9D3E3; background: #FFFFFF; color: #0B57D0; font: inherit; font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+  .fd-link:hover { background: #EEF3FC; }
+  .fd-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .fd-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 13px; color: #5A6370; padding-bottom: 12px; border-bottom: 1px solid #E6EAF0; }
+  .fd-meta b { color: #1F2328; font-weight: 600; }
+  .fd-status { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #E8F0FE; color: #0B57D0; }
+  .fd-status.s-pending { background: #FFF4D6; color: #8A5A00; }
+  .fd-status.s-resolved, .fd-status.s-closed { background: #E6F4EA; color: #1E7B34; }
+  .fd-act-h, .fd-c-h { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6A7380; }
+  .fd-acts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .fd-acts li { padding: 10px 12px; border-radius: 10px; background: #F0F3F8; font-size: 13px; color: #3A414A; }
+  .fd-acts li.priv { background: #FFF8E1; }
+  .fd-acts li.fd-none { background: none; color: #8A929D; padding-left: 0; }
+  .fd-act-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+  .fd-act-top b { color: #1F2328; }
+  .fd-tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: #FFFFFF; color: #5A6370; }
+  .fd-tag.in { color: #0B57D0; }
+  .fd-when { margin-left: auto; font-size: 12px; color: #8A929D; white-space: nowrap; }
+  .fd-act-txt { line-height: 1.45; overflow-wrap: anywhere; }
+  .fd-files { color: #6A7380; white-space: nowrap; }
+  .fd-compose { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid #E6EAF0; }
+  .fd-opts { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: #3A414A; }
+  .fd-opt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .fd-opt span { color: #8A929D; }
+  .fd-opt input { width: 16px; height: 16px; accent-color: #0B57D0; }
+  .fd-warn { color: #8A5A00; }
+  .fd-add { border: 0; border-radius: 12px; padding: 14px 18px; background: #0B57D0; color: #FFFFFF; font: inherit; font-size: 15.5px; font-weight: 700; cursor: pointer; }
+  .fd-add:hover:not(:disabled) { background: #0947AD; }
+  .fd-add:disabled { background: #C3CBD6; cursor: not-allowed; }
+  .fd-hint { font-size: 12.5px; color: #6A7380; }
+  .fd-done { padding: 12px 14px; border-radius: 12px; background: #E6F4EA; color: #1E7B34; font-weight: 600; font-size: 14px; }
+  .rv-side-card code { background: #F0F3F8; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+
+  /* v4.8: Job info popup is wide, two columns, so every field fits without scrolling */
+  #job-modal .dialog { max-width: none; width: min(900px, 96vw); max-height: 94vh; padding: 22px 26px 18px; }
+  #job-modal #customer-panel { display: grid !important; width: auto; overflow: visible; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; margin: 6px 0 10px; padding: 0; border: 0; background: none; }
+  #job-modal #customer-panel .cf-row { display: contents; }
+  #job-modal #customer-panel .cf-group { margin-bottom: 12px; }
+  #job-modal #customer-panel .cf-note, #job-modal #customer-panel .cf-group:has(#cf-path), #job-modal #customer-panel .cf-group:has(#cf-notes) { grid-column: 1 / -1; }
+  #job-modal #customer-panel .cf-note { margin-bottom: 12px; }
+  #job-modal #customer-panel:not(:has(#cf-has-sub:checked)) .cf-group:has(#cf-location) { grid-column: 1 / -1; }
+  #job-modal #customer-panel:has(#cf-has-sub:checked) .cf-group:has(#cf-project) { grid-column: 1 / -1; }
+  #job-modal #cf-notes { min-height: 64px; }
+  #job-modal .dialog-actions { margin-top: 4px; }
+  #job-modal #customer-panel input[type=text], #job-modal #customer-panel input[type=date] { height: 38px; padding-top: 6px; padding-bottom: 6px; }
+  #job-modal #customer-panel .cf-group { margin-bottom: 10px; }
+  #job-modal #cf-notes { min-height: 52px; height: 52px; }
+  #job-modal .dialog h3 { margin-bottom: 4px; }
+  #job-modal .cf-help { margin-top: 3px; }
 </style>

@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.7.1** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.8** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,17 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.8] – 2026-10-16
+#### Added
+- **Freshdesk inside Approve and export.** The right half now shows the job's ticket through the Freshdesk API: number, subject, status, requester, assigned agent and the latest replies / notes (private notes highlighted), with **Open in Freshdesk** for the full ticket.
+  - **Add note to ticket** (on after the export) posts the hand-off note as a private note headed "Sent from SignStudio by {designer}", attaches the exported JPGs (production: the JPGs and the package PDF) and notifies the salesperson when they match a Freshdesk agent.
+  - Notes show the API key owner as the author. Over ~18 MB the pages are attached smaller (and the PDF left for you to attach by hand).
+  - **Setup (once):** in Apps Script open **Project Settings › Script properties** and add `FRESHDESK_API_KEY` with the Freshdesk API key. Until then the panel explains this and keeps the **Open Ticket** button. The key stays on the server: it is never sent to the browser or saved to GitHub.
+#### Changed
+- **Job info window** is wider with two columns, so every field fits without scrolling (even on a 1366 × 768 screen).
+
+---
 
 ### [4.7.1] – 2026-10-16
 #### Changed

@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.7.1  -  Design + Production
+  //  SIGNSTUDIO v4.8  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.7.1';
+  const APP_VERSION = '4.8';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -177,7 +177,7 @@
       document.getElementById('review-modal').classList.toggle('prod', prod);
       document.getElementById('rv-go').classList.toggle('prod', prod);
       document.getElementById('rv-opts').style.display = 'none';
-      rvExported = false; rvGen++; rvPages.forEach(pg => { if (pg.url) URL.revokeObjectURL(pg.url); }); rvPages = []; rvJpgs = [];
+      rvExported = false; rvPdf = null; rvGen++; fdState.id = '';   // fresh ticket + activity each time the window opens rvPages.forEach(pg => { if (pg.url) URL.revokeObjectURL(pg.url); }); rvPages = []; rvJpgs = [];
       document.getElementById('rv-go').style.display = '';
       let nx = document.getElementById('rv-next'); if (nx) nx.style.display = prod ? 'none' : '';
       let dn = document.getElementById('rv-done'); if (dn) dn.style.display = 'none';
@@ -303,6 +303,7 @@
       if (info.designer) lines.push(info.designer);
       return lines.join('\n');
   }
+  let rvNoteStep = 3, rvPdf = null;
   let rvNote = '', rvTicketLabel = 'the Freshdesk ticket', rvExported = false, rvView = 'pages', rvJpgs = [];
   // Freshdesk will not load inside SignStudio (it blocks being framed), so it opens in its own window on the right half of the screen
   function openTicketBeside() {
@@ -327,13 +328,90 @@
       let fallback = () => { let t = document.createElement('textarea'); t.value = rvPath; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); done(); } catch (e) { toast('Select the path and press Ctrl+C.'); } t.remove(); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(rvPath).then(done, fallback); else fallback();
   }
-  function renderTicketSide(info) {
+  // ---------- Freshdesk panel (right half) ----------
+  let fdState = { id: '', loading: false, data: null, error: '', posting: false, posted: null };
+  const FD_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>';
+  function renderTicketSide(info, force) {
       let el = document.getElementById('rv-side'); if (!el) return;
       let tn = String(info.ticket || '').replace(/\D/g, '');
-      el.innerHTML = `<div class="rv-side-card"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>` +
-          (tn ? `<b>Freshdesk ticket #${esc(tn)}</b>` +
-                `<button type="button" class="rv-open rv-side-btn" onclick="openTicketBeside()" title="Opens the ticket in its own window on this half of the screen">Open Ticket &#8599;</button>`
-              : `<b>No Freshdesk ticket # yet</b><span>Add it in the yellow bar on the left; the ticket then opens here.</span>`) + `</div>`;
+      if (!tn) { fdState = { id: '' }; el.innerHTML = `<div class="rv-side-card">${FD_ICON}<b>No Freshdesk ticket # yet</b><span>Add it in the yellow bar on the left.</span></div>`; return; }
+      if (force || fdState.id !== tn) {
+          let keepPosted = fdState.id === tn ? fdState.posted : null;
+          fdState = { id: tn, loading: true, data: null, error: '', posting: false, posted: keepPosted };
+          google.script.run
+              .withSuccessHandler(d => { if (fdState.id !== tn) return; fdState.loading = false; fdState.data = d; fdState.posted = keepPosted; renderFdPanel(); })
+              .withFailureHandler(e => { if (fdState.id !== tn) return; fdState.loading = false; fdState.error = (e && e.message) || String(e); renderFdPanel(); })
+              .fdTicket(tn, info.sales || '');
+      }
+      renderFdPanel();
+  }
+  function fdWhen(iso) {
+      let d = new Date(iso); if (isNaN(d)) return '';
+      return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+  function renderFdPanel() {
+      let el = document.getElementById('rv-side'); if (!el || !fdState.id) return;
+      let st = fdState, d = st.data || {}, tn = st.id;
+      let open = `<button type="button" class="fd-link" onclick="openTicketBeside()">Open in Freshdesk &#8599;</button>`;
+      if (st.loading) { el.innerHTML = `<div class="fd-panel"><div class="fd-loading"><span class="ld-spin"></span>Loading Freshdesk ticket #${esc(tn)}…</div></div>`; return; }
+      if (st.error) {
+          el.innerHTML = `<div class="rv-side-card">${FD_ICON}<b>Couldn't load ticket #${esc(tn)}</b><span>${esc(st.error)}</span>` +
+                         `<div class="fd-row"><button type="button" class="rv-open rv-side-btn" onclick="renderTicketSide(getCustomerInfo(), true)">Try again</button>${open}</div></div>`;
+          return;
+      }
+      if (d.noKey) {
+          el.innerHTML = `<div class="rv-side-card">${FD_ICON}<b>Freshdesk ticket #${esc(tn)}</b>` +
+              `<span>Freshdesk isn't connected yet. In Apps Script open <b>Project Settings › Script properties</b> and add <code>FRESHDESK_API_KEY</code> with your Freshdesk API key; the ticket and an <b>Add note</b> button then show here.</span>` +
+              `<button type="button" class="rv-open rv-side-btn" onclick="openTicketBeside()">Open Ticket &#8599;</button></div>`;
+          return;
+      }
+      let prod = step === 'production', nPages = rvPages.length, sales = getCustomerInfo().sales;
+      let notify = d.notify ? `<label class="fd-opt"><input type="checkbox" id="fd-notify" checked> Notify <b>${esc(d.notify.name)}</b> <span>${esc(d.notify.email)}</span></label>`
+                            : `<div class="fd-opt fd-warn">${sales ? `${esc(sales)} isn't a Freshdesk agent, so notify them by hand.` : 'No salesperson in job info to notify.'}</div>`;
+      let ready = rvExported && rvJpgs.length, posted = st.posted;
+      let btn = posted ? `<div class="fd-done">&#10003; Note added to ticket #${esc(tn)}${posted.attachments ? ` with ${posted.attachments} attachment${posted.attachments === 1 ? '' : 's'}` : ''}${posted.notified ? `; ${esc(posted.notified)} notified` : ''}.</div>`
+              : `<button type="button" class="fd-add" id="fd-add" onclick="postTicketNote()" ${ready && !st.posting ? '' : 'disabled'}>${st.posting ? 'Adding the note…' : `Add note to ticket #${esc(tn)}`}</button>` +
+                (ready ? '' : `<div class="fd-hint">Export the package first (step 1): the note attaches the exported JPG${prod ? 's and the PDF' : 's'}.</div>`);
+      el.innerHTML = `<div class="fd-panel">` +
+          `<div class="fd-head"><div class="fd-title"><span class="fd-num">#${esc(tn)}</span><b>${esc(d.subject || '(no subject)')}</b></div>${open}</div>` +
+          `<div class="fd-meta"><span class="fd-status s-${esc(String(d.status).toLowerCase().replace(/\W+/g, '-'))}">${esc(d.status)}</span>` +
+          `<span>Requester <b>${esc(d.requester || '—')}</b></span><span>Agent <b>${esc(d.agent || 'Unassigned')}</b></span>${d.updated ? `<span>Updated ${esc(fdWhen(d.updated))}</span>` : ''}</div>` +
+          `<div class="fd-act-h">Latest activity</div><ol class="fd-acts">` +
+          ((d.convs || []).length ? d.convs.map(c => `<li class="${c.private ? 'priv' : ''}"><div class="fd-act-top"><b>${esc(c.from || 'Someone')}</b>${c.private ? '<span class="fd-tag">Private note</span>' : (c.incoming ? '<span class="fd-tag in">Customer</span>' : '<span class="fd-tag">Reply</span>')}<span class="fd-when">${esc(fdWhen(c.at))}</span></div>` +
+                                    `<div class="fd-act-txt">${esc(c.text || '(no text)')}${c.files ? ` <span class="fd-files">&#128206; ${c.files}</span>` : ''}</div></li>`).join('')
+                                  : '<li class="fd-none">No replies or notes yet.</li>') + `</ol>` +
+          `<div class="fd-compose"><div class="fd-c-h">Add the hand-off note</div>` +
+          `<div class="fd-opts"><div class="fd-opt">Private note · the note from step ${rvNoteStep}${nPages ? ` · ${nPages} JPG page${nPages === 1 ? '' : 's'}` : ''}${prod ? ' + package PDF' : ''}</div>${notify}</div>${btn}</div></div>`;
+  }
+  function blobToB64(blob) { return new Promise((res, rej) => { let r = new FileReader(); r.onload = () => res(String(r.result).replace(/^data:[^,]*,/, '')); r.onerror = rej; r.readAsDataURL(blob); }); }
+  async function smallerJpg(blob, k) {
+      let bmp = await createImageBitmap(blob), c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      return await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88));
+  }
+  function noteHtml(text, info) {
+      let lines = String(text).split('\n').map(l => esc(l));
+      return `<p><b>Sent from SignStudio</b>${info.designer ? ' by ' + esc(info.designer) : ''}</p><p>` + lines.join('<br>') + `</p>`;
+  }
+  async function postTicketNote() {
+      let info = getCustomerInfo(), tn = fdState.id; if (!tn || !rvJpgs.length) return;
+      fdState.posting = true; renderFdPanel();
+      try {
+          let files = [], total = rvJpgs.reduce((n, j) => n + j.blob.size, 0) + (rvPdf ? rvPdf.blob.size : 0);
+          let k = total > 18e6 ? Math.sqrt(16e6 / total) : 1;                   // Freshdesk takes up to 20 MB per note
+          for (let j of rvJpgs) files.push({ name: j.name, mime: 'image/jpeg', data: await blobToB64(k < 1 ? await smallerJpg(j.blob, k) : j.blob) });
+          if (rvPdf && k === 1) files.push({ name: rvPdf.name, mime: 'application/pdf', data: await blobToB64(rvPdf.blob) });
+          let notifyEl = document.getElementById('fd-notify'), notify = notifyEl && notifyEl.checked ? info.sales : '';
+          let r = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)
+              .fdAddNote({ ticket: tn, html: noteHtml(rvNote, info), notify, files }));
+          fdState.posting = false; fdState.posted = r;
+          if (rvPdf && k < 1) toast('The note is large, so the pages were attached smaller and the PDF was left off: attach it from the ZIP.');
+          toast(`Note added to ticket #${tn}.`);
+          renderTicketSide(info, true);                                          // refresh the activity (keeps the confirmation)
+      } catch (e) {
+          fdState.posting = false; renderFdPanel();
+          alert('Could not add the note to Freshdesk: ' + ((e && e.message) || e) + '\nYou can still copy the note and the pages by hand.');
+      }
   }
   function renderStepPages() {
       let el = document.getElementById('rv-pages'); if (!el) return;
@@ -385,7 +463,7 @@
           rvGen++;
           rvPages.forEach((pg, i) => { if (pg.url) URL.revokeObjectURL(pg.url); pg.blob = rvJpgs[i].blob; pg.url = URL.createObjectURL(pg.blob); pg.label = rvJpgs[i].name; });
       }
-      renderReviewSteps(prod, getCustomerInfo(), rvPages.length);
+      renderReviewSteps(prod, getCustomerInfo(), rvPages.length); renderFdPanel();
   }
   function reviewNeedTicket(info) {
       let need = !String(info.ticket || '').replace(/\D/g, ''), box = document.getElementById('rv-need'), go = document.getElementById('rv-go');
@@ -429,9 +507,10 @@
       let icon = k => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RV_ICONS[k]}</svg>`;
       let html = steps.map(([k, h, t], i) => `<li class="rv-step${k === 'save' ? ' rv-step-export' : ''}"><div class="rv-step-top"><span class="rv-ico">${icon(k)}</span><span class="rv-n">Step ${i + 1}</span></div><h3>${esc(h)}</h3><div class="rv-body">${t}</div>${k === 'save' ? '<div class="rv-go-slot"></div>' : ''}</li>`).join('');
       let copyBtn = `<button type="button" class="rv-copy" id="rv-copy" onclick="copyHandoff()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg><span>Copy note</span></button>`;
+      rvNoteStep = steps.length + 1;
       html += `<li class="rv-step rv-note-step"><div class="rv-step-top"><span class="rv-ico">${icon('note')}</span><span class="rv-n">Step ${steps.length + 1}</span></div>` +
                    `<h3>Notify ${info.sales ? esc(firstName(info.sales)) : 'the salesperson'}</h3>` +
-                   `<p>Open ${esc(rvTicketLabel)} (right half of the screen), add a note, paste this note and the pages below${prod ? ', attach the package PDF from the ZIP' : ''}, and notify ${salesTo}.</p>` +
+                   `<p>Check ${esc(rvTicketLabel)} on the right and click <b>Add note to ticket</b>: it adds this note as a private note with the pages${prod ? ' and the package PDF' : ''} attached and notifies ${salesTo}. (Or copy the note and the pages below by hand.)</p>` +
                    `<div class="rv-note-wrap">${copyBtn}<pre class="rv-note" id="rv-note">${esc(rvNote)}</pre></div>` +
                    `<div class="rv-pages-head"><b>Pages</b><span>Copy image, or drag a page into the note${rvExported ? '' : ' (exported JPGs replace these after the export)'}</span></div><div class="rv-pages" id="rv-pages"></div></li>`;
       box.className = 'rv-steps' + (prod ? ' prod' : '');
@@ -4982,7 +5061,8 @@
           await save(`${prefix}SVG/${jobs[i].file}.svg`, new Blob([jobs[i].svg()], { type: 'image/svg+xml' }));
           await save(`${prefix}JPG/${jobs[i].file}.jpg`, jpg);
       }
-      if (jpegs.length) await save(`${prefix}${fb} - Production package.pdf`, jpegPagesToPdf(jpegs, `${base} - Production package`));
+      if (jpegs.length) { let pdf = jpegPagesToPdf(jpegs, `${base} - Production package`); rvPdf = { name: `${fb} - Production package.pdf`, blob: pdf };
+                          await save(`${prefix}${fb} - Production package.pdf`, pdf); }
   }
 
   // home footer: the current year
