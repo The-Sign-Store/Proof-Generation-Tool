@@ -358,3 +358,95 @@ function backfillDraftSearch_() {
     props.setProperty(k, JSON.stringify(info));
   });
 }
+
+// =====================================================================
+//  FRESHDESK (v4.8): read the job's ticket and add the hand-off note, from the server.
+//  The API key lives ONLY in Script Properties (Apps Script > Project Settings > Script properties:
+//  FRESHDESK_API_KEY). It is never sent to the browser. Notes are posted as the key's owner.
+// =====================================================================
+const FD_HOST = 'signstoremacon.freshdesk.com';
+const FD_STATUS = { 2: 'Open', 3: 'Pending', 4: 'Resolved', 5: 'Closed', 6: 'Waiting on Customer', 7: 'Waiting on Third Party' };
+function fdKey_() { return PropertiesService.getScriptProperties().getProperty('FRESHDESK_API_KEY') || ''; }
+function fdTicketUrl_(id) { return 'https:' + '/' + '/' + FD_HOST + '/a/tickets/' + id; }
+function fdFetch_(path, opts) {
+  const key = fdKey_();
+  if (!key) throw new Error('Freshdesk is not connected: add FRESHDESK_API_KEY in Script properties.');
+  opts = Object.assign({ method: 'get', muteHttpExceptions: true }, opts || {});
+  opts.headers = Object.assign({}, opts.headers || {}, { Authorization: 'Basic ' + Utilities.base64Encode(key + ':X') });
+  const r = UrlFetchApp.fetch('https:' + '/' + '/' + FD_HOST + '/api/v2' + path, opts), code = r.getResponseCode(), txt = r.getContentText();
+  if (code >= 300) {
+    let msg = txt;
+    try { const j = JSON.parse(txt); msg = (j.errors || []).map(e => (e.field ? e.field + ': ' : '') + e.message).join('; ') || j.description || j.message || txt; } catch (e) { /* not JSON */ }
+    if (code === 401) msg = 'the API key was not accepted (check FRESHDESK_API_KEY)';
+    if (code === 404) msg = 'that ticket was not found';
+    throw new Error('Freshdesk ' + code + ': ' + String(msg).slice(0, 300));
+  }
+  return txt ? JSON.parse(txt) : null;
+}
+// every agent (name + email), cached for 6 hours
+function fdAgents_() {
+  const cache = CacheService.getScriptCache(), hit = cache.get('FD_AGENTS');
+  if (hit) return JSON.parse(hit);
+  let all = [];
+  for (let page = 1; page <= 5; page++) {
+    const a = fdFetch_('/agents?per_page=100&page=' + page) || [];
+    all = all.concat(a.map(x => ({ id: x.id, name: (x.contact && x.contact.name) || '', email: (x.contact && x.contact.email) || '' })));
+    if (a.length < 100) break;
+  }
+  cache.put('FD_AGENTS', JSON.stringify(all), 21600);
+  return all;
+}
+// "Will Bagwell" -> the agent with that name (full name first, then first + last, then a unique first name)
+function fdMatchAgent_(name, agents) {
+  const n = String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!n) return null;
+  agents = agents || fdAgents_();
+  let hit = agents.filter(a => a.name.toLowerCase().replace(/\s+/g, ' ') === n);
+  if (!hit.length) { const w = n.split(' '); hit = agents.filter(a => { const an = a.name.toLowerCase(); return w.every(x => an.indexOf(x) !== -1); }); }
+  if (!hit.length) { const f = n.split(' ')[0]; const byFirst = agents.filter(a => a.name.toLowerCase().split(/\s+/)[0] === f); if (byFirst.length === 1) hit = byFirst; }
+  return hit.length === 1 && hit[0].email ? hit[0] : null;
+}
+/** The ticket for the Approve and export panel: subject, status, people and the latest activity. */
+function fdTicket(ticketId, salesName) {
+  const id = String(ticketId || '').replace(/\D/g, '');
+  if (!id) throw new Error('No ticket number.');
+  if (!fdKey_()) return { noKey: true, id: id, url: fdTicketUrl_(id) };
+  const t = fdFetch_('/tickets/' + id + '?include=requester,conversations'), agents = fdAgents_();
+  const agentName = uid => { const a = agents.filter(x => x.id === uid)[0]; return a ? a.name : ''; };
+  const req = t.requester || {};
+  const convs = (t.conversations || []).slice(-5).reverse().map(c => ({
+    private: !!c.private, incoming: !!c.incoming, at: c.created_at || '',
+    from: agentName(c.user_id) || (c.user_id === t.requester_id ? (req.name || 'Requester') : (c.from_email || '')),
+    text: String(c.body_text || '').replace(/\s+/g, ' ').trim().slice(0, 260), files: (c.attachments || []).length
+  }));
+  const sales = fdMatchAgent_(salesName, agents);
+  return { id: id, url: fdTicketUrl_(id), subject: t.subject || '', status: FD_STATUS[t.status] || String(t.status || ''),
+           requester: req.name || '', requesterEmail: req.email || '', agent: agentName(t.responder_id), created: t.created_at || '',
+           updated: t.updated_at || '', convs: convs, notify: sales ? { name: sales.name, email: sales.email } : null };
+}
+// multipart/form-data body as bytes (Freshdesk needs multipart for attachments)
+function fdMultipart_(fields, files) {
+  const b = 'SignStudio' + Date.now(), nl = '\r\n';
+  let bytes = [];
+  const add = s => { bytes = bytes.concat(Utilities.newBlob(s).getBytes()); };
+  fields.forEach(f => add('--' + b + nl + 'Content-Disposition: form-data; name="' + f[0] + '"' + nl + nl + f[1] + nl));
+  files.forEach(f => {
+    add('--' + b + nl + 'Content-Disposition: form-data; name="attachments[]"; filename="' + String(f.name).replace(/["\r\n]/g, '') + '"' + nl +
+        'Content-Type: ' + (f.mime || 'application/octet-stream') + nl + nl);
+    bytes = bytes.concat(Utilities.base64Decode(f.data));
+    add(nl);
+  });
+  add('--' + b + '--' + nl);
+  return { contentType: 'multipart/form-data; boundary=' + b, payload: bytes };
+}
+/** Adds the hand-off note to the ticket: req = { ticket, html, notify (salesperson name), files: [{ name, mime, data (base64) }] } */
+function fdAddNote(req) {
+  const id = String(req.ticket || '').replace(/\D/g, '');
+  if (!id) throw new Error('No ticket number.');
+  const agent = req.notify ? fdMatchAgent_(req.notify) : null;
+  const fields = [['body', String(req.html || '')], ['private', 'true']];
+  if (agent) fields.push(['notify_emails[]', agent.email]);
+  const mp = fdMultipart_(fields, req.files || []);
+  const n = fdFetch_('/tickets/' + id + '/notes', { method: 'post', contentType: mp.contentType, payload: mp.payload });
+  return { id: n && n.id, url: fdTicketUrl_(id), notified: agent ? agent.name : '', attachments: ((n && n.attachments) || []).length || (req.files || []).length };
+}
