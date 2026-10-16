@@ -1180,4 +1180,44 @@
   .item-join { position: absolute; left: -1px; right: -1px; top: -27px; margin: 0; }
   .item-join::before { display: none; }
   .pj-btn.missed { background: #FDECEA; border-color: #F2B8B5; color: #A3261F; }
+  /* v4.8.2: Reload is a link (reloads the whole tab) */
+  .app-notice a.an-btn { text-decoration: none; display: inline-flex; align-items: center; }
+  .app-notice a.an-btn.busy { opacity: .7; pointer-events: none; }
+  /* v4.8.2: the Freshdesk panel shows the note + attachments; step 3 on the left points to it */
+  #review-modal .rv-live-only { display: none; }
+  #review-modal.fd-live .rv-live-only { display: block; }
+  #review-modal.fd-live .rv-hand-only, #review-modal.fd-live .rv-note-step .rv-note-wrap, #review-modal.fd-live .rv-note-step .rv-pages-head,
+  #review-modal.fd-live .rv-note-step #rv-pages { display: none; }
+  .fd-sec-h { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6A7380; margin-top: 4px; }
+  .fd-sec-h em { font-style: normal; font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 12.5px; color: #8A929D; }
+  .fd-sec-h .fd-copy { margin-left: auto; position: static; text-transform: none; letter-spacing: 0; }
+  .fd-note { margin: 0; max-height: 260px; overflow: auto; background: #F0F3F8; border: 0; }
+  .fd-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .fd-pages .ho-page figcaption { justify-content: flex-start; }
+  .fd-pdf { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 110px; border-radius: 10px; background: #F3EEFA; color: #5B2C8F; font-size: 12px; text-align: center; padding: 8px; overflow-wrap: anywhere; }
+  .fd-pdf b { font-size: 15px; padding: 6px 10px; border-radius: 6px; background: #5B2C8F; color: #FFFFFF; }
+  .fd-notify span { color: #8A929D; }
+  .fd-note-box { border-radius: 10px; background: #F0F3F8; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .fd-note-head { font-size: 13px; color: #3A414A; }
+  .fd-note-edit { width: 100%; min-height: 220px; max-height: 420px; resize: vertical; border: 1px solid #D5DAE0; border-radius: 8px; background: #FFFFFF; padding: 10px 12px;
+                  font: 13px/1.5 var(--font, inherit); color: #1F2328; white-space: pre-wrap; }
+  .fd-note-edit:focus { outline: 2px solid #0B57D0; outline-offset: -1px; border-color: transparent; }
+  .fd-note-edit[readonly] { background: #F7F8FA; color: #5A6370; }
+  .fd-reset { margin-left: auto; border: 0; background: none; color: #0B57D0; font: inherit; font-size: 12.5px; font-weight: 600; text-transform: none; letter-spacing: 0; cursor: pointer; }
+  /* v4.8.2: bigger step text so the steps fill the left half */
+  #review-modal .rv-step { padding: 18px 22px; gap: 6px; }
+  #review-modal .rv-ico { width: 38px; height: 38px; }
+  #review-modal .rv-ico svg { width: 22px; height: 22px; }
+  #review-modal .rv-n { font-size: 17px; }
+  #review-modal .rv-step h3 { font-size: 19px; margin-top: 6px; }
+  #review-modal .rv-step p, #review-modal .rv-step .rv-body { font-size: 16px; line-height: 1.55; }
+  #review-modal .rv-step .rv-body code { font-size: 14.5px; }
+  #review-modal .rv-step .rv-body li { margin: 4px 0; }
+  #review-modal .rv-sub { font-size: 14.5px; }
+  #review-modal #rv-copy-path { font-size: 14px; height: 32px; padding: 0 14px; border-radius: 16px; }
+  #review-modal .rv-note { font-size: 14.5px; }
+  #review-modal #rv-go { font-size: 17px; }
+  #review-modal .rv-mini { font-size: 16px; line-height: 1.55; padding-left: 22px; }
+  #review-modal .rv-mini li { margin: 6px 0; }
+  #review-modal .rv-mini code { font-size: 14.5px; }
 </style>

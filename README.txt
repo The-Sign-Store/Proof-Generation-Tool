@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.8.1  (October 16, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.8.2  (October 16, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -296,6 +296,15 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.8.2  (2026-10-16)
+  - Freshdesk panel: editable note preview + the attachments (no activity
+    list, no notify checkbox); step 3 points to it. Bigger step text; step 1
+    no longer names who sends the proof.
+  - Reload now reloads the whole tab (no more blank page).
+  - Saving no longer leaves an autosave behind; leftovers show under their
+    saved project.
+  - Edit Job Info hidden on the home screen.
+
 v4.8.1  (2026-10-16)
   - Same page / New page pill between different products: a product can
     share the previous product's last page (2 tables a page); the badge

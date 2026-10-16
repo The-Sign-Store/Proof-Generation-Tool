@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.8.1** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.8.2** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,18 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.8.2] – 2026-10-16
+#### Changed
+- **Freshdesk panel** (Approve and export, right half) now shows what will be added instead of the ticket's activity: the note in an **editable box** (under a fixed "Sent from SignStudio by {designer}" line, with **Reset**) and the attachments (page JPGs, plus the package PDF on production). Whatever is in the box is what gets posted. It says who gets notified (no checkbox). With the panel connected, step 3 on the left just points to it; without the key the note and pages stay on the left to copy by hand.
+- Step text on the left is bigger. Step 1 (design) no longer says who sends the proof to the customer.
+- **Edit Job Info** is hidden on the home screen.
+- **Saved projects:** an autosave left over from before a project was saved is listed under that project (Open / Discard), not as a separate unsaved project.
+#### Fixed
+- **Reload now** (new-version notice) loaded a blank page: it now reloads the whole browser tab at the web-app address (saving a draft first).
+- Saving while an autosave was still on its way (also the save on export) brought the autosave back as a separate draft. Saving now waits for it and removes it; "Save as new" removes it too; an autosave older than the latest save is ignored.
+
+---
 
 ### [4.8.1] – 2026-10-16
 #### Added

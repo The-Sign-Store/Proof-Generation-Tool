@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.8.1  -  Design + Production
+  //  SIGNSTUDIO v4.8.2  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.8.1';
+  const APP_VERSION = '4.8.2';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -139,6 +139,7 @@
       if (ppan && tpan && !start && ppan.parentElement !== tpan) { tpan.appendChild(ppan); activeArtKey = null; selArt = null; measureKey = null; }
       if (!start) lastPhase = t;
       let lb = document.getElementById('lib-top-btn'); if (lb) lb.style.display = start ? '' : 'none';
+      let jb = document.getElementById('job-btn'); if (jb) jb.style.display = start ? 'none' : '';
       if (!start) { updateTablesSummary(); renderPreview(); }
       window.scrollTo(0, 0);
   }
@@ -177,7 +178,7 @@
       document.getElementById('review-modal').classList.toggle('prod', prod);
       document.getElementById('rv-go').classList.toggle('prod', prod);
       document.getElementById('rv-opts').style.display = 'none';
-      rvExported = false; rvPdf = null; rvGen++; fdState.id = '';   // fresh ticket + activity each time the window opens rvPages.forEach(pg => { if (pg.url) URL.revokeObjectURL(pg.url); }); rvPages = []; rvJpgs = [];
+      rvExported = false; rvPdf = null; rvNoteEdit = null; rvGen++; fdState.id = ''; rvPages.forEach(pg => { if (pg.url) URL.revokeObjectURL(pg.url); }); rvPages = []; rvJpgs = [];
       document.getElementById('rv-go').style.display = '';
       let nx = document.getElementById('rv-next'); if (nx) nx.style.display = prod ? 'none' : '';
       let dn = document.getElementById('rv-done'); if (dn) dn.style.display = 'none';
@@ -303,7 +304,17 @@
       if (info.designer) lines.push(info.designer);
       return lines.join('\n');
   }
-  let rvNoteStep = 3, rvPdf = null;
+  let rvNoteStep = 3, rvPdf = null, rvNoteEdit = null;
+  function editFdNote(el) {
+      let had = rvNoteEdit !== null && rvNoteEdit !== rvNote;
+      rvNoteEdit = el.value;
+      el.style.height = 'auto'; el.style.height = Math.min(420, el.scrollHeight + 2) + 'px';
+      if (had !== (rvNoteEdit !== rvNote)) { let h = el.closest('.fd-panel').querySelector('.fd-sec-h'); if (h) {
+          let b = h.querySelector('.fd-reset');
+          if (rvNoteEdit !== rvNote && !b) h.insertAdjacentHTML('beforeend', '<button type="button" class="fd-reset" onclick="resetFdNote()">Reset</button>');
+          if (rvNoteEdit === rvNote && b) b.remove(); } }
+  }
+  function resetFdNote() { rvNoteEdit = null; renderFdPanel(); }
   let rvNote = '', rvTicketLabel = 'the Freshdesk ticket', rvExported = false, rvView = 'pages', rvJpgs = [];
   // Freshdesk will not load inside SignStudio (it blocks being framed), so it opens in its own window on the right half of the screen
   function openTicketBeside() {
@@ -333,6 +344,7 @@
   const FD_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>';
   function renderTicketSide(info, force) {
       let el = document.getElementById('rv-side'); if (!el) return;
+      let rm = document.getElementById('review-modal'); if (rm) rm.classList.remove('fd-live');
       let tn = String(info.ticket || '').replace(/\D/g, '');
       if (!tn) { fdState = { id: '' }; el.innerHTML = `<div class="rv-side-card">${FD_ICON}<b>No Freshdesk ticket # yet</b><span>Add it in the yellow bar on the left.</span></div>`; return; }
       if (force || fdState.id !== tn) {
@@ -352,6 +364,7 @@
   function renderFdPanel() {
       let el = document.getElementById('rv-side'); if (!el || !fdState.id) return;
       let st = fdState, d = st.data || {}, tn = st.id;
+      let rm = document.getElementById('review-modal'); if (rm) rm.classList.remove('fd-live');
       let open = `<button type="button" class="fd-link" onclick="openTicketBeside()">Open in Freshdesk &#8599;</button>`;
       if (st.loading) { el.innerHTML = `<div class="fd-panel"><div class="fd-loading"><span class="ld-spin"></span>Loading Freshdesk ticket #${esc(tn)}…</div></div>`; return; }
       if (st.error) {
@@ -366,7 +379,7 @@
           return;
       }
       let prod = step === 'production', nPages = rvPages.length, sales = getCustomerInfo().sales;
-      let notify = d.notify ? `<label class="fd-opt"><input type="checkbox" id="fd-notify" checked> Notify <b>${esc(d.notify.name)}</b> <span>${esc(d.notify.email)}</span></label>`
+      let notify = d.notify ? `<div class="fd-opt fd-notify">Notifies <b>${esc(d.notify.name)}</b> <span>(${esc(d.notify.email)})</span></div>`
                             : `<div class="fd-opt fd-warn">${sales ? `${esc(sales)} isn't a Freshdesk agent, so notify them by hand.` : 'No salesperson in job info to notify.'}</div>`;
       let ready = rvExported && rvJpgs.length, posted = st.posted;
       let btn = posted ? `<div class="fd-done">&#10003; Note added to ticket #${esc(tn)}${posted.attachments ? ` with ${posted.attachments} attachment${posted.attachments === 1 ? '' : 's'}` : ''}${posted.notified ? `; ${esc(posted.notified)} notified` : ''}.</div>`
@@ -376,12 +389,17 @@
           `<div class="fd-head"><div class="fd-title"><span class="fd-num">#${esc(tn)}</span><b>${esc(d.subject || '(no subject)')}</b></div>${open}</div>` +
           `<div class="fd-meta"><span class="fd-status s-${esc(String(d.status).toLowerCase().replace(/\W+/g, '-'))}">${esc(d.status)}</span>` +
           `<span>Requester <b>${esc(d.requester || '—')}</b></span><span>Agent <b>${esc(d.agent || 'Unassigned')}</b></span>${d.updated ? `<span>Updated ${esc(fdWhen(d.updated))}</span>` : ''}</div>` +
-          `<div class="fd-act-h">Latest activity</div><ol class="fd-acts">` +
-          ((d.convs || []).length ? d.convs.map(c => `<li class="${c.private ? 'priv' : ''}"><div class="fd-act-top"><b>${esc(c.from || 'Someone')}</b>${c.private ? '<span class="fd-tag">Private note</span>' : (c.incoming ? '<span class="fd-tag in">Customer</span>' : '<span class="fd-tag">Reply</span>')}<span class="fd-when">${esc(fdWhen(c.at))}</span></div>` +
-                                    `<div class="fd-act-txt">${esc(c.text || '(no text)')}${c.files ? ` <span class="fd-files">&#128206; ${c.files}</span>` : ''}</div></li>`).join('')
-                                  : '<li class="fd-none">No replies or notes yet.</li>') + `</ol>` +
-          `<div class="fd-compose"><div class="fd-c-h">Add the hand-off note</div>` +
-          `<div class="fd-opts"><div class="fd-opt">Private note · the note from step ${rvNoteStep}${nPages ? ` · ${nPages} JPG page${nPages === 1 ? '' : 's'}` : ''}${prod ? ' + package PDF' : ''}</div>${notify}</div>${btn}</div></div>`;
+          `<div class="fd-sec-h"><span>Note</span><em>edit it here before adding it</em>${rvNoteEdit !== null && rvNoteEdit !== rvNote ? `<button type="button" class="fd-reset" onclick="resetFdNote()">Reset</button>` : ''}</div>` +
+          `<div class="fd-note-box"><div class="fd-note-head"><b>Sent from SignStudio</b>${getCustomerInfo().designer ? ' by ' + esc(getCustomerInfo().designer) : ''}</div>` +
+          `<textarea class="fd-note-edit" id="fd-note-edit" spellcheck="true" oninput="editFdNote(this)" ${posted ? 'readonly' : ''}>${esc(rvNoteEdit !== null ? rvNoteEdit : rvNote)}</textarea></div>` +
+          `<div class="fd-sec-h"><span>Attachments</span><em>${nPages} JPG page${nPages === 1 ? '' : 's'}${prod ? ' + package PDF' : ''}${rvExported ? '' : ' · previews: the exported files are attached'}</em></div>` +
+          `<div class="rv-pages fd-pages">${rvPages.map((pg, i) => `<figure class="ho-page${pg.url ? '' : ' loading'}${pg.portrait ? ' portrait' : ''}"><div class="ho-img"><img class="fd-pg-${i}" ${pg.url ? `src="${pg.url}"` : ''} alt="${esc(pg.label)}"></div>` +
+                     `<figcaption><span>${esc(pg.label)}</span></figcaption></figure>`).join('')}` +
+          (prod ? `<div class="fd-pdf"><b>PDF</b><span>${esc(rvPdf ? rvPdf.name : 'Production package.pdf')}</span></div>` : '') + `</div>` +
+          `<div class="fd-compose">` +
+          `<div class="fd-opts"><div class="fd-opt">Added as a private note</div>${notify}</div>${btn}</div></div>`;
+      let m = document.getElementById('review-modal'); if (m) m.classList.add('fd-live');
+      let ta = document.getElementById('fd-note-edit'); if (ta) { ta.style.height = 'auto'; ta.style.height = Math.min(420, ta.scrollHeight + 2) + 'px'; }
   }
   function blobToB64(blob) { return new Promise((res, rej) => { let r = new FileReader(); r.onload = () => res(String(r.result).replace(/^data:[^,]*,/, '')); r.onerror = rej; r.readAsDataURL(blob); }); }
   async function smallerJpg(blob, k) {
@@ -401,9 +419,9 @@
           let k = total > 18e6 ? Math.sqrt(16e6 / total) : 1;                   // Freshdesk takes up to 20 MB per note
           for (let j of rvJpgs) files.push({ name: j.name, mime: 'image/jpeg', data: await blobToB64(k < 1 ? await smallerJpg(j.blob, k) : j.blob) });
           if (rvPdf && k === 1) files.push({ name: rvPdf.name, mime: 'application/pdf', data: await blobToB64(rvPdf.blob) });
-          let notifyEl = document.getElementById('fd-notify'), notify = notifyEl && notifyEl.checked ? info.sales : '';
+          let notify = fdState.data && fdState.data.notify ? info.sales : '';
           let r = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)
-              .fdAddNote({ ticket: tn, html: noteHtml(rvNote, info), notify, files }));
+              .fdAddNote({ ticket: tn, html: noteHtml(rvNoteEdit !== null ? rvNoteEdit : rvNote, info), notify, files }));
           fdState.posting = false; fdState.posted = r;
           if (rvPdf && k < 1) toast('The note is large, so the pages were attached smaller and the PDF was left off: attach it from the ZIP.');
           toast(`Note added to ticket #${tn}.`);
@@ -433,6 +451,7 @@
           if (gen !== rvGen) return;
           pg.url = URL.createObjectURL(pg.blob);
           let img = document.getElementById('ho-img-' + i); if (img) { img.src = pg.url; let f = img.closest('.ho-page'); if (f) f.classList.remove('loading'); }
+          document.querySelectorAll('img.fd-pg-' + i).forEach(im => { im.src = pg.url; let f = im.closest('.ho-page'); if (f) f.classList.remove('loading'); });
       }
   }
   function renderHandoff() {
@@ -498,8 +517,7 @@
           steps = [['save', 'Export and save', exportSteps(projectFolder(info, 'Production'), 'Export Production Proof Package') +
                        `<span class="rv-sub">Make sure a production-ready CorelDRAW (.cdr) file is in that folder. ${sales} makes the work order from this package; the Production Coordinator reviews all files.</span>`]];
       } else {
-          steps = [['save', 'Export and save', exportSteps(projectFolder(info, 'Proof'), 'Export Design Proof Package') +
-                       `<span class="rv-sub">${sales} sends the proof straight to ${cust}.</span>`],
+          steps = [['save', 'Export and save', exportSteps(projectFolder(info, 'Proof'), 'Export Design Proof Package')],
                    ['folder', 'Unzip and file the JPGs', `Extract the ZIP and move the images in its ${b('JPG')} folder to ${code('P:\\JPEGS')}.`]];
           rvTicketLabel = tLabel;
       }
@@ -510,7 +528,8 @@
       rvNoteStep = steps.length + 1;
       html += `<li class="rv-step rv-note-step"><div class="rv-step-top"><span class="rv-ico">${icon('note')}</span><span class="rv-n">Step ${steps.length + 1}</span></div>` +
                    `<h3>Notify ${info.sales ? esc(firstName(info.sales)) : 'the salesperson'}</h3>` +
-                   `<p>Check ${esc(rvTicketLabel)} on the right and click <b>Add note to ticket</b>: it adds this note as a private note with the pages${prod ? ' and the package PDF' : ''} attached and notifies ${salesTo}. (Or copy the note and the pages below by hand.)</p>` +
+                   `<p class="rv-live-only">Check the note and the pages on the right, then click <b>Add note to ticket</b>: it adds them to ${esc(rvTicketLabel)} as a private note${prod ? ' with the package PDF' : ''} and notifies ${salesTo}.</p>` +
+                   `<p class="rv-hand-only">Open ${esc(rvTicketLabel)}, add a note, paste this note and the pages below${prod ? ', attach the package PDF from the ZIP' : ''}, and notify ${salesTo}.</p>` +
                    `<div class="rv-note-wrap">${copyBtn}<pre class="rv-note" id="rv-note">${esc(rvNote)}</pre></div>` +
                    `<div class="rv-pages-head"><b>Pages</b><span>Copy image, or drag a page into the note${rvExported ? '' : ' (exported JPGs replace these after the export)'}</span></div><div class="rv-pages" id="rv-pages"></div></li>`;
       box.className = 'rv-steps' + (prod ? ' prod' : '');
@@ -4668,7 +4687,13 @@
       saveVersion({ asNew, note });
   }
   // saves a new version; opts = { asNew, note, quiet } -> Promise of the saved revision (null if it failed)
+  let savingNow = false;
   function saveVersion(opts) {
+      savingNow = true;                                    // no autosave while saving (it could bring the draft back)
+      return new Promise(res => { let w = () => autosaveBusy ? setTimeout(w, 150) : res(); w(); })
+          .then(() => saveVersionNow(opts)).then(r => { savingNow = false; return r; });
+  }
+  function saveVersionNow(opts) {
       opts = opts || {};
       let asNew = !!opts.asNew, note = opts.note || '';
       let cap = captureState(), info = getCustomerInfo(), snap = snapOf(cap.state);
@@ -4688,7 +4713,8 @@
               resolve(r);
           })
           .withFailureHandler(e => { btn.disabled = false; btn.innerText = 'Save'; alert('Could not save the proof: ' + (e && e.message || e)); resolve(null); })
-          .saveProof({ proofId: asNew || !currentProof ? null : currentProof.proofId, draftId: asNew ? null : draftId, meta, state: JSON.stringify(cap.state), images }));
+          .saveProof({ proofId: asNew || !currentProof ? null : currentProof.proofId, draftId: asNew ? null : draftId, dropKey: currentDraft ? currentDraft.key : null,
+                       meta, state: JSON.stringify(cap.state), images }));
   }
   function updateProofStatus() {
       let el = document.getElementById('proof-status'); if (!el) return;
@@ -4728,15 +4754,41 @@
       updateNoticeFor = live || 'stale';
       showAppNotice(live ? 'Version v' + esc(live) + ' of the Proof Generator is live (this tab has v' + esc(APP_VERSION) + '). Reload to use it; your work is saved as a draft first.'
                          : 'This tab is running an older copy of the Proof Generator, so autosave has stopped. Reload the tab to continue; use Save first if you have unsaved work.',
-                    '<button type="button" class="an-btn" onclick="reloadForUpdate()">Reload now</button>');
+                    reloadLink('Reload now'));
+      loadAppUrl();
   }
-  function reloadForUpdate() {
-      let go = () => { reloadingForUpdate = true; location.reload(); };
-      if (!hasUnsavedChanges() || typeof google.script.run.saveDraft !== 'function') { reloadingForUpdate = !hasUnsavedChanges(); location.reload(); return; }
-      autosaveTick();                                    // save the latest work as a draft; the reloaded tab offers Restore
-      let wait = setInterval(() => { if (!autosaveBusy) { clearInterval(wait); go(); } }, 200);
+  // the web app runs in a frame inside Google's page: reloading only that frame shows a blank page, so "Reload" is a link
+  // that opens the web-app address in the whole tab (a click on a target=_top link is allowed to do that)
+  let appUrl = '';
+  function loadAppUrl() {
+      if (appUrl || typeof google.script.run.getAppUrl !== 'function') return;
+      google.script.run.withSuccessHandler(u => { if (u && /^https:/.test(u)) { appUrl = u; document.querySelectorAll('a.an-reload').forEach(a => a.href = u); } })
+                       .withFailureHandler(() => {}).getAppUrl();
+  }
+  function reloadLink(label) {
+      return `<a class="an-btn an-reload" target="_top" rel="noopener" href="${esc(appUrl || '#')}" onclick="return reloadForUpdate(event, this)">${label}</a>`;
+  }
+  let draftBeforeReload = false;
+  function reloadForUpdate(e, a) {
+      if (!appUrl) {                                       // address not known (server code older than v4.8.2)
+          if (e) e.preventDefault();
+          toast('Press F5 (or the browser\u2019s reload button) to reload SignStudio' + (hasUnsavedChanges() ? '; your work is saved as a draft first.' : '.'));
+          if (hasUnsavedChanges()) autosaveTick();
+          return false;
+      }
+      if (draftBeforeReload || !hasUnsavedChanges() || typeof google.script.run.saveDraft !== 'function') { reloadingForUpdate = true; return true; }
+      if (e) e.preventDefault();                           // save the latest work as a draft first; the reloaded tab offers Restore
+      if (a) { a.textContent = 'Saving draft\u2026'; a.classList.add('busy'); }
+      autosaveTick();
+      let wait = setInterval(() => {
+          if (autosaveBusy) return;
+          clearInterval(wait); draftBeforeReload = true; reloadingForUpdate = true;
+          if (a) { a.textContent = 'Draft saved \u00B7 Reload now'; a.classList.remove('busy'); try { a.click(); } catch (x) { /* the user clicks it */ } }
+      }, 200);
+      return false;
   }
   function checkLiveVersion() {
+      loadAppUrl();
       if (APP_VERSION === 'dev' || updateNoticeFor) return;
       if (typeof google.script.run.getLiveVersion !== 'function') return;   // server code older than v2.3.1
       lastVersionCheck = Date.now();
@@ -4758,7 +4810,7 @@
       checkLocalDraft();
   }
   function autosaveTick() {
-      if (autosaveBusy || restoringNow || !pkgItems.length) return;
+      if (autosaveBusy || savingNow || restoringNow || !pkgItems.length) return;
       if (typeof google.script.run.saveDraft !== 'function') {               // this tab's copy of the server code is out of date
           clearInterval(autosaveTimer); autosaveTimer = null; showUpdateNotice(null); return;
       }
@@ -4766,13 +4818,14 @@
       if (snap === lastSavedSnap || snap === lastDraftSnap) return;         // nothing new since the last save / draft
       autosaveBusy = true;
       let images = Object.keys(cap.images).filter(h => !draftUploaded[h]).map(h => ({ hash: h, data: cap.images[h].replace(/^data:[^,]*,/, ''), mime: 'image/jpeg' }));
-      let req = { proofId: currentProof ? currentProof.proofId : null, draftId: currentDraft && !currentProof ? currentDraft.draftId : null,
+      let req = { proofId: currentProof ? currentProof.proofId : null, rev: currentProof ? currentProof.rev : null, draftId: currentDraft && !currentProof ? currentDraft.draftId : null,
                   meta: (() => { let i = getCustomerInfo(); return { label: proofLabel(), products: pkgItems.map(x => x.name).join(', '), search: searchWords(),
                                                                    ticket: i.ticket, customer: i.name, sub: i.sub, project: i.project, designer: i.designer }; })(),
                   state: JSON.stringify(cap.state), images };
       google.script.run
           .withSuccessHandler(r => {
               autosaveBusy = false; lastDraftSnap = snap; images.forEach(im => { draftUploaded[im.hash] = true; });
+              if (!r || r.skipped) return;                                  // made before the latest save: nothing kept
               currentDraft = { key: r.key, draftId: r.draftId, proofId: req.proofId, savedAt: r.savedAt };
               rememberLocalDraft(r.key); updateProofStatus();
           })
@@ -4863,6 +4916,11 @@
                          let hay = [p.ticket, p.customer, p.sub, p.project, p.designer, p.products, p.label, p.search === '-' ? '' : p.search].join(' ').toLowerCase();
                          return words.every(w => hay.indexOf(w) !== -1); };
       let list = libraryList.filter(match), drafts = libraryDrafts.filter(match);
+      let nrm = v => String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      let same = (d, p) => nrm(d.customer) === nrm(p.customer) && nrm(d.project) === nrm(p.project) && nrm(d.sub) === nrm(p.sub) &&
+                           (nrm(d.ticket) ? nrm(d.ticket) === nrm(p.ticket) : !!(nrm(d.customer) && nrm(d.project)));
+      let extra = {};                                      // proofId -> its leftover autosaves
+      drafts = drafts.filter(d => { let p = libraryList.find(x => same(d, x)); if (!p) return true; (extra[p.proofId] = extra[p.proofId] || []).push(d); return false; });
       let box = document.getElementById('lib-list');
       if (!libraryList.length && !libraryDrafts.length) { box.innerHTML = '<div class="lib-empty">No saved proofs yet. Build a package, then use Save in the top bar.</div>'; return; }
       let html = '';
@@ -4878,6 +4936,7 @@
             <div class="lib-main">
               <div class="lib-title">${esc([p.customer + (p.sub ? ' - ' + p.sub : ''), p.project].filter(Boolean).join(' — ') || 'Untitled proof')}</div>
               <div class="lib-meta">${p.ticket ? `<span class="chip">Ticket ${esc(p.ticket)}</span>` : ''}${p.designer ? `<span class="chip">${esc(p.designer)}</span>` : ''}<span class="lib-products">${esc(p.products)}</span></div>
+              ${(extra[p.proofId] || []).map(d => `<div class="lib-draftnote">Autosave from ${esc(String(d.savedAt).slice(0, 16))}, made before this project was saved · <a href="#" onclick="openDraft('${esc(d.key)}'); return false;">Open</a> · <a href="#" onclick="discardDraftUI('${esc(d.key)}'); return false;">Discard</a></div>`).join('')}
               ${p.draft ? `<div class="lib-draftnote">Unsaved changes autosaved ${esc(String(p.draft.savedAt).slice(0, 16))} · <a href="#" onclick="openDraft('${esc(p.draft.key)}'); return false;">Restore</a> · <a href="#" onclick="discardDraftUI('${esc(p.draft.key)}'); return false;">Discard</a></div>` : ''}
             </div>
             <div class="lib-side">

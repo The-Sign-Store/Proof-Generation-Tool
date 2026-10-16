@@ -123,6 +123,7 @@ function saveProof(req) {
     // the revision now holds the latest work: its autosave draft (and the never-saved draft it came from) are no longer needed
     dropDraft_('DRAFT_' + proofId);
     if (req.draftId) dropDraft_('DRAFT_' + req.draftId);
+    if (req.dropKey && /^DRAFT_/.test(req.dropKey)) dropDraft_(String(req.dropKey));   // v4.8.2: "Save as new" too
     return { proofId: proofId, rev: rev, savedAt: savedAt, status: status, folderUrl: folder.getUrl() };
   } finally {
     lock.releaseLock();
@@ -238,8 +239,10 @@ function saveDraft(req) {
     const props = PropertiesService.getScriptProperties(), t = now_(), meta = req.meta || {};
     let key, folder, name, draftId = req.draftId || '';
     if (req.proofId) {
-      const row = proofRows_().filter(r => r.Proof_ID === req.proofId).pop();
+      const row = proofRows_().filter(r => r.Proof_ID === req.proofId).sort((a, b) => Number(a.Rev) - Number(b.Rev)).pop();
       if (!row) throw new Error('Saved proof ' + req.proofId + ' was not found.');
+      // v4.8.2: an autosave made before the latest save (still on its way, or from another tab) must not bring the draft back
+      if (req.rev && Number(row.Rev) > Number(req.rev)) return { key: '', skipped: true };
       key = 'DRAFT_' + req.proofId; folder = DriveApp.getFolderById(row.Folder_ID); name = 'draft.json';
     } else {
       if (!draftId) draftId = 'D' + Utilities.formatDate(t.date, Session.getScriptTimeZone(), 'yyMMdd-HHmmss') + '-' + Math.floor(Math.random() * 9000 + 1000);
@@ -450,3 +453,6 @@ function fdAddNote(req) {
   const n = fdFetch_('/tickets/' + id + '/notes', { method: 'post', contentType: mp.contentType, payload: mp.payload });
   return { id: n && n.id, url: fdTicketUrl_(id), notified: agent ? agent.name : '', attachments: ((n && n.attachments) || []).length || (req.files || []).length };
 }
+
+/** The web app's address, so "Reload now" can reload the whole browser tab (v4.8.2). */
+function getAppUrl() { return ScriptApp.getService().getUrl() || ''; }
