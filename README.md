@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.7** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.7.1** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,24 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.7.1] – 2026-10-16
+#### Changed
+- **Approve and export** is now a split screen under a full-width top bar (package, customer · project, page count; red X on design, purple on production; it stays open until the X):
+  - **Left: the steps.** Design: 1 Export and save (**Copy path**, then **Export Design Proof Package** in the step: paste the path into the Save window), 2 Unzip and file the JPGs to `P:\JPEGS`, 3 Notify the salesperson (the note with **Copy note** inside it, and every page as a JPG with **Copy image** / drag). Production: the same without the JPEG step, plus the .cdr reminder and the package PDF.
+  - **Right: the Freshdesk ticket.** **Open Ticket** opens it in its own window over the right half (Freshdesk cannot be shown inside another app).
+  - No ticket # yet: a bar asks for it and Export stays off until it is added.
+  - The production note lists products work-order style: `Qty: 1 - Product` then its specs joined with " / " (open items as `( LABEL )`).
+- **Every export saves a new version** ("Exported the design / production package").
+- **Design JPGs are named** `Ticket - Customer - Project - pNN.jpg`.
+- **Edit Job Info** (top bar) opens job info in its own window; **Save Project** is just the version, a job-info check and a big Save button.
+- **Layers:** Ctrl+click picks one at a time, Shift+click a run; a picked group gets one box whose corners scale every image and measurement in it together; copy / paste keeps each image's exact size and spot on any page.
+- A spinning loader while SignStudio starts.
+
+#### Fixed
+- Page images and an export could run at the same time and make the export fail.
+
+---
 
 ### [4.7] – 2026-10-16
 #### Added
