@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.6.1** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.7** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,20 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.7] – 2026-10-16
+#### Added
+- **Layers: select and group.** Ctrl+click (or Shift+click) picks several images and measurements in the Layers panel; **Group** (Ctrl+G) nests them as "Group 1"… and dragging any of them on the page moves the whole group. **Ungroup** (Ctrl+Shift+G). Clicking a group selects all of it. Groups are saved with the project.
+- **Copy / paste layers** between any pages, Design or Production: pick layers, **Copy** (Ctrl+C), click another page, **Paste** (Ctrl+V). Pasted layers keep their spot and their groups; a paste over an identical layer is nudged so it does not hide it.
+- **One measurement box can be MISSING:** hover a W / H / D box and click **?** to flag just that measurement (blank boxes on a required size are flagged one by one). It prints as `132"W x [MISSING H] x 16"D` on the proof, QA sheet and snapshot, and is listed in Missing information as e.g. "BASE SIZE (H)"; the answer fills only that box on the production pages.
+
+#### Fixed
+- **Measurements now show in Layers** (and can be typed there) right after they are drawn, on the Design and Production tabs.
+
+#### Changed
+- The TBD / MISSING key in Missing information sits in a gray bubble with more space below it; "0 of 0 answered" is no longer shown.
+
+---
 
 ### [4.6.1] – 2026-10-16
 #### Fixed

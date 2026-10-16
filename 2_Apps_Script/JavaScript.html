@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.6.1  -  Design + Production
+  //  SIGNSTUDIO v4.7  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.6.1';
+  const APP_VERSION = '4.7';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -1324,7 +1324,8 @@
               let labels = opts.length ? opts : ['W', 'H'];
               let vals = String(def).split('|');
               html += `<div class="dims-row">`;
-              labels.forEach((lab, k) => html += `<div class="dim-box"><span>${esc(lab)}</span><input type="text" id="md-${fid}-${k}" value="${esc((vals[k] || '').replace(/"/g, ''))}" oninput="refreshAll()"></div>`);
+              labels.forEach((lab, k) => html += `<div class="dim-box" id="mdb-${fid}-${k}"><span>${esc(lab)}</span><input type="text" id="md-${fid}-${k}" value="${esc((vals[k] || '').replace(/"/g, ''))}" oninput="refreshAll()" onclick="if (this.readOnly) toggleDimMissing('${fid}', ${k})">` +
+                  `<button type="button" class="dim-miss" onclick="toggleDimMissing('${fid}', ${k})" title="Mark ${esc(lab)} as MISSING (only this measurement)" aria-label="Mark ${esc(lab)} missing">?</button></div>`);
               html += `</div>`;
               break;
           }
@@ -1691,6 +1692,19 @@
       return el ? String(el.value) : '';
   }
 
+  function toggleDimMissing(fid, k) {
+      let el = document.getElementById(`md-${fid}-${k}`), box = document.getElementById(`mdb-${fid}-${k}`); if (!el) return;
+      let on = !/^MISSING$/i.test(el.value);
+      el.value = on ? 'MISSING' : ''; el.readOnly = on;
+      if (box) box.classList.toggle('is-missing', on);
+      if (!on) el.focus();
+      refreshAll();
+  }
+  function syncDimMissing(root) {                       // reopened projects: show flagged boxes as flagged
+      (root || document).querySelectorAll('.dim-box input').forEach(el => {
+          let on = /^MISSING$/i.test(el.value); el.readOnly = on; if (el.parentElement) el.parentElement.classList.toggle('is-missing', on);
+      });
+  }
   function evalShowIf(part, expr) {
       if (!expr) return true;
       return String(expr).split('&').every(cond => {
@@ -1725,6 +1739,7 @@
   }
 
   function refreshAll() {
+      syncDimMissing();
       allParts.forEach(part => {
           let fields = appData.components[part.comp].fields;
           fields.forEach((f, fi) => {
@@ -1779,10 +1794,15 @@
       switch (f.type) {
           case 'dims': {
               let labels = splitOpts(f.options); if (!labels.length) labels = ['W', 'H'];
-              let parts = [];
-              labels.forEach((lab, k) => { let v = (byId(`md-${fid}-${k}`).value || '').replace(/"/g, '').trim(); if (v) parts.push(`${v}"${lab}`); });
-              r.val = parts.join(' x ');
-              if (f.required && parts.length < labels.length) { r.val = r.val || 'Enter Dimensions'; r.warn = true; }
+              let segs = [], filled = 0;
+              labels.forEach((lab, k) => {
+                  let v = (byId(`md-${fid}-${k}`).value || '').replace(/"/g, '').trim();
+                  if (v && !/^MISSING$/i.test(v)) { segs.push({ t: `${v}"${lab}`, lab }); filled++; }
+                  else if (/^MISSING$/i.test(v) || f.required) segs.push({ t: `MISSING ${lab}`, lab, miss: true });
+              });
+              if (!filled) { r.val = f.required || segs.length ? 'Enter Dimensions' : ''; r.warn = !!r.val; break; }   // nothing typed: the whole field
+              r.val = segs.map(x => x.t).join(' x ');
+              if (segs.some(x => x.miss)) r.segs = segs;                                                              // only the missing boxes are flagged
               break;
           }
           case 'paint': paintValue(); break;
@@ -1867,6 +1887,11 @@
           }
           let d = getDisplay(part, f, fi);
           if (d.warn && (d.warnLabel || 'MISSING') === 'MISSING' && ans) d = Object.assign({}, d, { type: 'prodans', val: ans, hex: '', svg: null, gradient: false, warn: false, prodAns: true });
+          else if (d.segs && ans) {                       // answers fill the missing boxes in order: "24" or "24 x 6"
+              let vals = ans.split(/\s*[x,]\s*/i).map(v => v.replace(/"/g, '').trim()), n = 0;
+              let segs = d.segs.map(g => g.miss && vals[n] ? { t: `${vals[n++]}"${g.lab}`, lab: g.lab } : g);
+              d = Object.assign({}, d, { val: segs.map(g => g.t).join(' x '), segs: segs.some(g => g.miss) ? segs : null, prodAns: true });
+          }
           let extra = COLOR_TYPES.indexOf(f.type) !== -1 ? (part.colorLines[fi] || []) : [];
           if (!d.warn && (d.val === '' || d.val.toUpperCase() === 'N/A') && !extra.length) return;
           if (!d.warn && splitOpts(f.hideValues).indexOf(d.val) !== -1 && !extra.length) return;
@@ -2112,6 +2137,17 @@
   function valueField(f) {
       return `<g id="Value_Field_${missN}">` + T(f.x, f.y, '\u00A0', f.size, { anchor: f.anchor, bold: f.bold, fill: f.fill || '#000000' }) + `</g>`;
   }
+  function segsSVG(x, base, segs, size) {
+      let cx = x, o = '', pad = 5 * (size / 11), sp = tw(' ', size, true);
+      segs.forEach((g, k) => {
+          let w = tw(g.t, size, true);
+          if (g.miss) { missN++; o += `<g id="MISSING_${missN}">` + R(cx - 2, base - size * 0.95, w + pad, size * 1.3, TAG_BG, '#D6A100', 0.8, ' stroke-dasharray="2,1.5"') +
+                                    T(cx + 0.5, base, g.t, size, { bold: true, fill: TAG_TX }) + `</g>`; cx += w + pad; }
+          else { o += T(cx, base, g.t, size, { bold: true, fill: '#000000' }); cx += w; }
+          if (k < segs.length - 1) { o += T(cx + sp, base, 'x', size, { bold: true, fill: '#000000' }); cx += tw(' x ', size, true); }
+      });
+      return o;
+  }
   function missingTag(xRight, y, text, size, field) {
       let w = tw(text, size, true) + 6;
       missN++;
@@ -2132,7 +2168,7 @@
       let lines = wrapText(text, P.val, true, maxVal);
       let vw = Math.max.apply(null, lines.map(l => tw(l, P.val, true)));
       return { item, P, label, lw, swW, lines, vw,
-               w: 2 * P.padX + lw + P.gap + vw + swW + (item.warn || item.tbd ? 6 * s : 0),
+               w: 2 * P.padX + lw + P.gap + vw + swW + (item.warn || item.tbd ? 6 * s : 0) + (item.segs ? item.segs.filter(g => g.miss).length * 5 * s : 0),
                h: Math.max(item.svg ? 30 * s : 0, 2 * P.padY + (lines.length - 1) * P.lineH + P.val) };
   }
 
@@ -2188,7 +2224,9 @@
       if (m.lines.length === 1) base = y + h / 2 + P.val * 0.35;
       out += T(x + P.padX, base, m.label, P.lab, { bold: true, fill: TBL.label });
       let vx = x + P.padX + m.lw + P.gap;
-      if (it.warn) {
+      if (it.segs && !it.warn && m.lines.length === 1) {
+          out += segsSVG(vx, base, it.segs, P.val);
+      } else if (it.warn) {
           missN++; out += valueField({ x: vx, y: base, size: P.val, bold: true });
           let ww = Math.max.apply(null, m.lines.map(l => tw(l, P.val, true))) + 6 * (P.val / 11);
           out += R(vx - 2, base - P.val * 0.95, ww, (m.lines.length - 1) * P.lineH + P.val * 1.3, TAG_BG, '#D6A100', 0.8, ' stroke-dasharray="2,1.5"');
@@ -2196,7 +2234,8 @@
           let ww = Math.max.apply(null, m.lines.map(l => tw(l, P.val, true))) + 6 * (P.val / 11);
           out += `<g id="TBD_${++missN}">` + R(vx - 2, base - P.val * 0.95, ww, (m.lines.length - 1) * P.lineH + P.val * 1.3, TBD_BG, null, 0, ' rx="2"') + `</g>`;
       }
-      m.lines.forEach((l, i) => out += T(vx + (it.warn || it.tbd ? 1 : 0), base + i * P.lineH, l, P.val, { bold: true, fill: it.warn ? TAG_TX : (it.tbd ? TBD_TX : '#000000') }));
+      if (!(it.segs && !it.warn && m.lines.length === 1))
+          m.lines.forEach((l, i) => out += T(vx + (it.warn || it.tbd ? 1 : 0), base + i * P.lineH, l, P.val, { bold: true, fill: it.warn ? TAG_TX : (it.tbd ? TBD_TX : '#000000') }));
       if (m.swW) {
           let sx = x + w - P.padX - (m.swW - 8 * (P.val / 11));
           if (it.svg) {
@@ -2522,7 +2561,7 @@
   function jobSpecs() {
       let out = [];
       pkgItems.forEach(it => allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => collectPartItems(part).forEach(i =>
-          out.push({ product: prName(it), section: partLabel(part), label: String(i.label).toUpperCase(), val: i.val, hex: i.hex, gradient: i.gradient, warn: i.warn, tbd: i.tbd }))));
+          out.push({ product: prName(it), section: partLabel(part), label: String(i.label).toUpperCase(), val: i.val, hex: i.hex, gradient: i.gradient, warn: i.warn, tbd: i.tbd, segs: i.segs }))));
       return out;
   }
   function specDepts(sp) {
@@ -2569,6 +2608,7 @@
       function finish() { out.push(o + `</g>`); }
       function valueMark(x, by, v, fs, r) {                  // value text; yellow MISSING / purple TBD highlight like the proofs
           let w = tw(v, fs, true), m = '';
+          if (r.segs && !r.warn) return segsSVG(x, by, r.segs, fs);
           if (r.warn) { missN++; m = `<g id="MISSING_${missN}">` + R(x - 2, by - fs, w + 4, fs * 1.3, TAG_BG, '#D6A100', 0.6) + T(x, by, v, fs, { bold: true, fill: TAG_TX }) + `</g>`; }
           else if (r.tbd) m = `<g id="TBD_${++missN}">` + R(x - 2, by - fs, w + 4, fs * 1.3, TBD_BG, null, 0, ' rx="2"') + `</g>` + T(x, by, v, fs, { bold: true, fill: TBD_TX });
           else m = T(x, by, v, fs, { bold: true, fill: '#111111' });
@@ -3095,7 +3135,9 @@
                   if (r.t === 'spec') {
                       let it = r.it, warn = it.warn, vy = y + 15;
                       r.lab.forEach((l, i) => o += T(x0 + 8, y + 14 + i * 10, l, LS, { bold: true, fill: '#555555' }));
-                      if (warn) {
+                      let segd = it.segs && !warn && r.lines.length === 1;
+                      if (segd) o += segsSVG(VAL_X, vy, it.segs, VS);
+                      else if (warn) {
                           missN++; o += valueField({ x: VAL_X, y: vy, size: VS, bold: true });
                           let ww = Math.max.apply(null, r.lines.map(l => tw(l, VS, true))) + 6;
                           o += R(VAL_X - 2, vy - VS, ww, (r.lines.length - 1) * 13.5 + VS * 1.35, TAG_BG, '#D6A100', 0.6, ' stroke-dasharray="1.5,1"');
@@ -3103,7 +3145,7 @@
                           let ww = Math.max.apply(null, r.lines.map(l => tw(l, VS, true))) + 6;
                           o += R(VAL_X - 2, vy - VS, ww, (r.lines.length - 1) * 13.5 + VS * 1.35, TBD_BG, null, 0, ' rx="2"');
                       }
-                      r.lines.forEach((l, i) => o += T(VAL_X + (warn || it.tbd ? 1 : 0), vy + i * 13.5, l, VS, { bold: true, fill: warn ? TAG_TX : (it.tbd ? TBD_TX : '#000000') }));
+                      if (!segd) r.lines.forEach((l, i) => o += T(VAL_X + (warn || it.tbd ? 1 : 0), vy + i * 13.5, l, VS, { bold: true, fill: warn ? TAG_TX : (it.tbd ? TBD_TX : '#000000') }));
                       if (it.gradient) o += R(SW_X, y + 6, SWW, 11, 'url(#fullcolor)', '#555555', 0.6);
                       else if (it.svg) o += R(SW_X + 6, y + 4, 14, 14, it.picBg || '#FFFFFF', '#555555', 0.6) +
                           (() => { let vb = String(it.svg.viewBox || '0 0 216 216').split(/\s+/).map(Number), k = 12 / Math.max(vb[2], vb[3]);
@@ -3202,7 +3244,108 @@
 
   // staging: the selected image ("key|i") gets a bounding box with 4 corner handles (on screen only)
   let selArt = null;
+  // v4.7: layers picked in the Layers panel ('a0' = image 0, 'm1' = measurement 1) on the active page; groups live on the items (.grp)
+  let layerSel = [], layerSelKey = null;
+  function selLayers(key) { return layerSelKey === key ? layerSel : []; }
+  function layerItem(key, tok) { return tok[0] === 'a' ? (pageArt[key] || [])[+tok.slice(1)] : (pageMeasures[key] || [])[+tok.slice(1)]; }
+  function layerTokens(key) { return (pageArt[key] || []).map((a, i) => 'a' + i).concat((pageMeasures[key] || []).map((m, i) => 'm' + i)); }
+  function groupTokens(key, grp) { return grp ? layerTokens(key).filter(t => (layerItem(key, t) || {}).grp === grp) : []; }
+  function groupNames(key) {                           // G3 -> "Group 1" in the order the groups first appear
+      let names = {}, n = 0;
+      layerTokens(key).forEach(t => { let g = (layerItem(key, t) || {}).grp; if (g && !names[g]) names[g] = 'Group ' + (++n); });
+      return names;
+  }
+  function pickLayer(key, tok, ev) {
+      let item = layerItem(key, tok); if (!item) return;
+      let toks = item.grp ? groupTokens(key, item.grp) : [tok], add = ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey);
+      let cur = selLayers(key).slice();
+      if (add) { let all = toks.every(t => cur.indexOf(t) !== -1); cur = all ? cur.filter(t => toks.indexOf(t) === -1) : cur.concat(toks.filter(t => cur.indexOf(t) === -1)); }
+      else cur = toks;
+      layerSel = cur; layerSelKey = key;
+      selArt = cur.length === 1 && cur[0][0] === 'a' ? `${key}|${cur[0].slice(1)}` : null;      // one image: corner handles
+      if (activeArtKey !== key) setActiveArt(key);
+      renderPreview();
+  }
+  function pickGroup(key, grp, ev) { let t = groupTokens(key, grp)[0]; if (t) pickLayer(key, t, ev); }
+  function groupLayers() {
+      let key = layerSelKey, toks = selLayers(key); if (!key || toks.length < 2) { toast('Ctrl+click two or more layers to group them.'); return; }
+      let used = layerTokens(key).map(t => +String((layerItem(key, t) || {}).grp || 'G0').slice(1)), id = 'G' + (Math.max.apply(null, used.concat([0])) + 1);
+      toks.forEach(t => { let it = layerItem(key, t); if (it) it.grp = id; });
+      renderPreview(); toast('Grouped: drag any of them on the page and they move together.');
+  }
+  function ungroupLayers() {
+      let key = layerSelKey, groups = {};
+      selLayers(key).forEach(t => { let it = layerItem(key, t); if (it && it.grp) groups[it.grp] = 1; });
+      if (!Object.keys(groups).length) return;
+      layerTokens(key).forEach(t => { let it = layerItem(key, t); if (it && groups[it.grp]) delete it.grp; });
+      renderPreview();
+  }
+  function clearLayerSel() { layerSel = []; layerSelKey = null; }
+  // copy / paste: the picked layers go to an in-app clipboard and can be pasted on any page of either tab
+  let layerClip = null;
+  function pageLabel(key) {
+      if (!key) return 'page';
+      let prod = /^prod-/.test(key), pages = packagePages(), i = pages.findIndex(p => pageKey(p) === key.replace(/^prod-/, ''));
+      let off = !prod && withCover ? 1 : 0;
+      return key.replace(/^prod-/, '') === pageKey(COVER_PAGE) ? 'the cover' : `${prod ? 'production' : 'design'} page ${i === -1 ? '' : i + 1 + off}`.trim();
+  }
+  function copyLayers() {
+      let key = layerSelKey, toks = selLayers(key); if (!key || !toks.length) { toast('Pick a layer in the Layers panel first (Ctrl+click for several).'); return; }
+      layerClip = { from: key, arts: [], meas: [] };
+      toks.forEach(t => { let it = layerItem(key, t); if (!it) return;
+          if (t[0] === 'a') layerClip.arts.push(Object.assign({}, it)); else layerClip.meas.push(JSON.parse(JSON.stringify(it))); });
+      let n = layerClip.arts.length + layerClip.meas.length;
+      toast(`Copied ${n} layer${n === 1 ? '' : 's'}. Pick any page (Design or Production) and press Ctrl+V or Paste.`);
+      renderLayers();
+  }
+  function pasteLayers(key) {
+      key = key || activeArtKey;
+      if (!layerClip) { toast('Nothing copied yet: pick layers and press Ctrl+C or Copy.'); return; }
+      if (!key) { toast('Click a page\u2019s bar first (it turns gold), then paste.'); return; }
+      let arts = pageArt[key] = pageArt[key] || [], meas = pageMeasures[key] = pageMeasures[key] || [], off = 0;
+      let clash = o => layerClip.arts.some(a => arts.some(x => x.src === a.src && x.dx === (a.dx || 0) + o && x.dy === (a.dy || 0) + o)) ||
+                       layerClip.meas.some(m => meas.some(x => x.x1 === m.x1 + o && x.y1 === m.y1 + o));
+      while (clash(off) && off < 120) off += 12;                // already there: nudge the copy so it does not hide the original
+      let used = layerTokens(key).map(t => +String((layerItem(key, t) || {}).grp || 'G0').slice(1)), next = Math.max.apply(null, used.concat([0])), remap = {};
+      let grp = g => g ? (remap[g] = remap[g] || 'G' + (++next)) : undefined, toks = [];
+      layerClip.arts.forEach(a => { let c = Object.assign({}, a, { dx: (a.dx || 0) + off, dy: (a.dy || 0) + off }); if (a.grp) c.grp = grp(a.grp); else delete c.grp; arts.push(c); toks.push('a' + (arts.length - 1)); });
+      layerClip.meas.forEach(m => { let c = JSON.parse(JSON.stringify(m)); c.x1 += off; c.y1 += off; c.x2 += off; c.y2 += off; if (m.grp) c.grp = grp(m.grp); else delete c.grp; meas.push(c); toks.push('m' + (meas.length - 1)); });
+      if (!arts.length) delete pageArt[key]; if (!meas.length) delete pageMeasures[key];
+      if (activeArtKey !== key) setActiveArt(key);
+      layerSel = toks; layerSelKey = key; selArt = toks.length === 1 && toks[0][0] === 'a' ? `${key}|${toks[0].slice(1)}` : null;
+      renderPreview();
+      toast(`Pasted ${toks.length} layer${toks.length === 1 ? '' : 's'} on ${pageLabel(key)}.`);
+  }
+  // the other members of a dragged layer's group, moved live by (dx, dy) from their start positions
+  function groupMover(key, tok) {
+      let it = layerItem(key, tok); if (!it || !it.grp) return null;
+      let others = groupTokens(key, it.grp).filter(t => t !== tok).map(t => {
+          let o = layerItem(key, t);
+          if (t[0] === 'a') { let el = document.querySelector(`.sheet image[data-art="${key}|${t.slice(1)}"]`);
+                              return { t, o, el, x: el ? +el.getAttribute('x') : 0, y: el ? +el.getAttribute('y') : 0, dx: o.dx, dy: o.dy }; }
+          return { t, o, x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 };
+      });
+      return {
+          move(dx, dy) { others.forEach(m => {
+              if (m.t[0] === 'a') { if (m.el) { m.el.setAttribute('x', (m.x + dx).toFixed(2)); m.el.setAttribute('y', (m.y + dy).toFixed(2)); } }
+              else { m.o.x1 = m.x1 + dx; m.o.y1 = m.y1 + dy; m.o.x2 = m.x2 + dx; m.o.y2 = m.y2 + dy; patchMeasure(key, +m.t.slice(1)); }
+          }); },
+          done(dx, dy) { others.forEach(m => { if (m.t[0] === 'a') { m.o.dx = m.dx + dx; m.o.dy = m.dy + dy; } }); }
+      };
+  }
   function drawArtHandles(page, region) {
+      let extra = '';
+      if (!EXPORTING) {                                  // every other picked image: a dashed outline (no handles)
+          let key = artKey(page), arts = pageArt[key] || [], f = v => v.toFixed(2);
+          selLayers(key).filter(t => t[0] === 'a' && selArt !== `${key}|${t.slice(1)}`).forEach(t => {
+              let i = +t.slice(1), a = arts[i]; if (!a) return;
+              let r = artPlacement(region, arts.length, i, a);
+              extra += `<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="none" stroke="#1A73E8" stroke-width="1.4" stroke-dasharray="5,3" pointer-events="none"/>`;
+          });
+      }
+      return (extra ? `<g id="Layer_Selection">${extra}</g>` : '') + drawArtHandlesOne(page, region);
+  }
+  function drawArtHandlesOne(page, region) {
       if (EXPORTING || !selArt) return '';
       let [key, idx] = selArt.split('|'); if (key !== artKey(page)) return '';
       let arts = pageArt[key] || [], a = arts[+idx]; if (!a) return '';
@@ -3282,6 +3425,7 @@
   // toggle = true (clicking a page's bar): a second click deselects it
   function setActiveArt(key, toggle) {
       activeArtKey = toggle && activeArtKey === key ? null : key;
+      if (layerSelKey && layerSelKey !== activeArtKey) clearLayerSel();
       key = activeArtKey;
       document.querySelectorAll('.sheet-tools').forEach(el => el.classList.toggle('active', el.dataset.key === key));
       document.querySelectorAll('.sheet[data-key]').forEach(el => el.classList.toggle('active', el.dataset.key === key));
@@ -3361,15 +3505,36 @@
       let pages = packagePages(), pi = pages.findIndex(p => artKey(p) === key);
       let coff = step === 'design' && withCover ? 1 : 0;
       if (lab) lab.innerText = key === artKey(COVER_PAGE) ? '· cover' : (pi === -1 ? '' : `· page ${pi + 1 + coff}`);
-      let arts = pageArt[key] || [], meas = pageMeasures[key] || [];
-      let html = `<div class="pl-row pl-fixed"><span class="pl-ic">&#9638;</span>Table + watermark <i>always on top</i></div>`;
-      html += arts.map((a, i) => `<div class="pl-row${selArt === key + '|' + i ? ' on' : ''}" onclick="selectArt('${key}', ${i})"><span class="pl-ic">&#9635;</span>` +
-              `<span class="pl-name" title="${esc(a.name)}">${esc(a.name || 'Image ' + (i + 1))}</span>` +
-              `<button type="button" class="pl-x" title="Remove this image" onclick="event.stopPropagation(); selArt = null; artRemove('${key}', ${i})">&times;</button></div>`).join('');
-      html += meas.map((m, i) => `<div class="pl-row"><span class="pl-ic pl-red">&#8596;</span>` +
-              `<input type="text" id="meas-${key}-${i}" class="pl-in" value="${esc(m.label)}" placeholder="inches" title="Value printed on the line" oninput="setMeasureLabel('${key}', ${i}, this.value)">` +
-              `<button type="button" class="pl-x" title="Remove this measurement" onclick="removeMeasure('${key}', ${i})">&times;</button></div>`).join('');
-      if (!arts.length && !meas.length) html += `<div class="pl-empty">No images or measurements on this page yet. Use + Add image / + Add measurement on the page bar.</div>`;
+      let arts = pageArt[key] || [], meas = pageMeasures[key] || [], sel = selLayers(key), names = groupNames(key);
+      let row = t => {
+          let it = layerItem(key, t), on = sel.indexOf(t) !== -1 ? ' on' : '', gc = it.grp ? ' pl-in-grp' : '', i = +t.slice(1);
+          if (t[0] === 'a') return `<div class="pl-row${on}${gc}" onclick="pickLayer('${key}', '${t}', event)"><span class="pl-ic">&#9635;</span>` +
+              `<span class="pl-name" title="${esc(it.name)}">${esc(it.name || 'Image ' + (i + 1))}</span>` +
+              `<button type="button" class="pl-x" title="Remove this image" onclick="event.stopPropagation(); selArt = null; clearLayerSel(); artRemove('${key}', ${i})">&times;</button></div>`;
+          return `<div class="pl-row${on}${gc}" onclick="pickLayer('${key}', '${t}', event)"><span class="pl-ic pl-red">&#8596;</span>` +
+              `<input type="text" id="meas-${key}-${i}" class="pl-in" value="${esc(it.label)}" placeholder="inches" title="Value printed on the line" oninput="setMeasureLabel('${key}', ${i}, this.value)">` +
+              `<button type="button" class="pl-x" title="Remove this measurement" onclick="event.stopPropagation(); clearLayerSel(); removeMeasure('${key}', ${i})">&times;</button></div>`;
+      };
+      let html = `<div class="pl-row pl-fixed"><span class="pl-ic">&#9638;</span>Table + watermark <i>always on top</i></div>`, done = {};
+      layerTokens(key).forEach(t => {
+          let g = layerItem(key, t).grp;
+          if (!g) { html += row(t); return; }
+          if (done[g]) return; done[g] = 1;
+          let toks = groupTokens(key, g), allOn = toks.every(x => sel.indexOf(x) !== -1);
+          html += `<div class="pl-grp${allOn ? ' on' : ''}"><div class="pl-row pl-grp-head${allOn ? ' on' : ''}" onclick="pickGroup('${key}', '${g}', event)" title="Click to select the whole group">` +
+                  `<span class="pl-ic">&#10697;</span><span class="pl-name">${esc(names[g])}</span><span class="pl-count">${toks.length}</span></div>` + toks.map(row).join('') + `</div>`;
+      });
+      if (!arts.length && !meas.length) html += `<div class="pl-empty">No images or measurements on this page yet. Use + Add image / + Add measurement on the page bar${layerClip ? ', or paste copied layers' : ''}.</div>`;
+      let nClip = layerClip ? layerClip.arts.length + layerClip.meas.length : 0;
+      if (arts.length + meas.length || nClip) {
+          let grouped = sel.some(t => (layerItem(key, t) || {}).grp);
+          if (arts.length + meas.length > 1)
+              html += `<div class="pl-tools"><button type="button" class="pl-tool" onclick="groupLayers()" ${sel.length < 2 ? 'disabled' : ''} title="Group the selected layers (Ctrl+G)">Group</button>` +
+                      `<button type="button" class="pl-tool" onclick="ungroupLayers()" ${grouped ? '' : 'disabled'} title="Ungroup (Ctrl+Shift+G)">Ungroup</button></div>`;
+          html += `<div class="pl-tools"><button type="button" class="pl-tool" onclick="copyLayers()" ${sel.length ? '' : 'disabled'} title="Copy the selected layers (Ctrl+C)">Copy</button>` +
+                  `<button type="button" class="pl-tool" onclick="pasteLayers('${key}')" ${nClip ? '' : 'disabled'} title="${nClip ? `Paste ${nClip} copied layer${nClip === 1 ? '' : 's'} here (Ctrl+V)` : 'Copy layers first'}">Paste${nClip ? ' (' + nClip + ')' : ''}</button></div>` +
+                  `<div class="pl-hint">Ctrl+click to select several · copy, then paste on any Design or Production page</div>`;
+      }
       box.innerHTML = html;
   }
 
@@ -3406,7 +3571,8 @@
   function drawMeasures(page) {
       let key = artKey(page), list = pageMeasures[key] || [];
       let inert = !EXPORTING && measureKey !== key ? ' pointer-events="none"' : '';
-      return list.length ? `<g id="Measurements"${inert}>` + list.map((m, i) => measureSVG(m, key, i)).join('') + `</g>` : '';
+      let halo = EXPORTING ? '' : selLayers(key).filter(t => t[0] === 'm').map(t => { let m = list[+t.slice(1)]; return m ? L(m.x1, m.y1, m.x2, m.y2, '#8AB4F8', 6) : ''; }).join('');
+      return list.length ? (halo ? `<g id="Layer_Selection" pointer-events="none" opacity="0.7">${halo}</g>` : '') + `<g id="Measurements"${inert}>` + list.map((m, i) => measureSVG(m, key, i)).join('') + `</g>` : '';
   }
   function patchMeasure(key, i) {             // redraw one line in place (keeps focus in the toolbar box)
       let g = document.querySelector(`.sheet g[data-meas="${key}|${i}"]`), m = (pageMeasures[key] || [])[i];
@@ -3417,6 +3583,7 @@
   }
   function toggleMeasure(key) {
       measureKey = measureKey === key ? null : key;
+      if (measureKey) activeArtKey = key;                   // Layers shows this page's measurements
       if (measureKey) toast('Measure: click, drag and release on the page. Hold Shift for a straight line. Esc to stop.');
       renderPreview();
   }
@@ -3432,15 +3599,16 @@
           e.preventDefault(); e.stopPropagation();
           let [key, idx, part] = hit.getAttribute('data-meas-hit').split('|'), m = (pageMeasures[key] || [])[+idx];
           if (!m) return;
-          let svg = hit.ownerSVGElement, start = svgPoint(svg, e), o = { x1: m.x1, y1: m.y1, x2: m.x2, y2: m.y2 };
+          if (activeArtKey !== key) { activeArtKey = key; renderLayers(); }
+          let svg = hit.ownerSVGElement, start = svgPoint(svg, e), o = { x1: m.x1, y1: m.y1, x2: m.x2, y2: m.y2 }, gm = part === 'line' ? groupMover(key, 'm' + idx) : null, lastD = { dx: 0, dy: 0 };
           let move = ev => {
               let pt = svgPoint(svg, ev), dx = pt.x - start.x, dy = pt.y - start.y;
-              if (part === 'line') { m.x1 = o.x1 + dx; m.y1 = o.y1 + dy; m.x2 = o.x2 + dx; m.y2 = o.y2 + dy; }
+              if (part === 'line') { m.x1 = o.x1 + dx; m.y1 = o.y1 + dy; m.x2 = o.x2 + dx; m.y2 = o.y2 + dy; lastD = { dx, dy }; if (gm) gm.move(dx, dy); }
               else if (part === 'p1') [m.x1, m.y1] = straighten(m.x2, m.y2, pt.x, pt.y, ev.shiftKey);
               else [m.x2, m.y2] = straighten(m.x1, m.y1, pt.x, pt.y, ev.shiftKey);
               patchMeasure(key, +idx);
           };
-          let up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); renderPreview(); };
+          let up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); if (gm) gm.done(lastD.dx, lastD.dy); renderPreview(); };
           document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
           return;
       }
@@ -3449,6 +3617,7 @@
       if (!sheet || sheet.dataset.key !== measureKey) return;
       e.preventDefault(); e.stopPropagation();
       let key = measureKey, svg = sheet.querySelector('svg'), a = svgPoint(svg, e);
+      activeArtKey = key;
       let list = pageMeasures[key] = pageMeasures[key] || [], m = { x1: a.x, y1: a.y, x2: a.x, y2: a.y, label: '' }, i = list.length;
       list.push(m);
       let host = svg.querySelector('#Measurements');
@@ -3469,6 +3638,7 @@
   document.addEventListener('paste', e => {
       if (step === 'start' || !e.clipboardData) return;
       let files = [].slice.call(e.clipboardData.items || []).filter(it => it.kind === 'file' && /^image\//.test(it.type)).map(it => it.getAsFile());
+      if (!files.length && layerClip && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) { e.preventDefault(); pasteLayers(); return; }   // copied layers
       if (!files.length) return;                       // plain text pastes into fields as usual
       e.preventDefault();
       if (!activeArtKey) { toast('Click a page\u2019s bar first (it turns gold), then press Ctrl+V to paste the screenshot there.'); return; }
@@ -3505,14 +3675,17 @@
       e.preventDefault();
       let [key, idx] = el.getAttribute('data-art').split('|'), a = (pageArt[key] || [])[+idx];
       if (!a) return;
-      if (selArt !== `${key}|${idx}`) { selArt = `${key}|${idx}`; setActiveArt(key); renderPreview(); el = document.querySelector(`.sheet image[data-art="${key}|${idx}"]`); if (!el) return; }
+      if (selArt !== `${key}|${idx}`) {
+          selArt = `${key}|${idx}`; layerSel = a.grp ? groupTokens(key, a.grp) : ['a' + idx]; layerSelKey = key;
+          setActiveArt(key); renderPreview(); el = document.querySelector(`.sheet image[data-art="${key}|${idx}"]`); if (!el) return;
+      }
       let svg = el.ownerSVGElement, m = svg.getScreenCTM().inverse();
       let toSvg = (cx, cy) => { let pt = svg.createSVGPoint(); pt.x = cx; pt.y = cy; return pt.matrixTransform(m); };
-      let start = toSvg(e.clientX, e.clientY), x0 = +el.getAttribute('x'), y0 = +el.getAttribute('y'), ddx = 0, ddy = 0;
+      let start = toSvg(e.clientX, e.clientY), x0 = +el.getAttribute('x'), y0 = +el.getAttribute('y'), ddx = 0, ddy = 0, gm = groupMover(key, 'a' + idx);
       let move = ev => { let pt = toSvg(ev.clientX, ev.clientY); ddx = pt.x - start.x; ddy = pt.y - start.y;
-                         el.setAttribute('x', (x0 + ddx).toFixed(2)); el.setAttribute('y', (y0 + ddy).toFixed(2)); };
+                         el.setAttribute('x', (x0 + ddx).toFixed(2)); el.setAttribute('y', (y0 + ddy).toFixed(2)); if (gm) gm.move(ddx, ddy); };
       let up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up);
-                       a.dx += ddx; a.dy += ddy; renderPreview(); };
+                       a.dx += ddx; a.dy += ddy; if (gm) gm.done(ddx, ddy); renderPreview(); };
       document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
   });
 
@@ -3540,6 +3713,16 @@
       };
       document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
   }, true);
+  document.addEventListener('keydown', e => {
+      if (!(e.ctrlKey || e.metaKey) || (e.key !== 'c' && e.key !== 'C') || e.shiftKey || !layerSelKey || step === 'start') return;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '') || String(window.getSelection() || '')) return;
+      e.preventDefault(); copyLayers();
+  });
+  document.addEventListener('keydown', e => {
+      if (!(e.ctrlKey || e.metaKey) || (e.key !== 'g' && e.key !== 'G') || !layerSelKey || step === 'start') return;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) return;
+      e.preventDefault(); if (e.shiftKey) ungroupLayers(); else groupLayers();
+  });
   // Delete key removes the selected image
   document.addEventListener('keydown', e => {
       if (!selArt || (e.key !== 'Delete' && e.key !== 'Backspace') || /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) return;
@@ -3646,8 +3829,13 @@
               if (mode === 'tbd') kind = 'tbd';
               else if (mode === 'missing') kind = 'miss';
               else if (mode === 'custom') kind = String((part.fcustom || {})[fi] || '').trim() ? '' : 'miss';
-              else { let d = getDisplay(part, f, fi); if (d.warn && (d.warnLabel || 'MISSING') === 'MISSING') kind = 'miss'; }
-              if (kind) out.push({ key: tbdKey(part, fi), kind, product: prName(it), section: partLabel(part), label: formLabel(f) });
+              let boxes = '';
+              if (mode !== 'tbd' && mode !== 'missing' && mode !== 'custom') {
+                  let d = getDisplay(part, f, fi);
+                  if (d.warn && (d.warnLabel || 'MISSING') === 'MISSING') kind = 'miss';
+                  else if (d.segs) { kind = 'miss'; boxes = d.segs.filter(g => g.miss).map(g => g.lab).join(', '); }
+              }
+              if (kind) out.push({ key: tbdKey(part, fi), kind, product: prName(it), section: partLabel(part), label: formLabel(f) + (boxes ? ` (${boxes})` : ''), boxes });
           });
       }));
       return out;
@@ -3660,7 +3848,7 @@
   function missingCount(list, job) {
       let n = document.getElementById('prod-missing-n'); if (!n) return;
       let tbd = list.filter(t => t.kind === 'tbd').length, miss = list.length - tbd + job.length, done = list.filter(t => String(prodAnswers[t.key] || '').trim()).length;
-      n.innerText = list.length || job.length ? [tbd ? `${tbd} TBD` : '', miss ? `${miss} missing` : '', `${done} of ${list.length} answered`].filter(Boolean).join(' · ') : '';
+      n.innerText = list.length || job.length ? [tbd ? `${tbd} TBD` : '', miss ? `${miss} missing` : '', list.length ? `${done} of ${list.length} answered` : ""].filter(Boolean).join(' · ') : '';
   }
   function renderProdPanel() {
       let box = document.getElementById('prod-missing'); if (!box) return;
@@ -3677,7 +3865,7 @@
           let head = t.product + (t.section && t.section !== t.product ? ' · ' + t.section : '');
           if (head !== last) { html += `<div class="pt-group">${esc(head)}</div>`; last = head; }
           html += `<label class="pt-row mi-${t.kind}"><span><span class="mi-tag ${t.kind}">${t.kind === 'tbd' ? 'TBD' : 'MISSING'}</span>${esc(t.label)}</span>` +
-                  `<input type="text" data-key="${esc(t.key)}" value="${esc(prodAnswers[t.key] || '')}" placeholder="${t.kind === 'tbd' ? 'TBD by Production' : 'Missing'}" oninput="setProdAnswer(this.dataset.key, this.value)"></label>`;
+                  `<input type="text" data-key="${esc(t.key)}" value="${esc(prodAnswers[t.key] || '')}" placeholder="${t.kind === 'tbd' ? 'TBD by Production' : t.boxes ? 'Missing ' + esc(t.boxes) + ' (inches)' : 'Missing'}" oninput="setProdAnswer(this.dataset.key, this.value)"></label>`;
       });
       box.innerHTML = html;
   }
@@ -3921,7 +4109,7 @@
           art[key] = (pageArt[key] || []).map(a => {
               let h = a.hash || (a.hash = imgHash(a.src));
               images[h] = a.src;
-              return { img: h, w: a.w, h: a.h, scale: a.scale, dx: a.dx, dy: a.dy, name: a.name };
+              return Object.assign({ img: h, w: a.w, h: a.h, scale: a.scale, dx: a.dx, dy: a.dy, name: a.name }, a.grp ? { grp: a.grp } : {});
           });
       });
       let state = {
@@ -3994,7 +4182,7 @@
           img.onload = () => {
               let c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
               c.getContext('2d').drawImage(img, 0, 0);
-              resolve(Object.assign({ src, canvas: c, hash: saved.img }, { w: saved.w || c.width, h: saved.h || c.height, scale: saved.scale || 1, dx: saved.dx || 0, dy: saved.dy || 0, name: saved.name || 'image' }));
+              resolve(Object.assign({ src, canvas: c, hash: saved.img }, { w: saved.w || c.width, h: saved.h || c.height, scale: saved.scale || 1, dx: saved.dx || 0, dy: saved.dy || 0, name: saved.name || 'image' }, saved.grp ? { grp: saved.grp } : {}));
           };
           img.onerror = () => resolve(null);
           img.src = src;
