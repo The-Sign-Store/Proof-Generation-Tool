@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.7  -  Design + Production
+  //  SIGNSTUDIO v4.7.1  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.7';
+  const APP_VERSION = '4.7.1';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -173,10 +173,16 @@
       closeExportMenu();
       let prod = step === 'production';
       document.getElementById('rv-title').innerText = prod ? 'Production package' : 'Design package';
-      document.getElementById('rv-go').innerText = prod ? 'Export Production Package' : 'Export Design Package';
+      document.getElementById('rv-go').innerText = prod ? 'Export Production Proof Package' : 'Export Design Proof Package';
+      document.getElementById('review-modal').classList.toggle('prod', prod);
       document.getElementById('rv-go').classList.toggle('prod', prod);
       document.getElementById('rv-opts').style.display = 'none';
+      rvExported = false; rvGen++; rvPages.forEach(pg => { if (pg.url) URL.revokeObjectURL(pg.url); }); rvPages = []; rvJpgs = [];
+      document.getElementById('rv-go').style.display = '';
+      let nx = document.getElementById('rv-next'); if (nx) nx.style.display = prod ? 'none' : '';
+      let dn = document.getElementById('rv-done'); if (dn) dn.style.display = 'none';
       document.getElementById('review-modal').style.display = 'flex';
+      showReviewView();
       document.getElementById('sp-export').classList.add('on');
       renderReview();
       document.getElementById('rv-go').focus();
@@ -204,6 +210,9 @@
               }
           }
       } finally { selArt = keepSel; measureKey = keepMeasure; }
+      reviewNeedTicket(getCustomerInfo());
+      rvPages = cards.map(c => ({ label: c.label, svg: c.svg, portrait: !!c.portrait, blob: null, url: null })); rvJpgs = [];
+      renderTicketSide(getCustomerInfo()); renderStepPages(); makePagePreviews();
       document.getElementById('rv-grid').innerHTML = cards.map(c =>
           `<figure class="rv-card${c.portrait ? ' portrait' : ''}"><div class="rv-thumb">${inlineSvg(c.svg)}</div><figcaption>${esc(c.label)}</figcaption></figure>`).join('');
       let miss = cards.reduce((n, c) => n + (c.svg.match(/id="MISSING_/g) || []).length, 0);
@@ -250,6 +259,29 @@
           return `- ${prName(it)}${bits.length ? ': ' + bits.join(', ') : ''}`;
       });
   }
+  function workOrderLines() {
+      let out = [];
+      pkgItems.forEach(it => {
+          let pname = prName(it); if (/^MISSING/.test(pname)) pname = 'Product';
+          let qty = '', bits = [];
+          allParts.filter(p => p.iid === it.iid && p.enabled !== false).forEach(part => {
+              let sec = partLabel(part), secLow = sec && sec.toLowerCase() !== pname.toLowerCase() ? sec.toLowerCase() : '';
+              collectPartItems(part).forEach(i => {
+                  let L = String(i.label || '').toUpperCase().trim(), v = String(i.val || '').trim();
+                  if (/^(QTY|QUANTITY)\b/.test(L)) { if (!qty && !i.warn && !i.tbd) qty = v; return; }
+                  if (/^(TEXT|FONT|NOTES?)$/.test(L) || /^(NONE|NO|N\/A)$/i.test(v)) return;
+                  if (i.warn || i.tbd || !v) { bits.push(`( ${L} )`); return; }          // open item, shown like "( COLOR )"
+                  let low = L.toLowerCase(), last = low.split(/\s+/).pop();
+                  if (/SIZE|DIMENSION/.test(L)) bits.push(secLow ? `${v} ${secLow}` : v);
+                  else if (/^YES$/i.test(v)) bits.push(low);                                  // "Yes" -> just the item: "photo cell", "disconnect"
+                  else if (v.toLowerCase().indexOf(last.slice(0, 4)) !== -1 || v.split(/\s+/).length > 4) bits.push(v);
+                  else bits.push(`${v} ${low}`);
+              });
+          });
+          out.push(`Qty: ${qty || '1'} - ${pname}` + (bits.length ? '\n' + bits.join(' / ') : ''));
+      });
+      return out;
+  }
   function handoffNote(info, pageCount, prod) {
       let hi = firstName(info.sales), job = `${info.custName || 'this job'}${info.project ? ' (' + info.project + ')' : ''}`, lines;
       if (prod) {
@@ -258,7 +290,8 @@
           lines = [`Hi${hi ? ' ' + hi : ''},`, '', `The production proof for ${job} is complete and ready for a work order. The production pages (JPG) and the full package PDF are attached.`, ''];
           [['Ticket', info.ticket ? '#' + info.ticket : ''], ['Customer', info.custName], ['Project', info.project], ['Install location', info.location],
            ['Inv/Est #', info.inv], ['Production files', folder]].forEach(([k, v]) => { if (v) lines.push(`${k}: ${v}`); });
-          lines.push('', 'Products:', ...productSummary());
+          lines.push('', 'Work order details:');
+          workOrderLines().forEach((l, k) => { if (k) lines.push(''); lines.push(l); });
           if (open) lines.push('', `Open items: ${open} field${open === 1 ? '' : 's'} still marked TBD or MISSING.`);
           lines.push('', 'Please create the work order to start production. All files are subject to review by the Production Coordinator.', '', 'Thank you,');
       } else {
@@ -270,7 +303,105 @@
       if (info.designer) lines.push(info.designer);
       return lines.join('\n');
   }
-  let rvNote = '';
+  let rvNote = '', rvTicketLabel = 'the Freshdesk ticket', rvExported = false, rvView = 'pages', rvJpgs = [];
+  // Freshdesk will not load inside SignStudio (it blocks being framed), so it opens in its own window on the right half of the screen
+  function openTicketBeside() {
+      let url = freshdeskUrl(getCustomerInfo().ticket); if (!url) return;
+      // over the right half of the SignStudio browser window (the steps stay on the left half)
+      let X = window.screenX || 0, Y = window.screenY || 0, W = window.outerWidth || screen.availWidth || 1600, H = window.outerHeight || screen.availHeight || 900, w = Math.round(W / 2);
+      let chrome = Math.max(0, (window.outerHeight || 0) - (window.innerHeight || 0)), bar = (document.querySelector('#review-modal .rv-top') || {}).offsetHeight || 0;
+      let win = window.open(url, 'signstudio_freshdesk', `popup=yes,width=${w},height=${Math.max(400, H - chrome - bar)},left=${X + W - w},top=${Y + chrome + bar}`);
+      if (!win) { toast('Your browser blocked the window: allow pop-ups for SignStudio (the icon at the right end of the address bar), then click Open ticket again.'); return; }
+      try { win.focus(); } catch (e) { /* other origin */ }
+  }
+  // the right half of the screen: where the Freshdesk window goes
+  // export step: 1 copy the folder path, 2 click Export and paste it into the Save window's address bar
+  let rvPath = '';
+  function exportSteps(path, btnLabel) {
+      rvPath = path;
+      return `<ol class="rv-mini"><li>Copy the folder path: <code>${esc(path)}</code> <button type="button" class="rv-mini-btn" id="rv-copy-path" onclick="copyPath(this)">Copy path</button></li>` +
+             `<li>Click <b>${esc(btnLabel)}</b>, paste the path into the Save window's address bar (Ctrl+V, Enter) and save.</li></ol>`;
+  }
+  function copyPath(btn) {
+      let done = () => { if (btn) { btn.innerText = 'Copied'; btn.classList.add('done'); setTimeout(() => { btn.innerText = 'Copy path'; btn.classList.remove('done'); }, 1600); } };
+      let fallback = () => { let t = document.createElement('textarea'); t.value = rvPath; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); done(); } catch (e) { toast('Select the path and press Ctrl+C.'); } t.remove(); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(rvPath).then(done, fallback); else fallback();
+  }
+  function renderTicketSide(info) {
+      let el = document.getElementById('rv-side'); if (!el) return;
+      let tn = String(info.ticket || '').replace(/\D/g, '');
+      el.innerHTML = `<div class="rv-side-card"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>` +
+          (tn ? `<b>Freshdesk ticket #${esc(tn)}</b>` +
+                `<button type="button" class="rv-open rv-side-btn" onclick="openTicketBeside()" title="Opens the ticket in its own window on this half of the screen">Open Ticket &#8599;</button>`
+              : `<b>No Freshdesk ticket # yet</b><span>Add it in the yellow bar on the left; the ticket then opens here.</span>`) + `</div>`;
+  }
+  function renderStepPages() {
+      let el = document.getElementById('rv-pages'); if (!el) return;
+      el.innerHTML = rvPages.map((pg, i) => `<figure class="ho-page${pg.url ? '' : ' loading'}${pg.portrait ? ' portrait' : ''}"><div class="ho-img"><img id="ho-img-${i}" ${pg.url ? `src="${pg.url}"` : ''} alt="${esc(pg.label)}" draggable="true" title="Drag into the ticket's note, or use Copy image"></div>` +
+          `<figcaption><span>${esc(pg.label)}</span><button type="button" class="ho-copy" onclick="copyJpg(${i}, this)">Copy image</button></figcaption></figure>`).join('');
+  }
+  function showReviewView() {
+      let grid = document.getElementById('rv-grid'), ho = document.getElementById('rv-handoff'), vb = document.getElementById('rv-viewbar');
+      if (grid) grid.style.display = 'none'; if (ho) ho.style.display = ''; if (vb) vb.style.display = 'none';
+  }
+  // every page as a JPG for the hand-off: screen-size copies right away, replaced by the exported (300 ppi) JPGs after the export
+  let rvPages = [], rvGen = 0;
+  async function makePagePreviews() {
+      let gen = ++rvGen;
+      for (let i = 0; i < rvPages.length; i++) {
+          if (gen !== rvGen) return;
+          let pg = rvPages[i]; if (pg.blob) continue;
+          try { pg.blob = await svgToJpgBlob(pg.svg, pg.portrait ? 1275 : 1650, pg.portrait ? 1650 : 1275); } catch (e) { continue; }
+          if (gen !== rvGen) return;
+          pg.url = URL.createObjectURL(pg.blob);
+          let img = document.getElementById('ho-img-' + i); if (img) { img.src = pg.url; let f = img.closest('.ho-page'); if (f) f.classList.remove('loading'); }
+      }
+  }
+  function renderHandoff() {
+      let ho = document.getElementById('rv-handoff'); if (!ho) return;
+      let prod = step === 'production';
+      ho.innerHTML = `<div class="ho-note"><div class="ho-head"><b>Note for ${esc(rvTicketLabel)}</b>` +
+          `<button type="button" class="rv-copy" onclick="copyHandoff(this)"><span>Copy note</span></button></div><pre class="ho-text">${esc(rvNote)}</pre>` +
+          `<p class="ho-tip">In the ticket: Add note, paste the note, then paste or drag each page in below it${prod ? ' (and attach the PDF from the folder)' : ''}. Notify the salesperson in the note's Notify field.</p></div>` +
+          `<div class="ho-pages">${rvPages.map((pg, i) => `<figure class="ho-page${pg.url ? '' : ' loading'}${pg.portrait ? ' portrait' : ''}"><div class="ho-img"><img id="ho-img-${i}" ${pg.url ? `src="${pg.url}"` : ''} alt="${esc(pg.label)}" draggable="true" title="Drag into the ticket's note, or use Copy image"></div>` +
+          `<figcaption><span>${esc(pg.label)}</span><button type="button" class="ho-copy" onclick="copyJpg(${i}, this)">Copy image</button></figcaption></figure>`).join('')}</div>`;
+  }
+  async function copyJpg(i, btn) {
+      let j = rvPages[i]; if (!j) return;
+      try {
+          if (!j.blob) j.blob = await svgToJpgBlob(j.svg, j.portrait ? 1275 : 1650, j.portrait ? 1650 : 1275);
+          let bmp = await createImageBitmap(j.blob), c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+          c.getContext('2d').drawImage(bmp, 0, 0);
+          let png = await new Promise(r => c.toBlob(r, 'image/png'));
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+          if (btn) { btn.innerText = 'Copied'; btn.classList.add('done'); setTimeout(() => { btn.innerText = 'Copy image'; btn.classList.remove('done'); }, 1600); }
+      } catch (e) {
+          toast('Copying images is blocked here: drag the page into the ticket\u2019s note instead, or attach the JPG from the folder.');
+      }
+  }
+  function reviewAfterExport(prod) {
+      rvExported = true;
+      if (rvJpgs.length === rvPages.length) {
+          rvGen++;
+          rvPages.forEach((pg, i) => { if (pg.url) URL.revokeObjectURL(pg.url); pg.blob = rvJpgs[i].blob; pg.url = URL.createObjectURL(pg.blob); pg.label = rvJpgs[i].name; });
+      }
+      renderReviewSteps(prod, getCustomerInfo(), rvPages.length);
+  }
+  function reviewNeedTicket(info) {
+      let need = !String(info.ticket || '').replace(/\D/g, ''), box = document.getElementById('rv-need'), go = document.getElementById('rv-go');
+      if (box) box.style.display = need ? '' : 'none';
+      if (go) { go.disabled = need; go.title = need ? 'Add the Freshdesk ticket # first' : ''; }
+      if (need && box) { let el = document.getElementById('rv-need-in'); if (el && document.activeElement !== el) setTimeout(() => el.focus(), 50); }
+  }
+  function setReviewTicket() {
+      let el = document.getElementById('rv-need-in'), v = String(el ? el.value : '').trim();
+      if (!v.replace(/\D/g, '')) { toast('Type the Freshdesk ticket number, e.g. 47474.'); if (el) el.focus(); return; }
+      let f = document.getElementById('cf-ticket'); if (f) f.value = v;
+      updateProjectLabel(); schedulePreview(); renderReview();
+      toast(`Ticket #${v.replace(/\D/g, '')} added to the job info.`);
+  }
+  function reviewNext() { closeReview(); showTab('production'); }
+  function reviewDone() { closeReview(); goStart(); }
   function renderReviewSteps(prod, info, pageCount) {
       let box = document.getElementById('rv-steps'); if (!box) return;
       let job = [info.custName, info.project].filter(Boolean).join(' · ');
@@ -281,30 +412,36 @@
       let sub = name => code(projectFolder(info, name));
       let url = freshdeskUrl(info.ticket);
       let ticket = url ? `<a href="${url}" target="_blank" rel="noopener">Freshdesk ticket #${esc(String(info.ticket).replace(/\D/g, ''))}</a>` : 'the Freshdesk ticket';
-      let steps;
+      let steps, tn = String(info.ticket || '').replace(/\D/g, ''), tLabel = tn ? `Freshdesk ticket #${tn}` : 'the Freshdesk ticket';
+      let openStep = ['ticket', 'Open the ticket', url ? `Open ${esc(tLabel)} in a window beside this one.<br><button type="button" class="rv-open" onclick="openTicketBeside()">Open ticket #${esc(tn)} &#8599;</button>`
+                                                      : `Open ${tLabel}. Add the ticket # in job info to get a button here.`];
+      rvTicketLabel = tLabel;
       if (prod) {
-          steps = [['check', 'Check every page', `Make sure each page below is accurate. ${sales} creates a work order from it, which starts production. ` +
-                                                 `Confirm a production-ready CorelDRAW (.cdr) file is in the ${b('Production')} folder. The Production Coordinator reviews all files.`],
-                   ['save', 'Export and save', `Click ${b('Export Production Package')} and save the ZIP to ${sub('Production')}.`],
-                   ['folder', 'Unzip it', `Extract the ZIP. It holds the ${b('JPG')} and ${b('SVG')} pages and a ${b('PDF')} of the whole package.`],
-                   ['ticket', 'Attach to the ticket', `Open ${ticket}, attach the JPGs and the PDF to a note and notify ${salesTo}.`]];
+          steps = [['save', 'Export and save', exportSteps(projectFolder(info, 'Production'), 'Export Production Proof Package') +
+                       `<span class="rv-sub">Make sure a production-ready CorelDRAW (.cdr) file is in that folder. ${sales} makes the work order from this package; the Production Coordinator reviews all files.</span>`]];
       } else {
-          steps = [['check', 'Check every page', `Make sure each page below is accurate. ${sales} sends it straight to ${cust}.`],
-                   ['save', 'Export and save', `Click ${b('Export Design Package')} and save the ZIP to ${sub('Proof')}.`],
-                   ['folder', 'Unzip and file the JPGs', `Extract the ZIP and move the images in its ${b('JPG')} folder to ${code('P:\\JPEGS')}.`],
-                   ['ticket', 'Attach to the ticket', `Open ${ticket}, attach the JPGs to a note and notify ${salesTo}.`]];
+          steps = [['save', 'Export and save', exportSteps(projectFolder(info, 'Proof'), 'Export Design Proof Package') +
+                       `<span class="rv-sub">${sales} sends the proof straight to ${cust}.</span>`],
+                   ['folder', 'Unzip and file the JPGs', `Extract the ZIP and move the images in its ${b('JPG')} folder to ${code('P:\\JPEGS')}.`]];
+          rvTicketLabel = tLabel;
       }
       rvNote = handoffNote(info, pageCount, prod);
       let icon = k => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RV_ICONS[k]}</svg>`;
-      let html = steps.map(([k, h, t], i) => `<li class="rv-step"><div class="rv-step-top"><span class="rv-ico">${icon(k)}</span><span class="rv-n">Step ${i + 1}</span></div><h3>${esc(h)}</h3><p>${t}</p></li>`).join('');
-      html += `<li class="rv-step rv-note-step"><div class="rv-step-top"><span class="rv-ico">${icon('note')}</span><span class="rv-n">Step 5</span>` +
-                         `<button type="button" class="rv-copy" id="rv-copy" onclick="copyHandoff()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg><span>Copy note</span></button></div>` +
-                         `<h3>Paste this note in the ticket</h3><pre class="rv-note" id="rv-note">${esc(rvNote)}</pre></li>`;
+      let html = steps.map(([k, h, t], i) => `<li class="rv-step${k === 'save' ? ' rv-step-export' : ''}"><div class="rv-step-top"><span class="rv-ico">${icon(k)}</span><span class="rv-n">Step ${i + 1}</span></div><h3>${esc(h)}</h3><div class="rv-body">${t}</div>${k === 'save' ? '<div class="rv-go-slot"></div>' : ''}</li>`).join('');
+      let copyBtn = `<button type="button" class="rv-copy" id="rv-copy" onclick="copyHandoff()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg><span>Copy note</span></button>`;
+      html += `<li class="rv-step rv-note-step"><div class="rv-step-top"><span class="rv-ico">${icon('note')}</span><span class="rv-n">Step ${steps.length + 1}</span></div>` +
+                   `<h3>Notify ${info.sales ? esc(firstName(info.sales)) : 'the salesperson'}</h3>` +
+                   `<p>Open ${esc(rvTicketLabel)} (right half of the screen), add a note, paste this note and the pages below${prod ? ', attach the package PDF from the ZIP' : ''}, and notify ${salesTo}.</p>` +
+                   `<div class="rv-note-wrap">${copyBtn}<pre class="rv-note" id="rv-note">${esc(rvNote)}</pre></div>` +
+                   `<div class="rv-pages-head"><b>Pages</b><span>Copy image, or drag a page into the note${rvExported ? '' : ' (exported JPGs replace these after the export)'}</span></div><div class="rv-pages" id="rv-pages"></div></li>`;
       box.className = 'rv-steps' + (prod ? ' prod' : '');
+      let go = document.getElementById('rv-go');                 // the one Export button moves into the export step
       box.innerHTML = html;
+      let slot = box.querySelector('.rv-go-slot'); if (go && slot) slot.appendChild(go);
+      renderTicketSide(info); renderStepPages();
   }
-  function copyHandoff() {
-      let btn = document.getElementById('rv-copy'), lab = btn && btn.querySelector('span');
+  function copyHandoff(from) {
+      let btn = from || document.getElementById('rv-copy'), lab = btn && btn.querySelector('span');
       let done = () => { if (lab) { lab.innerText = 'Copied'; btn.classList.add('done'); setTimeout(() => { lab.innerText = 'Copy note'; btn.classList.remove('done'); }, 1600); } };
       let fallback = () => {
           let r = document.createRange(); r.selectNodeContents(document.getElementById('rv-note'));
@@ -315,9 +452,13 @@
   }
   async function reviewExport() {
       let prod = step === 'production', ok = prod ? await generateProduction() : await generatePackage();
-      if (ok) closeReview();
+      if (ok) {
+          reviewAfterExport(prod);
+          toast(prod ? 'Exported. Saving a new version…' : 'Exported. Saving a new version… The note and the JPG pages are below.');
+          await saveVersion({ quiet: true, note: prod ? 'Exported the production package' : 'Exported the design package' });
+      }
   }
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { let m = document.getElementById('review-modal'); if (m && m.style.display === 'flex') closeReview(); } });
+  // v4.7.1: Esc no longer closes the Approve and export window (only its X does)
   function stepTo(t) {
       if (step === 'start' && !pkgItems.length && !currentProof) { toast('Create a project (or open a saved one) first.'); let f = document.getElementById('hf-name'); if (f) f.focus(); return; }
       showTab(t);
@@ -393,7 +534,7 @@
       HOME_FIELDS.forEach(k => { let el = document.getElementById('hf-' + k); if (el) el.value = ''; });
       let hs = document.getElementById('hf-has-sub'); if (hs) { hs.checked = false; document.getElementById('hf-sub-wrap').style.display = 'none'; }
       updateProjectLabel(); renderPreview();
-      toast('Project created. Pick products on the left; job info is under Save Project.');
+      toast('Project created. Pick products on the left; Edit Job Info is at the top.');
   }
 
   // =====================================================================
@@ -3255,12 +3396,25 @@
       layerTokens(key).forEach(t => { let g = (layerItem(key, t) || {}).grp; if (g && !names[g]) names[g] = 'Group ' + (++n); });
       return names;
   }
+  // the layers in the order the panel lists them (a group's members together, where the group first appears)
+  function layerOrder(key) {
+      let out = [], done = {};
+      layerTokens(key).forEach(t => { let g = (layerItem(key, t) || {}).grp; if (!g) out.push(t); else if (!done[g]) { done[g] = 1; out.push(...groupTokens(key, g)); } });
+      return out;
+  }
+  let layerAnchor = null;                                // Shift+click picks from here
   function pickLayer(key, tok, ev) {
       let item = layerItem(key, tok); if (!item) return;
-      let toks = item.grp ? groupTokens(key, item.grp) : [tok], add = ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey);
+      let toks = item.grp ? groupTokens(key, item.grp) : [tok], ctrl = ev && (ev.ctrlKey || ev.metaKey), shift = ev && ev.shiftKey;
       let cur = selLayers(key).slice();
-      if (add) { let all = toks.every(t => cur.indexOf(t) !== -1); cur = all ? cur.filter(t => toks.indexOf(t) === -1) : cur.concat(toks.filter(t => cur.indexOf(t) === -1)); }
-      else cur = toks;
+      if (shift && layerAnchor && layerAnchor.key === key && layerItem(key, layerAnchor.tok)) {     // a run: every layer between the last click and this one
+          let order = layerOrder(key), a = order.indexOf(layerAnchor.tok), b = order.indexOf(tok), run = order.slice(Math.min(a, b), Math.max(a, b) + 1);
+          run.slice().forEach(t => { let g = (layerItem(key, t) || {}).grp; if (g) groupTokens(key, g).forEach(x => { if (run.indexOf(x) === -1) run.push(x); }); });   // whole groups
+          cur = ctrl ? cur.concat(run.filter(t => cur.indexOf(t) === -1)) : run;
+      } else if (ctrl) {                                  // one at a time: add or remove this layer (or its group)
+          let all = toks.every(t => cur.indexOf(t) !== -1); cur = all ? cur.filter(t => toks.indexOf(t) === -1) : cur.concat(toks.filter(t => cur.indexOf(t) === -1));
+          layerAnchor = { key, tok };
+      } else { cur = toks; layerAnchor = { key, tok }; }
       layerSel = cur; layerSelKey = key;
       selArt = cur.length === 1 && cur[0][0] === 'a' ? `${key}|${cur[0].slice(1)}` : null;      // one image: corner handles
       if (activeArtKey !== key) setActiveArt(key);
@@ -3289,11 +3443,26 @@
       let off = !prod && withCover ? 1 : 0;
       return key.replace(/^prod-/, '') === pageKey(COVER_PAGE) ? 'the cover' : `${prod ? 'production' : 'design'} page ${i === -1 ? '' : i + 1 + off}`.trim();
   }
+  // the open area images are laid out in, for any page key (design, production or the cover)
+  function regionFor(key) {
+      let prod = /^prod-/.test(key), base = key.replace(/^prod-/, ''), AB = PG.AB;
+      if (base === pageKey(COVER_PAGE)) return { x: AB.x + 16, y: AB.y + 16, w: AB.w - 32, h: AB.h - 32 };
+      let page = packagePages().find(p => pageKey(p) === base); if (!page) return null;
+      return prod ? prodArtRegion(page.blocks.length ? fitProdTable(page) : null) : artRegion(page, page.blocks.length ? fitTable(page) : null);
+  }
+  // set an image's scale / offset so it lands exactly on rect (page units), whatever the region and image count
+  function fitArtTo(region, n, i, a, rect) {
+      const gap = 16, cw = (region.w - gap * (n - 1)) / n, k = Math.min(cw / a.w, region.h / a.h);
+      a.scale = Math.min(8, Math.max(0.05, rect.w / (a.w * k)));
+      a.dx = rect.x + rect.w / 2 - (region.x + i * (cw + gap) + cw / 2); a.dy = rect.y + rect.h / 2 - (region.y + region.h / 2);
+  }
   function copyLayers() {
       let key = layerSelKey, toks = selLayers(key); if (!key || !toks.length) { toast('Pick a layer in the Layers panel first (Ctrl+click for several).'); return; }
       layerClip = { from: key, arts: [], meas: [] };
       toks.forEach(t => { let it = layerItem(key, t); if (!it) return;
-          if (t[0] === 'a') layerClip.arts.push(Object.assign({}, it)); else layerClip.meas.push(JSON.parse(JSON.stringify(it))); });
+          if (t[0] === 'a') { let reg = regionFor(key), arts = pageArt[key] || [];
+                              layerClip.arts.push(Object.assign({}, it, { rect: reg ? artPlacement(reg, arts.length, +t.slice(1), it) : null })); }
+          else layerClip.meas.push(JSON.parse(JSON.stringify(it))); });
       let n = layerClip.arts.length + layerClip.meas.length;
       toast(`Copied ${n} layer${n === 1 ? '' : 's'}. Pick any page (Design or Production) and press Ctrl+V or Paste.`);
       renderLayers();
@@ -3303,12 +3472,19 @@
       if (!layerClip) { toast('Nothing copied yet: pick layers and press Ctrl+C or Copy.'); return; }
       if (!key) { toast('Click a page\u2019s bar first (it turns gold), then paste.'); return; }
       let arts = pageArt[key] = pageArt[key] || [], meas = pageMeasures[key] = pageMeasures[key] || [], off = 0;
-      let clash = o => layerClip.arts.some(a => arts.some(x => x.src === a.src && x.dx === (a.dx || 0) + o && x.dy === (a.dy || 0) + o)) ||
+      let reg = regionFor(key), had = reg ? arts.map((x, i) => artPlacement(reg, arts.length, i, x)) : [];
+      let near = (r, q, o) => r && q && Math.abs(r.x - (q.x + o)) < 0.5 && Math.abs(r.y - (q.y + o)) < 0.5 && Math.abs(r.w - q.w) < 0.5;
+      let clash = o => layerClip.arts.some(a => arts.some((x, i) => x.src === a.src && near(had[i], a.rect, o))) ||
                        layerClip.meas.some(m => meas.some(x => x.x1 === m.x1 + o && x.y1 === m.y1 + o));
       while (clash(off) && off < 120) off += 12;                // already there: nudge the copy so it does not hide the original
       let used = layerTokens(key).map(t => +String((layerItem(key, t) || {}).grp || 'G0').slice(1)), next = Math.max.apply(null, used.concat([0])), remap = {};
       let grp = g => g ? (remap[g] = remap[g] || 'G' + (++next)) : undefined, toks = [];
-      layerClip.arts.forEach(a => { let c = Object.assign({}, a, { dx: (a.dx || 0) + off, dy: (a.dy || 0) + off }); if (a.grp) c.grp = grp(a.grp); else delete c.grp; arts.push(c); toks.push('a' + (arts.length - 1)); });
+      layerClip.arts.forEach(a => { let c = Object.assign({}, a); delete c.rect; if (a.grp) c.grp = grp(a.grp); else delete c.grp; arts.push(c); toks.push('a' + (arts.length - 1)); });
+      if (reg) {                                         // lock sizes and spots: the images already here stay put, the pasted ones match their copies
+          let n = arts.length;
+          had.forEach((r, i) => fitArtTo(reg, n, i, arts[i], r));
+          layerClip.arts.forEach((a, j) => { let i = had.length + j; if (a.rect) fitArtTo(reg, n, i, arts[i], { x: a.rect.x + off, y: a.rect.y + off, w: a.rect.w, h: a.rect.h }); });
+      }
       layerClip.meas.forEach(m => { let c = JSON.parse(JSON.stringify(m)); c.x1 += off; c.y1 += off; c.x2 += off; c.y2 += off; if (m.grp) c.grp = grp(m.grp); else delete c.grp; meas.push(c); toks.push('m' + (meas.length - 1)); });
       if (!arts.length) delete pageArt[key]; if (!meas.length) delete pageMeasures[key];
       if (activeArtKey !== key) setActiveArt(key);
@@ -3343,8 +3519,71 @@
               extra += `<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="none" stroke="#1A73E8" stroke-width="1.4" stroke-dasharray="5,3" pointer-events="none"/>`;
           });
       }
-      return (extra ? `<g id="Layer_Selection">${extra}</g>` : '') + drawArtHandlesOne(page, region);
+      return (extra ? `<g id="Layer_Selection">${extra}</g>` : '') + drawArtHandlesOne(page, region) + drawGroupHandles(page, region);
   }
+  function pickedGroup(key) {                          // the one group whose members are exactly the picked layers
+      let sel = selLayers(key); if (sel.length < 2) return null;
+      let g = (layerItem(key, sel[0]) || {}).grp; if (!g) return null;
+      let toks = groupTokens(key, g);
+      return toks.length === sel.length && toks.every(t => sel.indexOf(t) !== -1) ? g : null;
+  }
+  function groupBox(key, grp, region) {
+      let arts = pageArt[key] || [], box = null, add = (x, y) => { box = box ? { x0: Math.min(box.x0, x), y0: Math.min(box.y0, y), x1: Math.max(box.x1, x), y1: Math.max(box.y1, y) } : { x0: x, y0: y, x1: x, y1: y }; };
+      groupTokens(key, grp).forEach(t => {
+          let it = layerItem(key, t);
+          if (t[0] === 'a') { let r = artPlacement(region, arts.length, +t.slice(1), it); add(r.x, r.y); add(r.x + r.w, r.y + r.h); }
+          else { add(it.x1, it.y1); add(it.x2, it.y2); }
+      });
+      return box && { x: box.x0 - 6, y: box.y0 - 6, w: box.x1 - box.x0 + 12, h: box.y1 - box.y0 + 12 };
+  }
+  function drawGroupHandles(page, region) {
+      if (EXPORTING) return '';
+      let key = artKey(page), g = pickedGroup(key); if (!g) return '';
+      let b = groupBox(key, g, region); if (!b) return '';
+      let f = v => v.toFixed(2), hs = 9, o = `<g id="Group_Handles" data-grp-box="${f(b.x)},${f(b.y)},${f(b.w)},${f(b.h)}">` +
+          `<rect x="${f(b.x)}" y="${f(b.y)}" width="${f(b.w)}" height="${f(b.h)}" fill="none" stroke="#1A73E8" stroke-width="1.4" stroke-dasharray="6,3" pointer-events="none"/>`;
+      [['nw', b.x, b.y], ['ne', b.x + b.w, b.y], ['sw', b.x, b.y + b.h], ['se', b.x + b.w, b.y + b.h]].forEach(([c, x, y]) =>
+          o += `<rect data-grp-handle="${key}|${g}|${c}" x="${f(x - hs / 2)}" y="${f(y - hs / 2)}" width="${hs}" height="${hs}" fill="#1A73E8" stroke="#FFFFFF" stroke-width="1.2" style="cursor:${c === 'nw' || c === 'se' ? 'nwse' : 'nesw'}-resize"/>`);
+      return o + `</g>`;
+  }
+  // drag a group corner: everything in the group scales from the opposite corner (images: size + position; measurements: both ends)
+  document.addEventListener('pointerdown', e => {
+      let h = e.target.closest && e.target.closest('[data-grp-handle]');
+      if (!h) return;
+      e.preventDefault(); e.stopPropagation();
+      let [key, grp, c] = h.getAttribute('data-grp-handle').split('|'), svg = h.ownerSVGElement;
+      let bx = h.parentNode.getAttribute('data-grp-box').split(',').map(Number), b = { x: bx[0], y: bx[1], w: bx[2], h: bx[3] };
+      let ax = c.indexOf('w') !== -1 ? b.x + b.w : b.x, ay = c.indexOf('n') !== -1 ? b.y + b.h : b.y;
+      let box = h.parentNode.querySelector('rect'), k = 1;
+      let items = groupTokens(key, grp).map(t => {
+          let o = layerItem(key, t);
+          if (t[0] === 'a') { let el = svg.querySelector(`image[data-art="${key}|${t.slice(1)}"]`);
+                              return { t, o, el, r: el ? { x: +el.getAttribute('x'), y: +el.getAttribute('y'), w: +el.getAttribute('width'), h: +el.getAttribute('height') } : null, s0: o.scale, dx0: o.dx, dy0: o.dy }; }
+          return { t, o, m0: { x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 } };
+      });
+      let sc = (v, a) => a + (v - a) * k;
+      let move = ev => {
+          let pt = svgPoint(svg, ev);
+          k = Math.max(20 / Math.max(b.w, b.h), Math.max(Math.abs(pt.x - ax) / b.w, Math.abs(pt.y - ay) / b.h));
+          let nx = Math.min(ax, sc(c.indexOf('w') !== -1 ? b.x : b.x + b.w, ax)), ny = Math.min(ay, sc(c.indexOf('n') !== -1 ? b.y : b.y + b.h, ay));
+          if (box) { box.setAttribute('x', nx.toFixed(2)); box.setAttribute('y', ny.toFixed(2)); box.setAttribute('width', (b.w * k).toFixed(2)); box.setAttribute('height', (b.h * k).toFixed(2)); }
+          items.forEach(it => {
+              if (it.t[0] === 'a') { if (it.el && it.r) { it.el.setAttribute('x', sc(it.r.x, ax).toFixed(2)); it.el.setAttribute('y', sc(it.r.y, ay).toFixed(2));
+                                                         it.el.setAttribute('width', (it.r.w * k).toFixed(2)); it.el.setAttribute('height', (it.r.h * k).toFixed(2)); } }
+              else { it.o.x1 = sc(it.m0.x1, ax); it.o.y1 = sc(it.m0.y1, ay); it.o.x2 = sc(it.m0.x2, ax); it.o.y2 = sc(it.m0.y2, ay); patchMeasure(key, +it.t.slice(1)); }
+          });
+      };
+      let up = () => {
+          document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up);
+          items.forEach(it => {
+              if (it.t[0] !== 'a' || !it.r) return;
+              let cx = it.r.x + it.r.w / 2, cy = it.r.y + it.r.h / 2;
+              it.o.scale = Math.min(8, Math.max(0.05, it.s0 * k)); it.o.dx = it.dx0 + (sc(cx, ax) - cx); it.o.dy = it.dy0 + (sc(cy, ay) - cy);
+          });
+          renderPreview();
+      };
+      document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+  }, true);
   function drawArtHandlesOne(page, region) {
       if (EXPORTING || !selArt) return '';
       let [key, idx] = selArt.split('|'); if (key !== artKey(page)) return '';
@@ -3533,7 +3772,7 @@
                       `<button type="button" class="pl-tool" onclick="ungroupLayers()" ${grouped ? '' : 'disabled'} title="Ungroup (Ctrl+Shift+G)">Ungroup</button></div>`;
           html += `<div class="pl-tools"><button type="button" class="pl-tool" onclick="copyLayers()" ${sel.length ? '' : 'disabled'} title="Copy the selected layers (Ctrl+C)">Copy</button>` +
                   `<button type="button" class="pl-tool" onclick="pasteLayers('${key}')" ${nClip ? '' : 'disabled'} title="${nClip ? `Paste ${nClip} copied layer${nClip === 1 ? '' : 's'} here (Ctrl+V)` : 'Copy layers first'}">Paste${nClip ? ' (' + nClip + ')' : ''}</button></div>` +
-                  `<div class="pl-hint">Ctrl+click to select several · copy, then paste on any Design or Production page</div>`;
+                  `<div class="pl-hint">Ctrl+click: one at a time · Shift+click: a run · copy, then paste on any Design or Production page</div>`;
       }
       box.innerHTML = html;
   }
@@ -3675,8 +3914,9 @@
       e.preventDefault();
       let [key, idx] = el.getAttribute('data-art').split('|'), a = (pageArt[key] || [])[+idx];
       if (!a) return;
-      if (selArt !== `${key}|${idx}`) {
-          selArt = `${key}|${idx}`; layerSel = a.grp ? groupTokens(key, a.grp) : ['a' + idx]; layerSelKey = key;
+      let picked = a.grp ? pickedGroup(key) === a.grp : selArt === `${key}|${idx}`;
+      if (!picked) {
+          selArt = a.grp ? null : `${key}|${idx}`; layerSel = a.grp ? groupTokens(key, a.grp) : ['a' + idx]; layerSelKey = key;
           setActiveArt(key); renderPreview(); el = document.querySelector(`.sheet image[data-art="${key}|${idx}"]`); if (!el) return;
       }
       let svg = el.ownerSVGElement, m = svg.getScreenCTM().inverse();
@@ -3860,7 +4100,7 @@
       if (!list.length && !job.length) { box.innerHTML = '<div class="pt-empty">Nothing is missing. Fields marked TBD by Production or left blank on the Design tab show up here.</div>'; return; }
       let html = '', last = '';
       if (job.length) html += `<div class="pt-group">Job info</div><div class="mi-job">${job.map(l => `<span class="mi-chip"><span class="mi-tag miss">MISSING</span>${esc(l)}</span>`).join('')}</div>` +
-                              `<button type="button" class="mi-open" onclick="openSaveDialog()">Fill in job info</button>`;
+                              `<button type="button" class="mi-open" onclick="openJobInfo()">Fill in job info</button>`;
       list.forEach(t => {
           let head = t.product + (t.section && t.section !== t.product ? ' · ' + t.section : '');
           if (head !== last) { html += `<div class="pt-group">${esc(head)}</div>`; last = head; }
@@ -3930,7 +4170,7 @@
       return new Blob(parts, { type: 'application/pdf' });
   }
 
-  function svgToPngBlob(svg, pw, ph) {
+  function svgToPngBlob(svg, pw, ph, wantJpeg) {
       pw = pw || 3300; ph = ph || 2550;   // 300 ppi
       return new Promise((resolve, reject) => {
           let img = new Image();
@@ -3942,7 +4182,7 @@
               URL.revokeObjectURL(url);
               c.toBlob(b => {
                   if (!b) return reject(new Error('PNG failed'));
-                  if (!svgToPngBlob.wantJpeg) return resolve(b);
+                  if (!wantJpeg && !svgToPngBlob.wantJpeg) return resolve(b);
                   c.toBlob(j => j.arrayBuffer().then(buf => { b.jpeg = { bytes: new Uint8Array(buf), w: c.width, h: c.height }; resolve(b); }), 'image/jpeg', 0.9);
               }, 'image/png');
           };
@@ -3953,9 +4193,7 @@
 
   // v4.6: every export image is a JPG (300 ppi, quality 0.9); the blob carries its bytes for the production PDF
   async function svgToJpgBlob(svg, pw, ph) {
-      svgToPngBlob.wantJpeg = true;
-      let png;
-      try { png = await svgToPngBlob(svg, pw, ph); } finally { svgToPngBlob.wantJpeg = false; }
+      let png = await svgToPngBlob(svg, pw, ph, true);       // v4.7.1: per call, so page previews and an export can run at the same time
       let jpg = new Blob([png.jpeg.bytes], { type: 'image/jpeg' });
       jpg.jpeg = png.jpeg;
       return jpg;
@@ -4276,9 +4514,25 @@
       document.getElementById('save-as-new').checked = false;
       document.getElementById('save-note').value = '';
       document.getElementById('save-modal').style.display = 'flex';
-      let need = ['cf-ticket', 'cf-name', 'cf-project'].find(id => !document.getElementById(id).value.trim());
-      document.getElementById(need || 'save-note').focus();
+      let info = getCustomerInfo(), miss = jobInfoMissing(info).concat(info.ticket ? [] : ['Ticket #']);
+      let el = document.getElementById('save-job');
+      if (el) el.innerHTML = miss.length ? `<span class="sj-warn">Job info: ${miss.length} field${miss.length === 1 ? '' : 's'} still empty</span><button type="button" class="sj-link" onclick="closeSaveDialog(); openJobInfo()">Edit job info</button>`
+                                         : `<span class="sj-ok">Job info complete</span><button type="button" class="sj-link" onclick="closeSaveDialog(); openJobInfo()">Edit job info</button>`;
+      document.getElementById('save-note').focus();
+  }
+  // v4.7.1: job info has its own window (top bar: Edit Job Info)
+  function openJobInfo() {
+      if (step === 'start') { toast('Create or open a project first: its job info is on the home screen.'); return; }
+      let rev = document.getElementById('cf-rev'); if (rev && !rev.value) rev.value = todayStr();
+      document.getElementById('job-modal').style.display = 'flex';
       updateCustomerTags(getCustomerInfo());
+      let need = ['cf-ticket', 'cf-name', 'cf-project'].find(id => !document.getElementById(id).value.trim());
+      document.getElementById(need || 'cf-name').focus();
+  }
+  function closeJobInfo() {
+      document.getElementById('job-modal').style.display = 'none';
+      updateProjectLabel(); schedulePreview();
+      let m = document.getElementById('review-modal'); if (m && m.style.display === 'flex') renderReview();
   }
   // typing the name in the Save window fills the same Job info fields
   function saveNameEdit(id, v) {
@@ -4290,22 +4544,30 @@
   function closeSaveDialog() { document.getElementById('save-modal').style.display = 'none'; }
   function saveProofNow() {
       let asNew = document.getElementById('save-as-new').checked, note = document.getElementById('save-note').value.trim();
+      saveVersion({ asNew, note });
+  }
+  // saves a new version; opts = { asNew, note, quiet } -> Promise of the saved revision (null if it failed)
+  function saveVersion(opts) {
+      opts = opts || {};
+      let asNew = !!opts.asNew, note = opts.note || '';
       let cap = captureState(), info = getCustomerInfo(), snap = snapOf(cap.state);
       let images = Object.keys(cap.images).map(h => ({ hash: h, data: cap.images[h].replace(/^data:[^,]*,/, ''), mime: 'image/jpeg' }));
       let meta = { ticket: info.ticket, customer: info.name, sub: info.sub, project: info.project, designer: info.designer,
                    products: pkgItems.map(i => i.name).join(', '), search: searchWords(), note, appVersion: APP_VERSION };
-      let btn = document.getElementById('save-go'); btn.disabled = true; btn.innerText = 'Saving…';
+      let btn = document.getElementById('save-go'); if (!opts.quiet) { btn.disabled = true; btn.innerText = 'Saving…'; }
       let draftId = currentDraft && !currentDraft.proofId ? currentDraft.draftId : null;
-      google.script.run
+      return new Promise(resolve => google.script.run
           .withSuccessHandler(r => {
               btn.disabled = false; btn.innerText = 'Save';
               currentProof = { proofId: r.proofId, rev: r.rev, savedAt: r.savedAt, status: r.status, label: proofLabel() };
               currentDraft = null; draftUploaded = {}; lastSavedSnap = snap; lastDraftSnap = snap; forgetLocalDraft();
-              closeSaveDialog(); updateProofStatus();
-              toast(`Saved v${r.rev}: ${currentProof.label}`);
+              if (!opts.quiet) closeSaveDialog();
+              updateProofStatus();
+              toast(opts.quiet ? `Exported and saved as v${r.rev}.` : `Saved v${r.rev}: ${currentProof.label}`);
+              resolve(r);
           })
-          .withFailureHandler(e => { btn.disabled = false; btn.innerText = 'Save'; alert('Could not save the proof: ' + (e && e.message || e)); })
-          .saveProof({ proofId: asNew || !currentProof ? null : currentProof.proofId, draftId: asNew ? null : draftId, meta, state: JSON.stringify(cap.state), images });
+          .withFailureHandler(e => { btn.disabled = false; btn.innerText = 'Save'; alert('Could not save the proof: ' + (e && e.message || e)); resolve(null); })
+          .saveProof({ proofId: asNew || !currentProof ? null : currentProof.proofId, draftId: asNew ? null : draftId, meta, state: JSON.stringify(cap.state), images }));
   }
   function updateProofStatus() {
       let el = document.getElementById('proof-status'); if (!el) return;
@@ -4577,6 +4839,13 @@
       return b;
   }
 
+  // JPG pages of the design package: "Ticket - Customer - Project" (what goes to P:\JPEGS and the ticket)
+  function jpgBase(info) {
+      let clean = v => String(v == null ? '' : v).replace(/[\\\/:*?"<>|\t\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
+      let b = [info.ticket, info.name, info.project].map(clean).filter(x => x).join(' - ') || 'Proof Package';
+      if (b.length > 80) { b = b.slice(0, 80); let cut = b.lastIndexOf(' '); if (cut > 40) b = b.slice(0, cut); b = b.replace(/[^A-Za-z0-9)\]]+$/, ''); }
+      return b;
+  }
   // short name for the files inside the zip: the ticket number, or the first words of the job name when there is none
   function shortBase(info, base) {
       let t = String(info.ticket == null ? '' : info.ticket).replace(/[\\\/:*?"<>|\t\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
@@ -4653,7 +4922,10 @@
               progress(`Design page ${i + 1} of ${jobs.length}...`);
               let svg = jobs[i]();
               await save(`${prefix}SVG/${fb} - p${pad(i + 1)}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
-              await save(`${prefix}JPG/${fb} - p${pad(i + 1)}.jpg`, await svgToJpgBlob(svg, 3300, 2550));
+              let jpg = await svgToJpgBlob(svg, 3300, 2550), jn = `${jpgBase(info)} - p${pad(i + 1)}.jpg`;
+              await save(`${prefix}JPG/${jn}`, jpg);
+              if (i === 0) rvJpgs = [];
+              rvJpgs.push({ name: jn, blob: jpg });
           }
       } finally { ART_PHASE = null; }
   }
@@ -4705,6 +4977,8 @@
           progress(`Production page ${i + 1} of ${jobs.length}...`);
           let jpg = await svgToJpgBlob(jobs[i].svg(), jobs[i].w || 3300, jobs[i].h || 2550);
           jpegs.push(jpg.jpeg);
+          if (i === 0) rvJpgs = [];
+          rvJpgs.push({ name: `${jobs[i].file}.jpg`, blob: jpg });
           await save(`${prefix}SVG/${jobs[i].file}.svg`, new Blob([jobs[i].svg()], { type: 'image/svg+xml' }));
           await save(`${prefix}JPG/${jobs[i].file}.jpg`, jpg);
       }

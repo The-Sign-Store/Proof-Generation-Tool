@@ -23,7 +23,7 @@
       <span id="page-count"></span>
       <span id="proof-status" class="proof-status" style="display:none;"></span>
       <button type="button" class="btn-tonal" id="lib-top-btn" onclick="openLibrary()" title="Open a saved project">Saved projects</button>
-      <button type="button" class="btn-filled" id="save-btn" onclick="openSaveDialog()" title="Job info and save this project to the shared Proof Library">Save Project</button>
+      <button type="button" class="btn-tonal job-btn" id="job-btn" onclick="openJobInfo()" title="Customer, project, ticket #, salesperson, dates and file location">Edit Job Info</button><button type="button" class="btn-filled" id="save-btn" onclick="openSaveDialog()" title="Save a new version of this project to the shared Proof Library">Save Project</button>
       <div class="export-wrap" id="export-wrap" style="display:none;">
         <button type="button" class="btn-dark" id="export-btn" aria-haspopup="menu" aria-expanded="false" onclick="toggleExportMenu(event)">Export &#9662;</button>
         <div id="export-menu" role="menu" style="display:none;">
@@ -42,7 +42,7 @@
     <button type="button" class="step-pill" id="sp-export" data-n="3" onclick="approveExport()" title="Export this phase's package"><span class="sp-n">3</span><span class="sp-t">Approve and export</span></button>
   </nav>
 
-  <div id="loading">Loading Database from Google Sheets...</div>
+  <div id="loading" role="status" aria-live="polite"><span class="ld-spin" aria-hidden="true"></span><span class="ld-text"><b>Loading SignStudio…</b><span>Reading the database from Google Sheets. This can take a few seconds.</span></span></div>
   <div class="app-notice" id="app-notice" role="status" style="display:none;"></div>
 
   <!-- START: create a project (job info) or open a saved one -->
@@ -177,16 +177,27 @@
 
   <!-- SAVE TO THE PROOF LIBRARY -->
   <!-- APPROVE AND EXPORT: every page as it will be exported -->
-  <div id="review-modal" class="review-scrim" style="display:none;" onclick="if (event.target === this) closeReview()">
-    <div class="review" role="dialog" aria-labelledby="rv-title">
-      <div class="review-head">
-        <div class="review-title"><span class="review-eyebrow">Approve and export</span><h2 id="rv-title">Design package</h2><span class="review-job" id="rv-job"></span></div>
+  <div id="review-modal" class="review-scrim" style="display:none;">
+    <div class="review-head rv-top">
+        <div class="review-title"><span class="review-eyebrow">Approve and export</span><h2 id="rv-title">Design package</h2><span class="review-job" id="rv-job"></span><span class="review-count" id="rv-count"></span></div>
         <button type="button" class="review-x" onclick="closeReview()" aria-label="Close">&times;</button>
+      </div>
+    <div class="rv-split">
+    <div class="review" role="dialog" aria-labelledby="rv-title">
+      <div class="rv-need" id="rv-need" style="display:none;" role="alert">
+        <div><b>Add the Freshdesk ticket # before you export.</b><span>This window exports the package and builds the note for the ticket, so it needs the ticket number.</span></div>
+        <label class="rv-need-f"><span>Ticket #</span><input type="text" id="rv-need-in" inputmode="numeric" placeholder="e.g. 47474" onkeydown="if (event.key === 'Enter') setReviewTicket()"></label>
+        <button type="button" class="rv-need-btn" onclick="setReviewTicket()">Add ticket</button>
       </div>
       <ol class="rv-steps" id="rv-steps"></ol>
       <div class="review-opts" id="rv-opts"><label class="cf-check"><input type="checkbox" id="rv-cover" onchange="renderReview()"> Add a cover page in front (the proof template with no tables)</label></div>
+      <div class="rv-viewbar" id="rv-viewbar" role="tablist" style="display:none;"><button type="button" class="rv-vb" data-v="pages" role="tab" onclick="showReviewView('pages')">Pages</button><button type="button" class="rv-vb" data-v="handoff" role="tab" onclick="showReviewView('handoff')">Note + JPG pages</button></div>
       <div class="review-grid" id="rv-grid"></div>
-      <div class="review-foot"><button type="button" class="review-back" onclick="closeReview()">&larr; Back to proof pages</button><span id="rv-count"></span><button type="button" class="review-go" id="rv-go" onclick="reviewExport()">Export Design Package</button></div>
+      <div class="rv-handoff" id="rv-handoff" style="display:none;"></div>
+      <div class="rv-hold"><button type="button" class="review-go" id="rv-go" onclick="reviewExport()">Export Design Proof Package</button><button type="button" class="review-done" id="rv-done" onclick="reviewDone()" style="display:none;">Done!</button></div>
+      
+    </div>
+  <div class="rv-side" id="rv-side" aria-live="polite"></div>
     </div>
   </div>
 
@@ -194,8 +205,23 @@
     <div class="dialog" role="dialog" aria-labelledby="save-h">
       <h3 id="save-h">Save Project</h3>
       <div class="dialog-sub" id="save-title"></div>
+      <div class="save-job" id="save-job"></div>
+      <p class="dialog-text" id="save-where"></p>
+      <label class="dialog-label" for="save-note">Version note (optional)</label>
+      <input type="text" id="save-note" maxlength="120" placeholder="e.g. Customer changed the return color" onkeydown="if (event.key === 'Enter') saveProofNow()">
+      <label class="cf-check" id="save-new-row"><input type="checkbox" id="save-as-new"> Save as a new project (a copy with its own versions)</label>
+      <div class="dialog-actions save-actions">
+        <button type="button" class="btn-plain" onclick="closeSaveDialog()">Cancel</button>
+        <button type="button" class="save-big" id="save-go" onclick="saveProofNow()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- v4.7.1: JOB INFO (its own window: Edit Job Info in the top bar) -->
+  <div id="job-modal" class="dialog-scrim" onclick="if (event.target === this) closeJobInfo()">
+    <div class="dialog" role="dialog" aria-labelledby="job-h">
+      <h3 id="job-h">Job info</h3>
       <div class="save-jobinfo" id="customer-panel">
-        <div class="sj-head">Job info</div>
 
         <div class="cf-note">Fields left blank print as yellow <b>MISSING</b> tags so they can be filled in later.</div>
         <div class="cf-group"><label for="cf-name">Customer Name *</label><input type="text" id="cf-name" oninput="schedulePreview(); updateProjectLabel()">
@@ -223,13 +249,8 @@
         </div>
         <div class="cf-group optional"><label for="cf-notes">Project Notes (optional)</label><textarea id="cf-notes" rows="4" oninput="schedulePreview()"></textarea></div>
       </div>
-      <p class="dialog-text" id="save-where"></p>
-      <label class="dialog-label" for="save-note">Version note (optional)</label>
-      <input type="text" id="save-note" maxlength="120" placeholder="e.g. Customer changed the return color" onkeydown="if (event.key === 'Enter') saveProofNow()">
-      <label class="cf-check" id="save-new-row"><input type="checkbox" id="save-as-new"> Save as a new project (a copy with its own versions)</label>
       <div class="dialog-actions">
-        <button type="button" class="btn-plain" onclick="closeSaveDialog()">Cancel</button>
-        <button type="button" class="btn-filled" id="save-go" onclick="saveProofNow()">Save</button>
+        <button type="button" class="btn-filled" onclick="closeJobInfo()">Done</button>
       </div>
     </div>
   </div>

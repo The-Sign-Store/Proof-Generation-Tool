@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.7  (October 16, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.7.1  (October 16, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -296,6 +296,17 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.7.1  (2026-10-16)
+  - Approve and export: steps on the left (copy path, export, unzip JPGs,
+    notify with the note + page images), Freshdesk ticket on the right (its
+    own window). Ticket # required before export. Stays open until the X.
+  - Production note: work-order style product lines.
+  - Every export saves a new version; design JPGs named Ticket - Customer -
+    Project - pNN.jpg.
+  - Edit Job Info window; Save Project = version + big Save button.
+  - Layers: Ctrl/Shift picking, group scaling, locked copy / paste.
+  - Loading spinner at start-up.
+
 v4.7  (2026-10-16)
   - Layers: Ctrl+click to pick several images / measurements; Group (Ctrl+G)
     so they move together, Ungroup (Ctrl+Shift+G). Saved with the project.
