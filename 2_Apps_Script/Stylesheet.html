@@ -901,4 +901,35 @@
   .home-foot { margin-top: auto; padding-top: 22px; text-align: center; font-size: 12px; color: #8A929C; letter-spacing: .02em; }   /* pinned to the bottom of the screen */
   @media (max-width: 1100px) { #step-start .home-grid { grid-template-columns: 1fr; } }
   @media (max-width: 760px) { #step-start .hf-grid { grid-template-columns: 1fr; } #step-start .hf.span2, #step-start .hf.span3 { grid-column: auto; } }
+  /* v4.3: Next button under Pages + Layers (red + yellow on Design, purple + white on Production) */
+  .pp-next { flex: none; padding: 10px 8px 12px; border-top: 1px solid var(--line); background: #FFFFFF; }
+  .pp-next-btn { width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 10px; font: 700 13.5px var(--font); line-height: 1.25; cursor: pointer;
+                 box-shadow: var(--elev-1); transition: filter .12s, box-shadow .12s; }
+  .pp-next-btn:hover { filter: brightness(1.08); box-shadow: var(--elev-2); }
+  .pp-next-btn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 4px; font-size: clamp(10px, 0.66vw, 13.5px); letter-spacing: 0; }   /* one line */
+  .pp-next { padding: 10px 6px 12px; }
+  #page-panel { min-width: 150px !important; }   /* the Approve and export button fits on one line on small screens */
+  #tab-design .pp-next-btn { background: #D32F2F; color: #FFD54F; }
+  #tab-production .pp-next-btn { background: #5B2C8F; color: #FFFFFF; }
+  /* review window: back to the proof pages */
+  .review-back { height: 44px; padding: 0 18px; border: 1px solid #D0D5DB; border-radius: 22px; background: #FFFFFF; color: #3A414A; font: 600 14px var(--font); cursor: pointer; }
+  .review-back:hover { background: #F2F4F7; }
+  .review-foot #rv-count { margin-right: auto; }
+  /* v4.4: Production tab left panel - shop info + TBD answers */
+  .pi-box { border: 1px solid var(--line); border-radius: 12px; padding: 14px 14px 12px; background: #FFFFFF; }
+  .pi-box h2 { display: flex; align-items: baseline; gap: 8px; font-size: 15px; font-weight: 600; margin: 0 0 4px; color: #4A2475; }
+  .pi-box h2 span { font-size: 12px; font-weight: 500; color: #8A929C; }
+  .pi-sub { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .pi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+  .pi-grid .pi-wide { grid-column: 1 / -1; }
+  .pi-box .hf label { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .pi-box .hf input, .pi-box .hf select { height: 36px; padding: 0 10px; border: 1px solid #D0D5DB; border-radius: 8px; font: 14px var(--font); min-width: 0; background: #FFFFFF; }
+  .pi-box .hf input:focus, .pi-box .hf select:focus { outline: none; border-color: #5B2C8F; box-shadow: 0 0 0 1px #5B2C8F; }
+  .pt-group { margin: 10px 0 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #4A2475; }
+  .pt-group:first-child { margin-top: 0; }
+  .pt-row { display: grid; grid-template-columns: minmax(90px, 40%) minmax(0, 1fr); gap: 8px; align-items: center; padding: 4px 0; font-size: 12.5px; color: #3A414A; }
+  .pt-row input { height: 34px; padding: 0 10px; border: 1px solid #CDB8E6; border-radius: 8px; font: 13.5px var(--font); min-width: 0; background: #F7F3FC; }
+  .pt-row input:focus { outline: none; border-color: #5B2C8F; box-shadow: 0 0 0 1px #5B2C8F; background: #FFFFFF; }
+  .pt-row input:not(:placeholder-shown) { background: #FFFFFF; font-weight: 600; }
+  .pt-empty { font-size: 12.5px; color: #8A929C; line-height: 1.4; }
 </style>

@@ -122,6 +122,7 @@
           <button type="button" class="pp-head" aria-expanded="true" onclick="let h = this.parentElement; h.classList.toggle('collapsed'); this.setAttribute('aria-expanded', !h.classList.contains('collapsed'))" title="Show / hide layers">Layers <span id="pl-page"></span><span class="pp-caret">&#9662;</span></button>
           <div class="pp-scroll"><div id="pl-list"><div class="pl-empty">Select a page to see its images and measurements.</div></div></div>
         </section>
+        <div class="pp-next"><button type="button" class="pp-next-btn" id="pp-next" onclick="approveExport()" title="Review every page and export this package">Approve and export &rarr;</button></div>
       </aside>
     </div>
 
@@ -135,6 +136,20 @@
           <div class="prod-opt"><b>Production proofs</b> <span id="prod-proof-n"></span></div>
           <div class="prod-opt"><b>Production snapshot</b> <span id="prod-chart-n"></span></div>
         </div>
+        <section class="pi-box">
+          <h2>Shop info</h2>
+          <p class="pi-sub">Prints on every production page. Leave a field blank to print an empty box.</p>
+          <div class="pi-grid">
+            <div class="hf pi-wide"><label for="pi-wo">Work order #</label><input type="text" id="pi-wo" oninput="setShopInfo('wo', this.value)"></div>
+            <div class="hf"><label for="pi-due">Due date</label><input type="date" id="pi-due" onchange="setShopInfo('due', this.value)"></div>
+            <div class="hf"><label for="pi-install">Install date</label><input type="date" id="pi-install" onchange="setShopInfo('install', this.value)"></div>
+          </div>
+        </section>
+        <section class="pi-box">
+          <h2>TBD by Production <span id="prod-tbd-n"></span></h2>
+          <p class="pi-sub">Answer them here: the answers print on the production pages only. The design proof keeps "TBD by Production".</p>
+          <div id="prod-tbd"></div>
+        </section>
         </aside>
       <div id="qa-area"><div id="qa-sheets"></div></div>
     </div>
@@ -179,7 +194,7 @@
       </div>
       <div class="review-opts" id="rv-opts"><label class="cf-check"><input type="checkbox" id="rv-cover" onchange="renderReview()"> Add a cover page in front (the proof template with no tables)</label></div>
       <div class="review-grid" id="rv-grid"></div>
-      <div class="review-foot"><span id="rv-count"></span><button type="button" class="review-go" id="rv-go" onclick="reviewExport()">Export Design Package</button></div>
+      <div class="review-foot"><button type="button" class="review-back" onclick="closeReview()">&larr; Back to proof pages</button><span id="rv-count"></span><button type="button" class="review-go" id="rv-go" onclick="reviewExport()">Export Design Package</button></div>
     </div>
   </div>
 
@@ -231,7 +246,7 @@
   <div id="library-modal" class="dialog-scrim" onclick="if (event.target === this) closeLibrary()">
     <div class="dialog dialog-wide" role="dialog" aria-labelledby="lib-h">
       <div class="dialog-head"><h3 id="lib-h">Saved projects</h3><span class="close-btn" onclick="closeLibrary()">&times;</span></div>
-      <input type="search" id="lib-search" placeholder="Search by customer, project, ticket, designer or product" oninput="renderLibrary()">
+      <input type="search" id="lib-search" placeholder="Search by ticket, customer, project, product, component or designer initials" oninput="renderLibrary()">
       <div id="lib-list"></div>
     </div>
   </div>

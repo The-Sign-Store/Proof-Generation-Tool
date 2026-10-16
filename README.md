@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.2** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.5** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -117,6 +117,38 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.5] – 2026-10-15
+#### Added
+- **Magnetics** (Vinyl family): vehicle and indoor magnets. QTY (1 pair default), dimensions, application (vehicle door / tailgate / indoor), substrate (30 mil vehicle, 20 / 15 mil indoor), magnet face (white / black), graphic (Arlon 4500GLX mounted print, direct print or Oracal 751 cut vinyl), overlaminate and full color for printed graphics, vinyl color for cut vinyl, corners (1" rounded default). Every magnet spec goes to the Vinyl department sheet.
+- Design help rules M01-M03: steel only and flat area, 30 mil and rounded corners for vehicles, customer care.
+
+#### Data
+- Component_Registry, Component_Schema, Product_Assembly and Design_Guide gain the Magnetics rows (source: `4_Source_Builders/magnetics.py`). SignOS_Ref is blank until a magnetic sheeting SKU is set up.
+
+---
+
+### [4.4] – 2026-10-15
+#### Changed
+- **Shop info on the Production tab:** work order #, due date and install date, typed once. Printed on every production proof (a strip at the top right), the QA sheet (work order # box, QA due / ship date), the Production Snapshot and the department sheets. Blank fields print as empty boxes. The work order # is searchable in Saved projects.
+- **Answer "TBD by Production" fields on the Production tab:** every TBD field is listed with an answer box; answers print on the production proofs, QA sheet, snapshot and department sheets. The design proof keeps "TBD by Production".
+- Shop info and answers are saved with the project.
+
+#### Data
+- No changes to the data tabs or Proof_Template.
+
+---
+
+### [4.3] – 2026-10-15
+#### Changed
+- **Next button** under Pages + Layers (red with yellow text on Design, purple with white on Production) opens Approve and export; the review window has **Back to proof pages**.
+- **Search every project** in Saved projects by ticket #, customer, project, product, component (section) names and designer initials; several words narrow it down (e.g. `47601 cabinet`). Unsaved drafts are searchable the same way. Projects and drafts saved before v4.3 are indexed automatically the first time Saved projects is opened (new **Search** column on the Saved_Proofs tab).
+- **QA sheet comes last** on the Production tab, in the review window, in the PDF and in the export folders (after the production proofs, snapshot and department sheets).
+
+#### Data
+- No changes to the data tabs or Proof_Template.
+
+---
 
 ### [4.2] – 2026-10-15
 #### Changed

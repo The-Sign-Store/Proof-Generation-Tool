@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.2  (October 15, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.5  (October 15, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -332,6 +332,28 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.5  (2026-10-15)
+  - New product: Magnetics (vehicle and indoor magnets) in the Vinyl family,
+    with design help rules M01-M03. All magnet specs go to the Vinyl
+    department sheet. Data tabs updated (Component_Registry,
+    Component_Schema, Product_Assembly, Design_Guide).
+
+v4.4  (2026-10-15)
+  - Production tab: shop info (work order #, due date, install date) typed
+    once, printed on every production page; blank = empty box.
+  - Answer "TBD by Production" fields on the Production tab; answers print on
+    production pages only (the design proof keeps TBD). Saved with the
+    project. No data changes.
+
+v4.3  (2026-10-15)
+  - Next button under Pages + Layers opens Approve and export (red/yellow on
+    Design, purple/white on Production); Back to proof pages in the review.
+  - QA sheet comes after the production pages everywhere.
+  - Saved projects: search by ticket, customer, project, product, component
+    or designer initials (several words narrow it down); drafts too. Older
+    projects are indexed the first time Saved projects is opened (new
+    Search column on Saved_Proofs). No data tab changes.
+
 v4.2  (2026-10-15)
   - Home screen: wider four-column form that fits one screen, more space
     under the top bar, copyright line pinned to the bottom. No data changes.
