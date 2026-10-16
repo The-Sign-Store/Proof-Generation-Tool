@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.8  -  Design + Production
+  //  SIGNSTUDIO v4.8.1  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.8';
+  const APP_VERSION = '4.8.1';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -864,7 +864,9 @@
       panel.id = `item-${iid}`;
       let look = kind === 'custom' ? { color: SIGN_FAMILIES.custom.color, family: 'custom' } : signLook(name);
       panel.style.setProperty('--cat', look.color);
-      panel.innerHTML = `<div class="item-header" onclick="toggleItem('${iid}')">
+      panel.innerHTML = `<div class="page-join item-join" id="ijoin-${iid}"><button type="button" class="pj-btn split" onclick="toggleItemJoin('${iid}')"
+                             title="Start this product on a new page, or put its first table on the same page as the product above (up to 2 tables a page)"></button></div>
+                         <div class="item-header" onclick="toggleItem('${iid}')">
                             <span class="item-bar"></span>
                             ${kind === 'custom'
                               ? `<input type="text" class="item-name item-name-input" id="iname-${iid}" value="${esc(name)}" maxlength="60" spellcheck="false" placeholder="Name this product" title="Click to rename this custom product"
@@ -879,6 +881,7 @@
                          </div>
                          <div class="item-body" id="ibody-${iid}"></div>`;
       document.getElementById('items').appendChild(panel);
+      renderItemJoin(it);
       let body = panel.querySelector('.item-body');
       let ddBox = document.createElement('div');
       ddBox.className = 'item-drawings'; ddBox.id = `idraw-${iid}`; ddBox.style.display = 'none';
@@ -1255,6 +1258,25 @@
           if (!p.custom && document.activeElement !== el) el.value = d;
       });
   }
+
+  // v4.8.1: the same connector between products: share the previous product's last page
+  function prevItem(it) { let i = pkgItems.indexOf(it); return i > 0 ? pkgItems[i - 1] : null; }
+  function toggleItemJoin(iid) {
+      let it = pkgItems.find(x => x.iid === iid); if (!it) return;
+      it.joinPrev = !it.joinPrev; renderItemJoin(it); schedulePreview();
+  }
+  function renderItemJoin(it) {
+      let b = document.querySelector(`#ijoin-${it.iid} .pj-btn`); if (!b) return;
+      let pv = prevItem(it), pn = pv ? prName(pv) : '';
+      b.classList.toggle('split', !it.joinPrev);
+      b.innerHTML = it.joinPrev ? `<span class="pj-ic">&#8645;</span> Same page${pn ? ' as ' + esc(pn) : ''} <span class="pj-alt">&middot; click to split</span>`
+                                : '<span class="pj-ic">&#8597;</span> New page <span class="pj-alt">&middot; click to combine</span>';
+      b.parentNode.style.display = pv ? '' : 'none';
+      if (it.joinPrev && it._joinMissed) b.title = `Doesn't fit: the page above already has 2 tables (or ends with a blank page), so ${prName(it)} starts its own page.`;
+      else b.title = 'Start this product on a new page, or put its first table on the same page as the product above (up to 2 tables a page)';
+      b.classList.toggle('missed', !!(it.joinPrev && it._joinMissed));
+  }
+  function renderItemJoins() { pkgItems.forEach(renderItemJoin); }
 
   // staging: "same page / new page" connector between sections
   function toggleJoin(uid) {
@@ -2176,7 +2198,7 @@
       let all = [];
       blocks.forEach(b => drawingsForPart(b.part).forEach(d => { if (!all.some(m => m.d.id === d.id)) all.push({ d, part: b.part }); }));
       all.sort((a, b) => a.d.order - b.d.order);
-      let shown = all.filter(m => !excludedDrawings[`${it.iid}|${m.d.id}`]).slice(0, DD.MAX);
+      let shown = all.filter(m => !excludedDrawings[`${m.part.iid}|${m.d.id}`]).slice(0, DD.MAX);
       return { all, shown };
   }
 
@@ -2267,6 +2289,7 @@
   function packagePages() {
       let pages = [];
       pkgItems.forEach(it => {
+          it._joinMissed = false;
           let blocks = [];
           allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => {
               let items = collectPartItems(part);
@@ -2278,8 +2301,22 @@
                             pageGroup: Number(it.defs[part.di].pageGroup) || (part.di + 1) });
           });
           let ip = paginateBlocks(blocks), blanks = it.blanks || [];
-          if (!ip.length && !blanks.length) ip = [[]];
-          let matched = [], total = ip.length + blanks.length;
+          let matched = [], host = pages[pages.length - 1], shared = false;
+          if (it.joinPrev && ip.length && ip[0].length) {
+              if (host && !host.blank && host.blocks.length && host.blocks.length + ip[0].length <= 2) {
+                  let first = ip.shift(); shared = true;
+                  // on a shared page each table says which product it belongs to
+                  let tag = (b, item) => { let n = prName(item); if (b.title.toUpperCase() !== n.toUpperCase() && b.title.toUpperCase().indexOf(n.toUpperCase() + ' - ') !== 0) b.title = n + ' - ' + b.title; };
+                  if (!host.mix) host.blocks.forEach(b => tag(b, host.item));
+                  first.forEach(b => tag(b, it));
+                  host.blocks = host.blocks.concat(first); host.mix = (host.mix || []).concat([it]);
+                  let dr = pageDrawings(host.item, host.blocks);
+                  dr.all.forEach(m => { if (m.part.iid === it.iid && !matched.some(x => x.d.id === m.d.id)) matched.push(m); });
+                  host.drawings = dr.shown;
+              } else it._joinMissed = true;
+          }
+          if (!ip.length && !blanks.length && !shared) ip = [[]];
+          let total = ip.length + blanks.length;
           ip.forEach((pb, n) => {
               let dr = pageDrawings(it, pb);
               dr.all.forEach(m => { if (!matched.some(x => x.d.id === m.d.id)) matched.push(m); });
@@ -2288,7 +2325,8 @@
           blanks.forEach((b, k) => pages.push({ item: it, blocks: [], n: ip.length + k + 1, total, drawings: [], blank: true, title: blankTitle(b) }));
           renderItemDrawings(it, matched);
           let tag = document.getElementById(`ipages-${it.iid}`);
-          if (tag) tag.innerText = `${total} page${total > 1 ? 's' : ''}`;
+          if (tag) tag.innerText = !total ? 'shares a page' : `${total} page${total > 1 ? 's' : ''}${shared ? ' + shared' : ''}`;
+          renderItemJoin(it);
       });
       return orderPages(pages);
   }
@@ -2397,7 +2435,7 @@
       page.blocks.forEach(b => { if (b.cols.length > maxCols) maxCols = b.cols.length; });
       let colW = new Array(maxCols).fill(110 * s);
       let notesW = page.blocks.some(b => b.notes) ? 230 * s : 0, notes = [];
-      let skipHead = page.blocks.length === 1 && (page.blocks[0].title.toUpperCase() === prName(page.item).toUpperCase() ||
+      let skipHead = !page.mix && page.blocks.length === 1 && (page.blocks[0].title.toUpperCase() === prName(page.item).toUpperCase() ||
                      (page.item.kind === 'custom' && /^MISSING: COMPONENT NAME$/.test(page.blocks[0].title)));
       let rows = [];
       page.blocks.forEach(b => {
@@ -2476,7 +2514,7 @@
   function drawTable(page, lay, x, bottom) {
       let top = bottom - lay.h, s = lay.s, out = '', y = top;
       // product badge sits on top of the table
-      let badge = (BADGE_PREFIX && !/^MISSING:/.test(prName(page.item)) ? BADGE_PREFIX + ' - ' : '') + prName(page.item).toUpperCase(), bs = 12 * Math.max(s, 0.8), bw = tw(badge, bs, true) + 20;
+      let badge = (BADGE_PREFIX && !/^MISSING:/.test(prName(page.item)) ? BADGE_PREFIX + ' - ' : '') + pageName(page).toUpperCase(), bs = 12 * Math.max(s, 0.8), bw = tw(badge, bs, true) + 20;
       if (/^MISSING:/.test(badge)) { missN++; out += `<g id="Product_Badge">` + valueField({ x: x + 10, y: top - bs * 0.55, size: bs, bold: true, fill: '#FFFFFF' }) + `</g>` +
                                      `<g id="MISSING_${missN}">` + R(x, top - bs * 1.9, bw, bs * 1.9, TAG_BG, '#D6A100', 0.8, ' stroke-dasharray="2,1.5"') + T(x + 10, top - bs * 0.55, badge, bs, { bold: true, fill: TAG_TX }) + `</g>`; }
       else out += `<g id="Product_Badge">` + R(x, top - bs * 1.9, bw, bs * 1.9, TBL.ink) + T(x + 10, top - bs * 0.55, badge, bs, { bold: true, fill: '#FFFFFF' }) + `</g>`;
@@ -2647,7 +2685,7 @@
       if (lay) o += drawTable(page, lay, AB.x + 26, AB.y + AB.h - 30);
       o += drawArtHandles(page, artRegion(page, lay));
       o += drawDetails(page.drawings || []);
-      o += T(AB.x + AB.w - 10, AB.y + AB.h - 9, `${prName(page.item).toUpperCase()}${page.blank ? ' \u00B7 ' + page.title.toUpperCase() : ''} \u00B7 PAGE ${page.n}/${page.total}`, 6.5, { anchor: 'end', bold: true, fill: '#C1272D' });
+      o += T(AB.x + AB.w - 10, AB.y + AB.h - 9, `${pageName(page).toUpperCase()}${page.blank ? ' \u00B7 ' + page.title.toUpperCase() : ''} \u00B7 PAGE ${page.n}/${page.total}`, 6.5, { anchor: 'end', bold: true, fill: '#C1272D' });
       o += R(AB.x, AB.y, AB.w, AB.h, 'none', LINE, 0.8) + `</g>`;
       o += drawSidebar(info, pkgN, pkgTotal) + drawFooter();
       return o + `</svg>`;
@@ -2712,7 +2750,7 @@
           try { o += drawTable(page, lay, x, bottom); } finally { TBL = keep; BADGE_PREFIX = ''; }
       }
       o += drawArtHandles(page, region) + `</g>`;
-      let what = `${prName(page.item).toUpperCase()}${page.total > 1 ? ` ${page.n}/${page.total}` : ''}`;
+      let what = `${pageName(page).toUpperCase()}${page.total > 1 ? ` ${page.n}/${page.total}` : ''}`;
       return o + productionFrame(`PRODUCTION PROOF ${n} / ${total}`, [prodTicket(info), what].filter(Boolean).join(' · ')) + `</svg>`;
   }
 
@@ -2962,7 +3000,7 @@
       const W = 96, IND = '      ', BAR = '-'.repeat(W);
       let rules = helpRulesForPackage(), info = getCustomerInfo();
       let pages = packagePages(), counts = {};
-      pages.forEach(p => counts[p.item.iid] = (counts[p.item.iid] || 0) + 1);
+      pages.forEach(p => pageItems(p).forEach(it => counts[it.iid] = (counts[it.iid] || 0) + 1));
       let pkg = pkgItems.map(it => `${prName(it)} (${counts[it.iid] || 0} page${counts[it.iid] === 1 ? '' : 's'})`).join(' + ');
       let t = 'DESIGN HELP CENTER - PROOF PACKAGE\n' + '='.repeat(W) + '\n';
       t += wrapLine(pkg, W, 'Package:  ', '          ') + '\n';
@@ -3054,7 +3092,7 @@
   // iid -> [first, last] package page numbers
   function itemPageRanges(pages, offset) {
       let r = {};
-      pages.forEach((p, i) => { let n = i + 1 + offset; if (!r[p.item.iid]) r[p.item.iid] = [n, n]; else r[p.item.iid][1] = n; });
+      pages.forEach((p, i) => { let n = i + 1 + offset; pageItems(p).forEach(it => { if (!r[it.iid]) r[it.iid] = [n, n]; else r[it.iid][1] = Math.max(r[it.iid][1], n); r[it.iid][0] = Math.min(r[it.iid][0], n); }); });
       return r;
   }
   function rangeText(r) { return !r ? '-' : (r[0] === r[1] ? String(r[0]) : `${r[0]} - ${r[1]}`); }
@@ -3181,8 +3219,8 @@
           rows.push(main);
           let subs = [];
           pages.forEach((p, i) => {
-              if (p.item.iid !== it.iid) return;
-              (p.blank ? [{ title: p.title, part: null }] : p.blocks).forEach(bk => {
+              if (!pageHas(p, it.iid)) return;
+              (p.blank ? [{ title: p.title, part: null }] : p.blocks.filter(bk => !bk.part || bk.part.iid === it.iid)).forEach(bk => {
                   let s = subs.find(x => x.text === bk.title);
                   if (s) { if (s.last !== i + 1 + off) s.pg.push(i + 1 + off); s.last = i + 1 + off; if (bk.part && s.parts.indexOf(bk.part) === -1) s.parts.push(bk.part); }
                   else subs.push({ text: bk.title, pg: [i + 1 + off], last: i + 1 + off, parts: bk.part ? [bk.part] : [] });
@@ -3253,7 +3291,7 @@
               return { title: partLabel(part), items: collectPartItems(part) };
           }).filter(x => x.items.length);
           let drawings = [];
-          pages.filter(p => p.item.iid === it.iid).forEach(p => (p.drawings || []).forEach(m => { if (drawings.indexOf(m.d.title) === -1) drawings.push(m.d.title); }));
+          pages.filter(p => pageHas(p, it.iid)).forEach(p => (p.drawings || []).filter(m => !m.part || m.part.iid === it.iid).forEach(m => { if (drawings.indexOf(m.d.title) === -1) drawings.push(m.d.title); }));
           return { n: k + 1, name: prName(it), range: ranges[it.iid], sections, drawings };
       });
   }
@@ -3437,6 +3475,9 @@
   function fmtDate(v) { let m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[2]}/${+m[3]}/${m[1]}` : String(v || ''); }
   let ART_PHASE = null;                                // export: force the phase whose images are drawn
   function pageKey(p) { return `${p.item.iid}:${p.n}`; }
+  function pageItems(p) { return [p.item].concat(p.mix || []); }
+  function pageHas(p, iid) { return pageItems(p).some(it => it.iid === iid); }
+  function pageName(p) { return pageItems(p).map(prName).join(' + '); }
   function artKey(p) { return ((ART_PHASE || step) === 'production' ? 'prod-' : '') + pageKey(p); }
   let ART_AB = null, ART_CLIP = 'abclip';              // production proofs: their own artboard and clip
 
@@ -4343,7 +4384,7 @@
       });
   }
   async function downloadItemTables(iid) {
-      let jobs = tableJobs().filter(j => j.page.item.iid === iid);
+      let jobs = tableJobs().filter(j => pageHas(j.page, iid));
       if (!jobs.length) { toast('This product has no table yet.'); return; }
       for (let j of jobs) { downloadPageSVG('table', j.i); if (jobs.length > 1) await new Promise(r => setTimeout(r, 400)); }
   }
@@ -4433,7 +4474,7 @@
           format: STATE_FORMAT, app: APP_VERSION, savedAt: new Date().toISOString(),
           seq: { itemSeq, customSeq, customCompSeq, blankSeq, lineSeq },
           customProducts: JSON.parse(JSON.stringify(customProducts)), customComps,
-          items: pkgItems.map(it => ({ iid: it.iid, key: it.key, kind: it.kind, name: it.name, defs: it.defs.map(d => Object.assign({}, d)), blanks: it.blanks.map(b => Object.assign({}, b)) })),
+          items: pkgItems.map(it => ({ iid: it.iid, key: it.key, kind: it.kind, name: it.name, defs: it.defs.map(d => Object.assign({}, d)), blanks: it.blanks.map(b => Object.assign({}, b)), joinPrev: !!it.joinPrev })),
           parts: allParts.map(p => ({ iid: p.iid, di: p.di, custom: p.custom, notesOn: p.notesOn, notes: p.notes, newPage: p.newPage, enabled: p.enabled,
                                       letterLines: p.letterLines.map(l => Object.assign({}, l)), drawPick: p.drawPick.slice(),
                                       colorLines: JSON.parse(JSON.stringify(p.colorLines)), colorSeq: p.colorSeq, xcolors: (p.xcolors || []).slice(), xcolorSeq: p.xcolorSeq || 0, xfields: (p.xfields || []).slice(), xfieldSeq: p.xfieldSeq || 0,
@@ -4537,6 +4578,7 @@
               });
           } finally { restoring = null; }
           it.blanks = (si.blanks || []).map(b => Object.assign({}, b)); renderBlanks(it);
+          it.joinPrev = !!si.joinPrev; renderItemJoin(it);
           selection.push(si.key);
       });
       itemSeq = Math.max(itemSeq, st.seq.itemSeq || 0); blankSeq = st.seq.blankSeq || blankSeq; lineSeq = Math.max(lineSeq, st.seq.lineSeq || 0);

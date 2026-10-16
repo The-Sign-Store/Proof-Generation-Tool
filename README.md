@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.8** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.8.1** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,12 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.8.1] – 2026-10-16
+#### Added
+- **Combine pages across products.** The **New page · click to combine** pill now also sits between products (above each product after the first). Click it and that product's first table goes on the previous product's last page when there is room (2 tables a page); click again to split. The page badge reads both names (e.g. **ACM + BANNER**) and each table is labelled with its product. If it doesn't fit, the pill turns red and the product keeps its own page. Saved with the project.
+
+---
 
 ### [4.8] – 2026-10-16
 #### Added

@@ -1174,4 +1174,10 @@
   #job-modal #cf-notes { min-height: 52px; height: 52px; }
   #job-modal .dialog h3 { margin-bottom: 4px; }
   #job-modal .cf-help { margin-top: 3px; }
+  /* v4.8.1: same page / new page between products */
+  .item-panel { position: relative; }
+  .item-panel:has(> .item-join:not([style*="none"])) { margin-top: 30px; }
+  .item-join { position: absolute; left: -1px; right: -1px; top: -27px; margin: 0; }
+  .item-join::before { display: none; }
+  .pj-btn.missed { background: #FDECEA; border-color: #F2B8B5; color: #A3261F; }
 </style>
