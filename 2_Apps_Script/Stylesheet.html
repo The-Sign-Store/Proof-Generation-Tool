@@ -178,6 +178,18 @@
   .dim-box:focus-within { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
   .dim-box span { font-size: 11px; font-weight: 500; color: var(--on-surface-variant); padding: 0 6px 0 8px; }
   .dim-box input { border: none; border-radius: 0; min-width: 0; box-shadow: none !important; }
+  .dim-box { position: relative; }
+  .dim-miss { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; padding: 0; border: 1px solid #E3C640; border-radius: 5px;
+              background: #FFFBD6; color: #B26A00; font: 700 11px var(--font); line-height: 16px; cursor: pointer; opacity: 0; transition: opacity .12s; }
+  .dim-box:hover .dim-miss, .dim-box:focus-within .dim-miss { opacity: 1; }
+  .dim-box.is-missing .dim-miss { opacity: 0 !important; }
+  .dim-box.is-missing, .dim-box.is-missing input { cursor: pointer; }
+  .dim-box:hover input, .dim-box:focus-within input, .dim-box.is-missing input { padding-right: 22px; }
+  .dim-box.is-missing { background: #FFF200; border-color: #D6A100; }
+  .dim-box.is-missing input { background: transparent; color: transparent; caret-color: transparent; }
+  .dim-box.is-missing::after { content: 'MISSING'; position: absolute; left: 22px; right: 4px; top: 50%; transform: translateY(-50%); text-align: center;
+                               font: 700 9.5px var(--font); letter-spacing: .02em; color: #D60000; pointer-events: none; }
+  .dim-box.is-missing .dim-miss { background: #D60000; color: #FFFFFF; }
   .fullcolor-chip { height: 36px; display: flex; align-items: center; padding: 0 10px; border-radius: 8px; font-size: 13px; font-weight: 500;
                     background: linear-gradient(90deg, #ffd6d6, #fff0c2, #d6ffd6, #d6e6ff, #ecd6ff); }
   .calc-field { background: #E7F4EA !important; color: #1E5631 !important; font-weight: 500; border-color: transparent !important; }
@@ -774,6 +786,17 @@
   .pl-in { flex: 1; min-width: 0; height: 24px; padding: 0 6px; border: 1px solid #D0D5DB; border-radius: 5px; font: 12px var(--font); }
   .pl-x { width: 20px; height: 20px; flex: none; border: 0; border-radius: 4px; background: transparent; color: #9AA1A9; cursor: pointer; font-size: 15px; line-height: 1; padding: 0; }
   .pl-x:hover { background: #FBE9E9; color: var(--primary); }
+  .pl-grp { margin: 2px 0; border-radius: 8px; border: 1px solid #E3E7ED; background: #FAFBFC; }
+  .pl-grp.on { border-color: #A8C7FA; }
+  .pl-grp-head { font-size: 12px; font-weight: 700; color: #3A414A; }
+  .pl-grp-head .pl-ic { color: #1A73E8; }
+  .pl-count { margin-left: auto; min-width: 18px; padding: 0 6px; border-radius: 9px; background: #E8EAED; color: #59636E; font-size: 10.5px; font-weight: 700; text-align: center; line-height: 16px; }
+  .pl-row.pl-in-grp { padding-left: 18px; }
+  .pl-tools { display: flex; gap: 6px; margin-top: 8px; }
+  .pl-tool { flex: 1; height: 28px; border: 1px solid #D0D5DB; border-radius: 7px; background: #FFFFFF; color: #3A414A; font: 600 12px var(--font); cursor: pointer; }
+  .pl-tool:hover:not(:disabled) { background: #E8F0FE; border-color: #A8C7FA; color: #174EA6; }
+  .pl-tool:disabled { opacity: .45; cursor: default; }
+  .pl-hint { margin-top: 4px; font-size: 10.5px; color: #9AA1A9; text-align: center; }
   .pl-empty { color: #9AA1A9; font-size: 11.5px; line-height: 1.4; padding: 4px 2px; }
   @media (max-width: 1300px) { #tab-design #tables-side { width: 480px; } #page-panel { width: 160px; } }
   /* page bar: title + add image / measurement */
@@ -959,7 +982,8 @@
   .pt-row input { height: 34px; padding: 0 10px; border: 1px solid #CDB8E6; border-radius: 8px; font: 13.5px var(--font); min-width: 0; background: #F7F3FC; }
   .pt-row input:focus { outline: none; border-color: #5B2C8F; box-shadow: 0 0 0 1px #5B2C8F; background: #FFFFFF; }
   .pt-row input:not(:placeholder-shown) { background: #FFFFFF; font-weight: 600; }
-  .mi-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 10px; font-size: 11.5px; color: var(--muted); }
+  .mi-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 2px 0 16px; padding: 8px 10px; border-radius: 8px; background: #F2F3F5; font-size: 11.5px; color: #59636E; }
+  #prod-missing > .pt-group:first-child { margin-top: 0; }
   .mi-tag { display: inline-block; margin-right: 6px; padding: 1px 5px; border-radius: 3px; font-size: 9.5px; font-weight: 700; letter-spacing: .05em; line-height: 14px; vertical-align: 1px; }
   .mi-tag.tbd { background: #6E40C9; color: #FFFFFF; }
   .mi-tag.miss { background: #FFF200; color: #D60000; box-shadow: inset 0 0 0 1px #D6A100; }

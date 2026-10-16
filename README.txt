@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.6.1  (October 16, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.7  (October 16, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -296,6 +296,16 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.7  (2026-10-16)
+  - Layers: Ctrl+click to pick several images / measurements; Group (Ctrl+G)
+    so they move together, Ungroup (Ctrl+Shift+G). Saved with the project.
+  - Copy (Ctrl+C) / Paste (Ctrl+V) layers between any design or production
+    pages.
+  - Flag one W / H / D box as MISSING (the ? in the box); prints only that
+    measurement as MISSING; answer it in Missing information.
+  - Fixed: new measurements show in Layers right away (both tabs).
+  - Missing information key in a gray bubble.
+
 v4.6.1  (2026-10-16)
   - Fixed: the app would not start after v4.6 ("Invalid or unexpected
     token"): a "//" inside a JavaScript string, which Apps Script cuts off.
