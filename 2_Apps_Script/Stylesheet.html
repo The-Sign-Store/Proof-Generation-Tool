@@ -883,6 +883,34 @@
   .review-go:hover { filter: brightness(1.06); box-shadow: var(--elev-2); }
   .review-go:disabled { opacity: .75; cursor: progress; }
   .review-go.prod { background: #5B2C8F; }
+  /* v4.6: review window heading + step-by-step instructions */
+  .review-head { align-items: center; padding: 14px 24px; }
+  .review-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+  .review-eyebrow { flex-basis: 100%; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #FFD54F; }
+  .review-head h2 { margin: 0 !important; font-size: 22px !important; }
+  .review-job { font-size: 15px; color: #C9D1D9; }
+  .rv-steps { list-style: none; margin: 0; padding: 14px 24px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.55fr); gap: 12px;
+              background: #FFFFFF; border-bottom: 1px solid #DCE2EA; }
+  .rv-steps.prod .rv-copy { background: #5B2C8F; }
+  .rv-steps.prod .rv-note-step { background: #F7F3FC; border-color: #D9C8EE; }
+  .rv-steps.prod .rv-note { border-color: #D9C8EE; }
+  .rv-step { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 12px 14px; border: 1px solid #E3E7ED; border-radius: 12px; background: #F8FAFC; }
+  .rv-step-top { display: flex; align-items: center; gap: 8px; }
+  .rv-ico { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 999px; background: #D32F2F; color: #FFD54F; flex: none; }
+  .rv-steps.prod .rv-ico { background: #5B2C8F; color: #FFFFFF; }
+  .rv-n { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6E7781; }
+  .rv-step h3 { margin: 4px 0 0; font-size: 14.5px; font-weight: 700; color: #1F2328; }
+  .rv-step p { margin: 0; font-size: 13px; line-height: 1.45; color: #3A414A; overflow-wrap: anywhere; }
+  .rv-step code { font: 600 12px Consolas, "Courier New", monospace; background: #EEF1F5; border-radius: 4px; padding: 1px 4px; color: #1F2328; }
+  .rv-step a { color: #0B57D0; font-weight: 600; }
+  .rv-note-step { background: #FFFDF2; border-color: #F0DE9A; }
+  .rv-note { margin: 2px 0 0; max-height: 120px; overflow-y: auto; padding: 8px 10px; border: 1px solid #EADFB4; border-radius: 8px; background: #FFFFFF;
+             font: 12px/1.45 var(--font); color: #3A414A; white-space: pre-wrap; }
+  .rv-copy { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border: 0; border-radius: 16px;
+             background: #1F2328; color: #FFFFFF; font: 600 13px var(--font); cursor: pointer; }
+  .rv-copy:hover { background: #3A414A; }
+  .rv-copy.done { background: #23885A; }
+  @media (max-width: 1250px) { .rv-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rv-note-step { grid-column: 1 / -1; } }
   /* cover page controls */
   .st-btn.st-remove { margin-left: auto; background: transparent !important; color: #B3261E !important; }
   .st-btn.st-remove:hover { background: #FBE9E9 !important; }
@@ -931,5 +959,13 @@
   .pt-row input { height: 34px; padding: 0 10px; border: 1px solid #CDB8E6; border-radius: 8px; font: 13.5px var(--font); min-width: 0; background: #F7F3FC; }
   .pt-row input:focus { outline: none; border-color: #5B2C8F; box-shadow: 0 0 0 1px #5B2C8F; background: #FFFFFF; }
   .pt-row input:not(:placeholder-shown) { background: #FFFFFF; font-weight: 600; }
+  .mi-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 10px; font-size: 11.5px; color: var(--muted); }
+  .mi-tag { display: inline-block; margin-right: 6px; padding: 1px 5px; border-radius: 3px; font-size: 9.5px; font-weight: 700; letter-spacing: .05em; line-height: 14px; vertical-align: 1px; }
+  .mi-tag.tbd { background: #6E40C9; color: #FFFFFF; }
+  .mi-tag.miss { background: #FFF200; color: #D60000; box-shadow: inset 0 0 0 1px #D6A100; }
+  .pt-row.mi-miss input { border-color: #E3C640; background: #FFFCE0; }
+  .mi-job { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 2px 0 8px; font-size: 12.5px; color: #3A414A; }
+  .mi-open { height: 32px; padding: 0 12px; margin-bottom: 4px; border: 1px solid #CDB8E6; border-radius: 8px; background: #FFFFFF; color: #4A2475; font: 600 12.5px var(--font); cursor: pointer; }
+  .mi-open:hover { background: #F7F3FC; }
   .pt-empty { font-size: 12.5px; color: #8A929C; line-height: 1.4; }
 </style>

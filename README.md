@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.5** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.6** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -8,7 +8,7 @@ The Sign Proof Generator is a Google Apps Script web app that builds complete, p
 - 11" × 8.5" proof sheets
 - a QA checklist for production
 
-Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 ppi PNG. A companion CorelDRAW macro imports the package into the house proof template and saves it with the right file name.
+Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 ppi JPG.
 
 ---
 
@@ -18,9 +18,9 @@ Each page comes as an editable SVG (for CorelDRAW or Illustrator) and as a 300 p
 
 1. **Create project:** type the job info and create the project, or open a saved project or draft (the Saved projects popup).
 2. **Design proof / Production proof:** a 30% specs menu, the proof pages in the middle (60%) and a Pages + Layers panel on the right (10%). Pages show live thumbnails (drag to reorder); Layers lists the selected page's images and measurements. Images get bounding boxes (drag, resize by the corners) and always sit under the spec table and the watermark. Click any cell of a table on a page to jump to its field. The design proof starts with a cover page (Remove / Add back). Production proofs have their own images.
-3. **Approve and export:** large previews of every page exactly as it will be exported, then one button: **Export Design Package** (SVG/ + PNG/) or **Export Production Package** (SVG/ + PNG/ + one PDF: QA sheet, production proofs, Production Snapshot, department sheets).
+3. **Approve and export:** large previews of every page exactly as it will be exported, step-by-step instructions for this job (where to save, the Freshdesk ticket link, a hand-off note to copy into the ticket), then one button: **Export Design Package** (SVG/ + JPG/) or **Export Production Package** (SVG/ + JPG/ + one PDF: production proofs, Production Snapshot with department tasks, QA sheet).
 
-Job info is edited in **Save Project**. Production pages never show the design ticket #; the QA sheet and the snapshot have a blank WORK ORDER # box.
+Job info is edited in **Save Project**. Production pages never show the design ticket #.
 
 ### Proof builder
 - **Data-driven:** every product, component, field, option, default, rule, drawing and design standard lives in the Google Sheet. You change the sheet, not the code.
@@ -40,7 +40,7 @@ Job info is edited in **Save Project**. Production pages never show the design t
 - **Color matching:** a custom color typed as CMYK, RGB or HEX lists its closest Sherwin-Williams, Pantone and Oracal colors (Delta E 2000); click one to use it. Every swatch library is searchable.
 - **Single-page SVG:** download any one page (cover, proof or QA), or just a page's spec table, without exporting the whole package.
 - **Self-updating sheet:** a **Proof Generator** menu updates the sheet's data tabs in place from the latest GitHub release (with backups, keeping your Proof_Template wording) or from an uploaded workbook (then trashes the .xlsx), and updates the Apps Script code and web app when the Apps Script API is on.
-- **Artwork placement:** add a screenshot or JPEG to any proof page with a button, by dropping it, or by pasting with Ctrl+V. You can move and resize it, and it is embedded in the SVG and PNG exports.
+- **Artwork placement:** add a screenshot or JPEG to any proof page with a button, by dropping it, or by pasting with Ctrl+V. You can move and resize it, and it is embedded in the SVG and JPG exports.
 - **Missing info flagged:** blank fields print as yellow **MISSING** tags. In the SVG, each tag has an empty matching text box underneath, ready to type in.
 
 ### Design Help Center
@@ -63,24 +63,18 @@ Job info is edited in **Save Project**. Production pages never show the design t
 
 ### Export
 ```
-47391 - Macon Housing Authority - Central City Apartments.zip
+47391 - Macon Housing Authority - Central City Apartments - Design Proof.zip
 ├── SVG/                      p01 = cover, p02… = proof pages (editable)
-├── PNG/                      same pages, 300 ppi
-├── QA_Checklist/
-│   ├── SVG/  PNG/            … - qa01, qa02…
-│   ├── PRINT - … - QA checklist.pdf
-│   └── … - QA checklist.csv
-└── package_info.txt          ticket, customer, project, page names (read by the macro)
+└── JPG/                      same pages, 300 ppi
+
+47391 - … - Production.zip
+├── SVG/                      production proofs, snapshot, QA sheet (editable)
+├── JPG/                      same pages, 300 ppi
+└── … - Production package.pdf
 ```
+- **Where to save:** `P:\[first letter]\[customer]\[ticket] - [customer] - [project]\Proof` (design) or `…\Production` (production). The Approve and export window shows the exact path for the job.
 - **File names:** `Ticket - Customer - [Sub-Customer -] Project - pNN`. Names are Windows-safe and shortened to 80 characters if needed.
 - **Watermark:** a flat 2% gray image on its own layer. **Text:** plain UTF-8 Arial, with no entity codes, so it imports cleanly into CorelDRAW.
-
-### CorelDRAW macro (`ProofPages_CorelDRAW_Macro.bas`)
-| Macro | What it does |
-|---|---|
-| `ImportProofPackage` | Fills the open proof template with one page per SVG, scaled to fill the page, with orientation matched and pages named. It can add the QA pages, then saves the file as `Ticket - Customer - [Sub-Customer -] Project.cdr`. One Undo reverses the whole import. |
-| `BuildFromPackage` | Does the same import into a new document. |
-| `AddProofPages` | Adds blank pages up to a total you choose. |
 
 ---
 
@@ -88,7 +82,7 @@ Job info is edited in **Save Project**. Production pages never show the design t
 ```
 1_Google_Sheet/      Sign_Proof_Specifications_App_Data.xlsx  (the database)
 2_Apps_Script/       Code.gs, ProofLibrary.gs, Updater.gs, Index.html, Stylesheet.html, JavaScript.html,
-                     Assets.html, appsscript.json, ProofPages_CorelDRAW_Macro.bas
+                     Assets.html, appsscript.json
 3_Samples/           sample export zip, cover, proof pages (incl. special notes),
                      QA pages and PDF
 4_Source_Builders/   Python scripts that rebuild the workbook (optional)
@@ -101,14 +95,13 @@ README.txt           full setup guide
 2. In the sheet, open **Extensions › Apps Script**. Create `Code`, `ProofLibrary`, `Updater` (script files), `Index`, `Stylesheet`, `JavaScript` and `Assets` (HTML files), named exactly as shown, and paste in the matching files. Approve the Google Drive permission when asked; saved proofs go to a **Proof Library** folder next to the sheet.
 3. Project Settings › show `appsscript.json`, and paste the manifest (permissions and the Drive service). Turn on the Apps Script API once at script.google.com/home/usersettings for automatic code updates. Check that the last line of `Assets` is `PROOF_ASSETS.loaded = true;`.
 4. Choose **Deploy › New deployment › Web app** with Execute as: *Me*. Use **Test deployments** (the `/dev` link) while you are testing.
-5. **CorelDRAW:** press Alt+F11, select **GlobalMacros**, then **File › Import** the `.bas` file and save. Add `ImportProofPackage` to a toolbar.
 
 `README.txt` has the full step-by-step guide, troubleshooting and the sheet reference.
 
 > **Apps Script editing rules:** never type `<?` or `?>` in an HTML file, and never put `//` inside a JavaScript string. Apps Script mangles both, and the page will hang on "Loading…".
 
 ## Tech
-Google Apps Script (V8) · HtmlService · vanilla JavaScript · SVG (1 unit = 0.01") · Canvas PNG/JPEG rendering · an in-browser PDF writer · JSZip · CorelDRAW VBA · Python and openpyxl (workbook builders)
+Google Apps Script (V8) · HtmlService · vanilla JavaScript · SVG (1 unit = 0.01") · Canvas JPEG rendering · an in-browser PDF writer · JSZip · Python and openpyxl (workbook builders)
 
 The full version history is in the [Changelog](#changelog) below.
 
@@ -117,6 +110,20 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.6] – 2026-10-16
+#### Changed
+- **Missing information** on the Production tab replaces "TBD by Production": every field marked TBD by Production (purple TBD tag) or left blank (yellow MISSING tag) has an answer box, plus the job info still missing with a Fill in job info button. Answers print on the production pages only; the design proof keeps its TBD and MISSING tags. Exporting the production package no longer asks about missing job info.
+- **Department tasks on the Production Snapshot:** the separate department sheets (with their supervisor sign-off) are gone. The snapshot lists colors and materials, then one concise task table per department (one row per product section) for the pre-production coordinator to check. The department tiles are gone; a big job continues on a second snapshot page.
+- **Approve and export instructions:** five steps with icons, filled in from the job info: who the package goes to, the exact folder to save in (`P:\[letter]\[customer]\[ticket] - [customer] - [project]\Proof` or `\Production`), the Freshdesk ticket link, and a hand-off note with a **Copy note** button to paste into the ticket's note (design: for the salesperson to send to the customer; production: for the salesperson to create the work order).
+- **JPG instead of PNG:** the design package is SVG/ + JPG/; the production package is SVG/ + JPG/ + one PDF.
+
+#### Removed
+- **Shop info** (work order #, due date, install date) on the Production tab and on every production page, QA sheet and snapshot.
+- The description under "Production package".
+- The **CorelDRAW macro** (`ProofPages_CorelDRAW_Macro.bas`) and the `package_info.txt` it read.
+
+---
 
 ### [4.5] – 2026-10-15
 #### Added

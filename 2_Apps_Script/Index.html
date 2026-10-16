@@ -130,25 +130,16 @@
     <div class="tab-panel" id="tab-production" style="display:none;">
       <aside id="prod-panel">
         <h1>Production package</h1>
-        <p class="prod-sub">Everything the shop needs to build this job, from the same pages as the Design tab. Add images and measurements to each production proof on the right; use <b>Approve and export</b> in the step guide when it goes to the shop.</p>
         <div class="prod-box">
           <div class="prod-opt"><b>QA sheet</b> <span id="prod-qa-n"></span></div>
           <div class="prod-opt"><b>Production proofs</b> <span id="prod-proof-n"></span></div>
           <div class="prod-opt"><b>Production snapshot</b> <span id="prod-chart-n"></span></div>
         </div>
         <section class="pi-box">
-          <h2>Shop info</h2>
-          <p class="pi-sub">Prints on every production page. Leave a field blank to print an empty box.</p>
-          <div class="pi-grid">
-            <div class="hf pi-wide"><label for="pi-wo">Work order #</label><input type="text" id="pi-wo" oninput="setShopInfo('wo', this.value)"></div>
-            <div class="hf"><label for="pi-due">Due date</label><input type="date" id="pi-due" onchange="setShopInfo('due', this.value)"></div>
-            <div class="hf"><label for="pi-install">Install date</label><input type="date" id="pi-install" onchange="setShopInfo('install', this.value)"></div>
-          </div>
-        </section>
-        <section class="pi-box">
-          <h2>TBD by Production <span id="prod-tbd-n"></span></h2>
-          <p class="pi-sub">Answer them here: the answers print on the production pages only. The design proof keeps "TBD by Production".</p>
-          <div id="prod-tbd"></div>
+          <h2>Missing information <span id="prod-missing-n"></span></h2>
+          <p class="pi-sub">Fill in what the shop needs: answers print on the production pages only. You can export without them.</p>
+          <div class="mi-legend"><span><span class="mi-tag tbd">TBD</span>marked TBD by Production</span><span><span class="mi-tag miss">MISSING</span>left blank on the Design tab</span></div>
+          <div id="prod-missing"></div>
         </section>
         </aside>
       <div id="qa-area"><div id="qa-sheets"></div></div>
@@ -189,9 +180,10 @@
   <div id="review-modal" class="review-scrim" style="display:none;" onclick="if (event.target === this) closeReview()">
     <div class="review" role="dialog" aria-labelledby="rv-title">
       <div class="review-head">
-        <div><h2 id="rv-title">Approve and export</h2><p class="review-sub">Check every page below: this is exactly what goes in the package.</p></div>
+        <div class="review-title"><span class="review-eyebrow">Approve and export</span><h2 id="rv-title">Design package</h2><span class="review-job" id="rv-job"></span></div>
         <button type="button" class="review-x" onclick="closeReview()" aria-label="Close">&times;</button>
       </div>
+      <ol class="rv-steps" id="rv-steps"></ol>
       <div class="review-opts" id="rv-opts"><label class="cf-check"><input type="checkbox" id="rv-cover" onchange="renderReview()"> Add a cover page in front (the proof template with no tables)</label></div>
       <div class="review-grid" id="rv-grid"></div>
       <div class="review-foot"><button type="button" class="review-back" onclick="closeReview()">&larr; Back to proof pages</button><span id="rv-count"></span><button type="button" class="review-go" id="rv-go" onclick="reviewExport()">Export Design Package</button></div>
