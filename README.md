@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.9** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.9.1** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,15 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.9.1] – 2026-10-21
+#### Added
+- **Export select pages** in step 1 of Approve and export (design and production): thumbnails of every page; the checked pages save as SVG + JPG in one ZIP, named as in the full package. It does not count as the package export.
+- **Remove any component of a product** (e.g. the face of a cabinet replaced by a routed aluminum face), with a confirm. Every product has **+ Add Component...** to add a different one or put a removed one back.
+- **Undo / Redo** in the top bar (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z), up to 60 steps per project.
+- **1st / 2nd surface on clear acrylic**: Routed Aluminum Face clear push-thru and ADA clear acrylic backers (print surface + media + laminate), Acrylic Panel in Clear (graphic surface), front-lit letter faces in clear acrylic (vinyl surface + laminate for digital print).
+#### Changed
+- Acrylic Panel SIDEDNESS (CLEAR) no longer lists "Second Surface Print"; saved projects with it open as Single Sided + 2nd Surface.
 
 ### [4.9] – 2026-10-21
 #### Added

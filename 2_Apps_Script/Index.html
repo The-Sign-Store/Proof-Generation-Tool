@@ -20,6 +20,10 @@
       <button type="button" class="tab" id="tab-btn-production" onclick="showTab('production')">Production</button>
     </nav>
     <div class="topbar-right">
+      <span class="undo-wrap" id="undo-wrap" style="display:none;">
+        <button type="button" class="tb-icon" id="undo-btn" onclick="undo()" disabled title="Undo (Ctrl+Z)" aria-label="Undo"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+        <button type="button" class="tb-icon" id="redo-btn" onclick="redo()" disabled title="Redo (Ctrl+Y)" aria-label="Redo"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+      </span>
       <span id="page-count"></span>
       <span id="proof-status" class="proof-status" style="display:none;"></span>
       <button type="button" class="btn-tonal" id="lib-top-btn" onclick="openLibrary()" title="Open a saved project">Saved projects</button>

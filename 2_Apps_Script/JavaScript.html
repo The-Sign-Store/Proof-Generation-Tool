@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.9  -  Design + Production
+  //  SIGNSTUDIO v4.9.1  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.9';
+  const APP_VERSION = '4.9.1';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -143,6 +143,7 @@
       if (!start) lastPhase = t;
       let lb = document.getElementById('lib-top-btn'); if (lb) lb.style.display = start ? '' : 'none';
       let jb = document.getElementById('job-btn'); if (jb) jb.style.display = start ? 'none' : '';
+      let ub = document.getElementById('undo-wrap'); if (ub) ub.style.display = start ? 'none' : '';
       if (!start) { updateTablesSummary(); renderPreview(); }
       window.scrollTo(0, 0);
   }
@@ -540,6 +541,8 @@
       let go = document.getElementById('rv-go');                 // the one Export button moves into the export step
       box.innerHTML = html;
       let slot = box.querySelector('.rv-go-slot'); if (go && slot) slot.appendChild(go);
+      if (slot) slot.insertAdjacentHTML('beforeend', `<button type="button" class="rv-select" id="rv-select" onclick="openSelectPages()" title="Pick the pages to export (SVG + JPG)">` +
+          `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="9" rx="1"/><path d="m5 17 2 2 4-4M14 17h7M14 20h5"/></svg>Export select pages…</button>`);
       renderTicketSide(info); renderStepPages();
   }
   function copyHandoff(from) {
@@ -928,6 +931,14 @@
                           `<option value="">+ Add Component...</option>${opts}</select>`;
           body.appendChild(bar);
       }
+      if (kind === 'product') {
+          let bar = document.createElement('div'), opts = Object.values(appData.components).filter(c => !c.custom).sort((a, b) => a.name.localeCompare(b.name))
+              .map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+          bar.className = 'custom-controls'; bar.id = `iaddc-${iid}`;
+          bar.innerHTML = `<select class="custom-add-comp" onchange="addComponentToItem('${iid}', this.value); this.value = '';" aria-label="Add a component to this product" title="Add a component to this product (e.g. a routed aluminum face, or one you removed)">` +
+                          `<option value="">+ Add Component...</option>${opts}</select>`;
+          body.appendChild(bar);
+      }
       body.appendChild(ddBox);
       let blankBox = document.createElement('div');
       blankBox.className = 'item-blanks'; blankBox.id = `iblank-${iid}`;
@@ -1195,7 +1206,7 @@
                            onkeydown="if (event.key === 'Enter') this.blur()">
                     <span>
                       ${optional && num === 1 ? `<label class="part-toggle"><input type="checkbox" id="pinc-${uid}" ${part.enabled ? 'checked' : ''} onchange="togglePart('${uid}')"> Include</label>` : ''}
-                      ${num > 1 || it.kind === 'custom' ? `<span class="part-remove" onclick="removePart('${uid}')">[x] Remove</span>` : ''}
+                      ${it.kind !== 'component' || num > 1 ? `<span class="part-remove" role="button" tabindex="0" title="Take this component out of the product" onclick="askRemovePart('${uid}')" onkeydown="if (event.key === 'Enter') askRemovePart('${uid}')">[x] Remove</span>` : ''}
                     </span>
                   </div>
                   <div class="part-body" id="pbody-${uid}" style="display:${part.enabled ? 'block' : 'none'};">`;
@@ -1338,6 +1349,19 @@
       refreshAll();
   }
 
+  function askRemovePart(uid) {
+      let part = allParts.find(p => p.uid === uid); if (!part) return;
+      let it = pkgItems.find(x => x.iid === part.iid);
+      if (!allParts.some(p => p.iid === part.iid && p.uid !== uid)) {
+          toast(`This is the only component left in ${prName(it) || 'this product'}. To drop the product, use the × on its header.`); return;
+      }
+      let copy = part.num > 1 || (it && it.kind === 'custom');
+      if (copy) { removePart(uid); return; }
+      appConfirm({ title: 'Remove component?', yes: 'Remove', no: 'Cancel',
+          msg: `Remove ${partLabel(part)} from ${prName(it)}? It comes off the proof tables, and anything entered in it is cleared.`,
+          note: 'To put it back later, pick it from + Add Component... under the product.',
+          onYes: () => { removePart(uid); toast(`${partLabel(part)} removed from ${prName(it)}.`); } });
+  }
   function removePart(uid) {
       let el = document.getElementById(`part-${uid}`); if (el) el.remove();
       let gone = allParts.find(p => p.uid === uid);
@@ -4808,6 +4832,7 @@
   let qaCount = 0;
   function renderPreview() {
       if (step === 'start') return;
+      noteHistory();
       if (txtEdit) { commitTextEditor(); return; }            // finish typing first (commit redraws)
       try {
           let pages = packagePages(), info = getCustomerInfo(), total = summaryTotal(pages);
@@ -5215,6 +5240,10 @@
           out[`mf-~_${fmI}`] = Object.assign({}, fmE, { v: type });
           if (pI !== -1 && prof) out[`mf-~_${pI}`] = { v: prof };
       }
+      let sdI = m.now.indexOf('SIDEDNESS (CLEAR)'), sfI = m.now.indexOf('GRAPHIC SURFACE'), sdK = `mf-~_${sdI}`, sdE = sdK && out[sdK];
+      if (part.comp === 'ACRYLIC_PANEL' && sdI !== -1 && sfI !== -1 && sdE && String(sdE.v).trim() === 'Second Surface Print') {
+          out[sdK] = Object.assign({}, sdE, { v: 'Single Sided' }); out[`mf-~_${sfI}`] = { v: '2nd Surface' };
+      }
       return out;
   }
 
@@ -5249,6 +5278,7 @@
   }
 
   function resetPackage() {
+      if (!histBusy) { hist = []; histAt = -1; histImgs = {}; setTimeout(updateUndoBtns, 0); }
       document.getElementById('items').innerHTML = '';
       pkgItems = []; allParts = []; selection = [];
       if (txtEdit && txtEdit.ed) txtEdit.ed.remove(); txtEdit = null;
@@ -5319,6 +5349,61 @@
       refreshAll();
       return missing;
   }
+
+  // ---------- v4.9.1: Undo / Redo ----------
+  let hist = [], histAt = -1, histImgs = {}, histBusy = false, histTimer = null, ptrDown = false;
+  document.addEventListener('pointerdown', () => { ptrDown = true; }, true);
+  document.addEventListener('pointerup', () => { ptrDown = false; }, true);
+  document.addEventListener('pointercancel', () => { ptrDown = false; }, true);
+  const HIST_MAX = 60;
+  function noteHistory() { clearTimeout(histTimer); histTimer = setTimeout(recordHistory, 450); }
+  function recordHistory() {
+      if (histBusy || restoringNow || step === 'start' || !pkgItems.length) return;
+      if (txtEdit || EXPORTING || ptrDown) { noteHistory(); return; }      // mid-drag or typing on the page: wait
+      let cap = captureState(), snap = snapOf(cap.state);
+      if (histAt >= 0 && hist[histAt] === snap) return;
+      Object.assign(histImgs, cap.images);
+      hist = hist.slice(0, histAt + 1); hist.push(snap);
+      if (hist.length > HIST_MAX) hist.shift();
+      histAt = hist.length - 1; updateUndoBtns();
+  }
+  async function stepHistory(d) {
+      if (histBusy) return;
+      clearTimeout(histTimer); recordHistory();                   // catch the latest edit first
+      let to = histAt + d; if (to < 0 || to >= hist.length) return;
+      if (typeof closeCellEditor === 'function') closeCellEditor();
+      if (txtEdit) commitTextEditor();
+      histBusy = true; restoringNow = true;
+      let keep = { currentProof, currentDraft, draftUploaded, tab: step, art: activeArtKey },
+          sc = ['items', 'preview-area', 'qa-area'].map(id => { let el = document.getElementById(id); return el ? [el, el.scrollTop] : null; }).filter(Boolean),
+          shut = pkgItems.filter(it => { let b = document.getElementById('ibody-' + it.iid); return b && b.style.display === 'none'; }).map(it => it.iid);
+      try {
+          await restoreState(JSON.parse(hist[to]), histImgs);
+          histAt = to;
+          currentProof = keep.currentProof; currentDraft = keep.currentDraft; draftUploaded = keep.draftUploaded;
+          shut.forEach(iid => { let b = document.getElementById('ibody-' + iid); if (b && b.style.display !== 'none') toggleItem(iid); });
+          activeArtKey = keep.art; if (typeof updateProofStatus === 'function') updateProofStatus();
+          renderPreview();
+          sc.forEach(([el, t]) => { el.scrollTop = t; });
+          toast(d < 0 ? 'Undone' : 'Redone');
+      } catch (e) { toast('Could not ' + (d < 0 ? 'undo' : 'redo') + ': ' + e.message); }
+      finally { histBusy = false; restoringNow = false; clearTimeout(histTimer); updateUndoBtns(); }
+  }
+  function undo() { return stepHistory(-1); }
+  function redo() { return stepHistory(1); }
+  function updateUndoBtns() {
+      let u = document.getElementById('undo-btn'), r = document.getElementById('redo-btn');
+      if (u) u.disabled = histAt <= 0; if (r) r.disabled = histAt < 0 || histAt >= hist.length - 1;
+  }
+  document.addEventListener('keydown', e => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || step === 'start' || typingInField()) return;      // in a text box the browser's own undo works
+      let k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+  });
+  // edits in the form fields count too (typing pauses make the steps)
+  document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#items, #customer-panel, #job-modal, #cell-modal')) noteHistory(); }, true);
+  document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#items, #customer-panel, #job-modal, #cell-modal')) noteHistory(); }, true);
 
   // ---------- save ----------
   function searchWords() {
@@ -5816,6 +5901,74 @@
           await fillProduction(save, progress, zipped, 'Production/');
       });
   }
+
+  // ---------- v4.9.1: export only the pages you pick (SVG + JPG), from Approve and export ----------
+  // every page of the design or production package, named exactly as in the full export
+  function packageJobs(prod) {
+      let pages = packagePages(), info = getCustomerInfo(), total = summaryTotal(pages), pad = n => String(n).padStart(2, '0'), jobs = [];
+      let phase = prod ? 'production' : 'design', run = f => () => { let was = ART_PHASE; ART_PHASE = phase; try { return f(); } finally { ART_PHASE = was; } };
+      if (!prod) {
+          let fb = shortBase(info, exportBase(info)), jb = jpgBase(info), off = withCover ? 1 : 0;
+          if (withCover) jobs.push({ label: 'Cover', svg: run(() => buildTitlePageSVG(info, 1, total)) });
+          pages.forEach((p, i) => jobs.push({ label: `${prName(p.item)}${p.blank ? ' · ' + p.title : ''}${p.total > 1 ? ` ${p.n}/${p.total}` : ''}`, svg: run(() => buildSheetSVG(p, i + 1 + off, total, info)) }));
+          jobs.push({ label: 'Proof Summary', svg: run(() => buildCoverSVG(pages, info, total)) });
+          jobs.forEach((j, i) => { j.svgName = `${fb} - p${pad(i + 1)}.svg`; j.jpgName = `${jb} - p${pad(i + 1)}.jpg`; });
+      } else {
+          let fb = shortBase(prodInfo(info), exportBase(prodInfo(info))), plist = prodPageList(pages);
+          plist.forEach((p, i) => jobs.push({ label: p.prodExtra ? p.title : `${prName(p.item)}${p.total > 1 ? ` ${p.n}/${p.total}` : ''}`, file: `${fb} - prod${pad(i + 1)}`, svg: run(() => buildProductionSVG(p, i + 1, plist.length, info)) }));
+          let snaps = run(() => buildSnapshotPages(pages, info))();
+          snaps.forEach((svg, k) => jobs.push({ label: `Snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, file: `${fb} - prod${pad(plist.length + 1 + k)} - snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, svg: () => svg }));
+          if (qaOn()) run(() => buildQAPages(pages, info, total))().forEach((svg, i) => jobs.push({ label: 'QA sheet' + (i ? ' ' + (i + 1) : ''), file: `${fb} - qa${pad(i + 1)}`, svg: () => svg, w: 2550, h: 3300 }));
+          jobs.forEach(j => { j.svgName = j.file + '.svg'; j.jpgName = j.file + '.jpg'; });
+      }
+      return jobs;
+  }
+  let selPages = null;     // { prod, jobs, on: [bool] }
+  function openSelectPages() {
+      let prod = step === 'production', jobs = packageJobs(prod);
+      if (!jobs.length) { toast('Add a product on the Design tab first.'); return; }
+      selPages = { prod, jobs, on: jobs.map(() => false) };
+      let md = document.getElementById('sel-modal');
+      if (!md) { md = document.createElement('div'); md.id = 'sel-modal'; md.className = 'po-modal'; document.body.appendChild(md); }
+      md.innerHTML = `<div class="sel-dialog${prod ? ' prod' : ''}" role="dialog" aria-modal="true" aria-labelledby="sel-h">` +
+          `<div class="sel-head"><div><h3 id="sel-h">Export select pages</h3><p>${prod ? 'Production' : 'Design proof'} pages: pick the ones to export as SVG and JPG.</p></div>` +
+          `<button type="button" class="cd-x" aria-label="Close" onclick="closeSelectPages()">&times;</button></div>` +
+          `<div class="sel-tools"><button type="button" class="btn-plain" onclick="selectAllPages(true)">Select all</button><button type="button" class="btn-plain" onclick="selectAllPages(false)">Select none</button><span class="sel-count" id="sel-count"></span></div>` +
+          `<div class="sel-grid" id="sel-grid">${jobs.map((j, i) => `<label class="sel-item${j.w ? ' tall' : ''}" data-i="${i}"><div class="sel-thumb">${inlineSvg(j.svg())}</div>` +
+              `<span class="sel-cap"><input type="checkbox" onchange="togglePageSel(${i}, this.checked)" aria-label="Page ${i + 1}: ${esc(j.label)}"><b>${i + 1}</b> ${esc(j.label)}</span></label>`).join('')}</div>` +
+          `<div class="sel-acts"><span class="sel-fmt">Each page saves as SVG + JPG in one ZIP. This doesn't count as exporting the package.</span>` +
+          `<button type="button" class="btn-plain" onclick="closeSelectPages()">Cancel</button><button type="button" class="btn-filled" id="sel-go" onclick="exportSelectedPages(this)" disabled>Export</button></div></div>`;
+      md.style.display = 'flex';
+      md.onclick = e => { if (e.target === md) closeSelectPages(); };
+      renderSelCount();
+  }
+  function togglePageSel(i, v) { if (!selPages) return; selPages.on[i] = v; renderSelCount(); }
+  function selectAllPages(v) {
+      if (!selPages) return; selPages.on = selPages.on.map(() => v);
+      document.querySelectorAll('#sel-grid input[type=checkbox]').forEach(c => { c.checked = v; }); renderSelCount();
+  }
+  function renderSelCount() {
+      let n = selPages.on.filter(Boolean).length, go = document.getElementById('sel-go'), c = document.getElementById('sel-count');
+      document.querySelectorAll('#sel-grid .sel-item').forEach(el => el.classList.toggle('on', !!selPages.on[+el.dataset.i]));
+      if (c) c.innerText = `${n} of ${selPages.jobs.length} selected`;
+      if (go) { go.disabled = !n; go.innerText = n ? `Export ${n} page${n === 1 ? '' : 's'}` : 'Export'; }
+  }
+  function closeSelectPages() { let md = document.getElementById('sel-modal'); if (md) md.style.display = 'none'; selPages = null; }
+  async function exportSelectedPages(btn) {
+      if (!selPages) return;
+      let sel = selPages.jobs.filter((j, i) => selPages.on[i]); if (!sel.length) return;
+      let info = getCustomerInfo(), base = selPages.prod ? exportBase(prodInfo(info)) + ' - Production pages' : exportBase(info) + ' - Design pages';
+      let r = await exportZip(btn, `${base}.zip`, async (save, progress) => {
+          for (let i = 0; i < sel.length; i++) {
+              progress(`Page ${i + 1} of ${sel.length}...`);
+              let svg = sel[i].svg();
+              await save(`SVG/${sel[i].svgName}`, new Blob([svg], { type: 'image/svg+xml' }));
+              await save(`JPG/${sel[i].jpgName}`, await svgToJpgBlob(svg, sel[i].w || 3300, sel[i].h || 2550));
+          }
+      });
+      if (r) { closeSelectPages(); toast(`Exported ${sel.length} page${sel.length === 1 ? '' : 's'} (SVG + JPG).`); }
+  }
+  document.addEventListener('keydown', e => { if (selPages && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeSelectPages(); } }, true);
 
   // PRODUCTION PACKAGE: production proofs, snapshot and QA sheet (SVG + JPG) and one print PDF
   function prodInfo(info) { return Object.assign({}, info, { ticket: '' }); }      // production files: no design ticket #
