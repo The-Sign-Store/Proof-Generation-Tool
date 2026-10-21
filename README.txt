@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.9  (October 21, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.9.1  (October 21, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -296,6 +296,15 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.9.1  (2026-10-21)
+  - Export select pages (Approve and export, step 1): pick pages from
+    thumbnails; SVG + JPG in one ZIP. Not counted as the package export.
+  - Remove any component of a product (with a confirm); + Add Component...
+    under every product.
+  - Undo / Redo in the top bar (Ctrl+Z, Ctrl+Y), up to 60 steps.
+  - Clear acrylic gets 1st / 2nd surface: routed face push-thru, ADA backer,
+    acrylic panel, front-lit letter faces (plus laminate for digital print).
+
 v4.9  (2026-10-21)
   - Pantone / Sherwin-Williams search in every color field's ... menu; color
     boxes for custom colors in the table.
