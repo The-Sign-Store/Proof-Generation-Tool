@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.9.1** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.9.2** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,10 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.9.2] – 2026-10-21
+#### Changed
+- **Compact proof tables**: each table packs its fields into the fewest rows the page's columns allow, so there are far fewer grey empty cells and tables are shorter. Field order is kept, nothing is dropped, and a column group (COLUMN 1, 2…) still starts its own column when that costs no extra row. Tables never get taller or wider.
 
 ### [4.9.1] – 2026-10-21
 #### Added

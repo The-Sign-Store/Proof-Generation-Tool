@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.9.1  -  Design + Production
+  //  SIGNSTUDIO v4.9.2  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.9.1';
+  const APP_VERSION = '4.9.2';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -2809,9 +2809,27 @@
                h: Math.max(item.svg ? 30 * s : 0, 2 * P.padY + (lines.length - 1) * P.lineH + P.val) };
   }
 
+  // v4.10: the fewest rows that fit the columns; at that height, prefer each column group (COLUMN 1, 2...) starting a new column
+  function compactCols(cols, ncol) {
+      let n = cols.reduce((a, c) => a + c.length, 0), was = Math.max.apply(null, cols.map(c => c.length).concat([0]));
+      if (!n || ncol < 1) return cols;
+      let pack = (R, newCol) => {
+          let out = [], cur = [];
+          cols.forEach(z => { if (newCol && cur.length) { out.push(cur); cur = []; }
+                              z.forEach(it => { if (cur.length === R) { out.push(cur); cur = []; } cur.push(it); }); });
+          if (cur.length) out.push(cur);
+          return out;
+      };
+      for (let R = Math.ceil(n / ncol); R < was; R++) {
+          let a = pack(R, true); if (a.length <= ncol) return a;
+          let b = pack(R, false); if (b.length <= ncol) return b;
+      }
+      return cols;
+  }
   function layoutTable(page, s) {
       let maxCols = 1;
       page.blocks.forEach(b => { if (b.cols.length > maxCols) maxCols = b.cols.length; });
+      page = Object.assign({}, page, { blocks: page.blocks.map(b => { let cols = compactCols(b.cols, maxCols); return cols === b.cols ? b : Object.assign({}, b, { cols, rows: Math.max.apply(null, cols.map(c => c.length)) }); }) });
       let colW = new Array(maxCols).fill(110 * s);
       let notesW = page.blocks.some(b => b.notes) ? 230 * s : 0, notes = [];
       let skipHead = !page.mix && page.blocks.length === 1 && (page.blocks[0].title.toUpperCase() === prName(page.item).toUpperCase() ||

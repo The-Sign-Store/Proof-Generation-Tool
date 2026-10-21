@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.9.1  (October 21, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.9.2  (October 21, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -296,6 +296,10 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.9.2  (2026-10-21)
+  - Compact proof tables: fields pack into the fewest rows the columns allow
+    (fewer empty grey cells, shorter tables); order kept.
+
 v4.9.1  (2026-10-21)
   - Export select pages (Approve and export, step 1): pick pages from
     thumbnails; SVG + JPG in one ZIP. Not counted as the package export.
