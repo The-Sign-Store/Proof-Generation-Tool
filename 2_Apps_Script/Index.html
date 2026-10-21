@@ -112,8 +112,12 @@
           </div>
         </section>
       </aside>
-      <div id="preview-area"><div id="sheets"></div></div>
+      <div id="preview-area"><div class="page-bar" id="pbar-design" role="toolbar" aria-label="Selected page"></div><div id="sheets"></div></div>
       <aside id="page-panel">
+        <section class="pp-half pp-org" id="pp-org-sec" style="display:none">
+          <button type="button" class="pp-head" aria-expanded="true" onclick="let h = this.parentElement; h.classList.toggle('collapsed'); this.setAttribute('aria-expanded', !h.classList.contains('collapsed'))" title="Show / hide the table order: drag tables to share a page or split them">Table order <span id="po-count"></span><span class="pp-caret">&#9662;</span></button>
+          <div class="pp-scroll"><div id="page-org" class="page-org" aria-label="Table order: drag tables to group them"></div></div>
+        </section>
         <section class="pp-half pp-pages">
           <button type="button" class="pp-head" aria-expanded="true" onclick="let h = this.parentElement; h.classList.toggle('collapsed'); this.setAttribute('aria-expanded', !h.classList.contains('collapsed'))" title="Show / hide pages">Pages <span id="pp-count"></span><span class="pp-caret">&#9662;</span></button>
           <div class="pp-scroll"><div id="pp-list"></div></div>
@@ -142,7 +146,7 @@
           <div id="prod-missing"></div>
         </section>
         </aside>
-      <div id="qa-area"><div id="qa-sheets"></div></div>
+      <div id="qa-area"><div class="page-bar" id="pbar-prod" role="toolbar" aria-label="Selected page"></div><div id="qa-sheets"></div></div>
     </div>
   </div>
 
