@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.9.2  -  Design + Production
+  //  SIGNSTUDIO v4.9.3  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.9.2';
+  const APP_VERSION = '4.9.3';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -1591,7 +1591,8 @@
           any = true; q += +m[1];
           if (!h || parseFloat(m[2]) > parseFloat(h)) h = m[2].trim();
       });
-      return any ? { q: String(q), h } : { q: '', h: '' };
+      let st = String(v || '').match(/^\s*(\d+)\s*sets?\s+of\b/i);
+      return any ? { q: String(q), h, sets: st ? st[1] : '' } : { q: '', h: '', sets: '' };
   }
   function qhPart(fid) { let uid = fid.split('_')[0]; return allParts.find(p => p.uid === uid); }
   function qhEdit(fid, which) {
@@ -1610,6 +1611,7 @@
           let pr = qhParse(hid.value);
           if (pr.q && +pr.q !== n) part.qtyManual[fid] = pr.q; else delete part.qtyManual[fid];
           if (document.activeElement !== hi) hi.value = pr.h;
+          let si0 = document.getElementById(`mqs-${fid}`); if (si0 && document.activeElement !== si0) si0.value = +pr.sets > 1 ? pr.sets : '';
       }
       let manual = part.qtyManual[fid], q = manual != null ? manual : (n ? String(n) : '');
       if (document.activeElement !== qi) qi.value = q;
@@ -1619,7 +1621,8 @@
       let a = document.getElementById(`mqa-${fid}`); if (a) a.style.display = manual != null ? '' : 'none';
       let h = String(hi.value || '').replace(/"/g, '').trim();
       let qv = document.activeElement === qi ? qi.value.trim() : q;
-      hid.value = qv && h ? `${qv} @ ${h}"` : '';            // no height yet: the proof shows MISSING
+      let si = document.getElementById(`mqs-${fid}`), sets = si ? parseInt(si.value, 10) : 0;
+      hid.value = qv && h ? `${sets > 1 ? `${sets} Sets of ` : ''}${qv} @ ${h}"` : '';   // no height yet: the proof shows MISSING
       hid.dataset.last = hid.value;
   }
 
@@ -1687,7 +1690,7 @@
               html += swatchBtn(fid, `openPictoModal('${fid}')`, '', '', 'Select Pictogram', true); break;
           default:
               if (up === 'QTY & SIZES') {                   // quantity (counted from TEXT) + tallest letter height -> "12 @ 18\""
-                  html += `<div class="dims-row qh-row"><div class="dim-box qh-q"><span>QTY</span><input type="number" min="0" id="mqq-${fid}" oninput="qhEdit('${fid}', 'q')"></div>` +
+                  html += `<div class="dims-row qh-row"><div class="dim-box qh-s" title="Sets of these letters (blank or 1 = one set)"><span>SETS</span><input type="number" min="1" id="mqs-${fid}" placeholder="1" oninput="qhEdit('${fid}', 's')"></div><div class="dim-box qh-q"><span>QTY</span><input type="number" min="0" id="mqq-${fid}" oninput="qhEdit('${fid}', 'q')"></div>` +
                           `<div class="dim-box qh-h"><span>HEIGHT</span><input type="text" inputmode="decimal" id="mqh-${fid}" placeholder="letter height" oninput="qhEdit('${fid}', 'h')"><em>"</em></div>` +
                           `<button type="button" class="qh-auto" id="mqa-${fid}" onclick="qhAuto('${fid}')" title="Count the letters in TEXT again" style="display:none">Auto</button></div>` +
                           `<input type="hidden" id="mf-${fid}" value="${esc(def)}">`;

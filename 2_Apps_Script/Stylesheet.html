@@ -1393,4 +1393,14 @@
   #topbar .tb-icon { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: #E6EAF0; cursor: pointer; }
   #topbar .tb-icon:hover:not(:disabled) { background: rgba(255,255,255,.12); }
   #topbar .tb-icon:disabled { color: #6B7480; cursor: default; }
+
+  /* v4.9.3: SETS box beside QTY / HEIGHT */
+  .qh-row { gap: 6px; flex-wrap: wrap; }
+  .qh-row .qh-s { flex: 0 0 64px; }
+  .qh-row .qh-q { flex: 0 0 68px; }
+  .qh-row .qh-h { flex: 1 1 80px; min-width: 80px; }
+  .qh-row .dim-box span { padding: 0 3px 0 7px; font-size: 10.5px; }
+  .qh-row .dim-box input { padding: 0 6px 0 2px; width: 100%; }
+  .qh-row input[type=number] { -moz-appearance: textfield; }
+  .qh-row input[type=number]::-webkit-inner-spin-button, .qh-row input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 </style>

@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.9.2** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.9.3** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,10 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.9.3] – 2026-10-21
+#### Added
+- **SETS** box on letter components' QTY & HEIGHT: more than one set prints in the same cell, e.g. QTY / SIZE: "2 Sets of 23 @ 30"". Blank or 1 = one set, printed as before. Saved with the project.
 
 ### [4.9.2] – 2026-10-21
 #### Changed
