@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.8.3** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.9** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,27 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.9] – 2026-10-21
+#### Added
+- **Pantone / Sherwin-Williams search** in the ⋯ menu of every color field (about 2,375 colors). Paint and finish fields use their own picker; other fields take it as a custom answer with its color.
+- **Color boxes for custom colors** in the table: recognised names (SW, PMS, Oracal, finishes) are filled in; anything else prints an empty outlined box to fill in by hand.
+- **Table order** (top of the right panel): every table grouped by the page it prints on. Drag a table onto another page to share it (any product, any order) or between pages for its own page. Joining past the recommended table height (80% size) asks first; **Automatic** resets. Replaces the Same page / New page pills. Saved with the project.
+- **Text layers**: Image / Measurement / **Text** in the page toolbar. Type on the page; bold, italic, underline, size, color and alignment per selection; move, re-wrap, group, copy / paste like images. Exported as real SVG text.
+- **Production pages**: + Add production page (named, removable), printed after the production proofs.
+- **Production is locked** until the design proof is exported (or unlocked from a warning). Unlocking copies every design page's images, measurements and text to its production page once; after that they are separate. Projects saved before v4.9 open unlocked with nothing copied.
+- **Click a table cell** on the proof to edit that field in a pop-up (with its ⋯ menu).
+- **Zoom**: Fit width / Fit page / 50–200% in the page toolbar, or Ctrl + scroll wheel.
+- **Hide / show** the left and right panels from the ends of the page toolbar.
+#### Changed
+- **Frame**: FRAME MATERIAL is Aluminum / Steel / Wood, then FRAME PROFILE for that material. Older projects convert when opened.
+- **One page toolbar** for the selected page instead of buttons on every page; click a page to select it.
+- The red / purple step guide is gone; messages are shorter.
+- Coroplast is listed for CNC / routing only when its Routing is Yes (we only route it to shape).
+#### Fixed
+- The Full Color Digital swatch showed blank in production tables on screen.
+
+---
 
 ### [4.8.3] – 2026-10-16
 #### Changed

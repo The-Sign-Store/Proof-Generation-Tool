@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.8.3  (October 16, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.9  (October 21, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -296,6 +296,18 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.9  (2026-10-21)
+  - Pantone / Sherwin-Williams search in every color field's ... menu; color
+    boxes for custom colors in the table.
+  - Table order (right panel): drag tables onto pages, any order, any product;
+    warns past the recommended table height.
+  - Text layers; production-only pages; Production locked until the design
+    export (design layers copied once).
+  - Frame material: Aluminum / Steel / Wood + profile (sheet data updated).
+  - One page toolbar with zoom (Ctrl + wheel); side panels hide; click a table
+    cell to edit it; step guide removed; shorter messages.
+  - Coroplast only on the CNC list when routed to shape.
+
 v4.8.3  (2026-10-16)
   - Letter components: QTY counted from TEXT (spaces ignored; type to
     change, Auto to recount) + HEIGHT. Prints "11 @ 24"" as before.

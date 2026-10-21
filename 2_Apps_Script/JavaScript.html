@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.8.3  -  Design + Production
+  //  SIGNSTUDIO v4.9  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.8.3';
+  const APP_VERSION = '4.9';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -80,6 +80,7 @@
   // Text for SVG <text> elements. CorelDRAW's SVG import prints entity codes (&quot; &#183;) literally,
   // so: quotes and other characters are written as-is (the file is UTF-8), dashes / dots are folded to
   // plain ASCII, and only text containing & or < (which XML must escape) is wrapped in CDATA.
+  function typingInField() { let a = document.activeElement || {}; return /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName || '') || !!a.isContentEditable; }
   function xText(s) {
       let t = String(s == null ? '' : s)
           .replace(/[\u2012-\u2015]/g, '-').replace(/[\u00B7\u2022]/g, '-')
@@ -120,11 +121,13 @@
   const TAB_EXPORT = { design: 'generate-btn', production: 'prod-btn' };   // the open tab's export is marked in the Export menu
   function showTab(t) {
       if (t === 'tables' || t === 'proof' || t === 'select' || t === 'specs' || t === 'customer') t = 'design';   // older names
+      if (t === 'production' && !prodUnlocked) { askUnlockProduction(); return; }
       step = t;
       let start = t === 'start', byId = id => document.getElementById(id);
       byId('step-start').style.display = start ? 'flex' : 'none';
       byId('step-build').style.display = start ? 'none' : 'flex';
       byId('tabs').style.display = start ? 'none' : 'flex';
+      updateProdLock();
       byId('export-wrap').style.display = start ? 'none' : 'inline-flex';
       byId('page-count').style.display = start ? 'none' : '';
       TABS.forEach(k => {
@@ -198,7 +201,8 @@
       try {
           if (prod) {
               let qa = qaOn() ? buildQAPages(pages, info, summaryTotal(pages)) : [];
-              pages.forEach((p, i) => cards.push({ svg: buildProductionSVG(p, i + 1, pages.length, info), label: `Production proof ${i + 1} / ${pages.length} · ${prName(p.item)}` }));
+              let plist = prodPageList(pages);
+              plist.forEach((p, i) => cards.push({ svg: buildProductionSVG(p, i + 1, plist.length, info), label: `Production proof ${i + 1} / ${plist.length} · ${p.prodExtra ? p.title : prName(p.item)}` }));
               let snaps = buildSnapshotPages(pages, info);
               snaps.forEach((svg, i) => cards.push({ svg, label: `Production snapshot${snaps.length > 1 ? ` ${i + 1} / ${snaps.length}` : ''}` }));
               qa.forEach((svg, i) => cards.push({ svg, label: `QA sheet ${i + 1} / ${qa.length}`, portrait: true }));
@@ -323,7 +327,7 @@
       let X = window.screenX || 0, Y = window.screenY || 0, W = window.outerWidth || screen.availWidth || 1600, H = window.outerHeight || screen.availHeight || 900, w = Math.round(W / 2);
       let chrome = Math.max(0, (window.outerHeight || 0) - (window.innerHeight || 0)), bar = (document.querySelector('#review-modal .rv-top') || {}).offsetHeight || 0;
       let win = window.open(url, 'signstudio_freshdesk', `popup=yes,width=${w},height=${Math.max(400, H - chrome - bar)},left=${X + W - w},top=${Y + chrome + bar}`);
-      if (!win) { toast('Your browser blocked the window: allow pop-ups for SignStudio (the icon at the right end of the address bar), then click Open ticket again.'); return; }
+      if (!win) { toast('Pop-up blocked: allow pop-ups for SignStudio, then try again.'); return; }
       try { win.focus(); } catch (e) { /* other origin */ }
   }
   // the right half of the screen: where the Freshdesk window goes
@@ -423,7 +427,7 @@
           let r = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)
               .fdAddNote({ ticket: tn, html: noteHtml(rvNoteEdit !== null ? rvNoteEdit : rvNote, info), notify, files }));
           fdState.posting = false; fdState.posted = r;
-          if (rvPdf && k < 1) toast('The note is large, so the pages were attached smaller and the PDF was left off: attach it from the ZIP.');
+          if (rvPdf && k < 1) toast('Pages attached smaller to fit. Attach the PDF from the ZIP.');
           toast(`Note added to ticket #${tn}.`);
           renderTicketSide(info, true);                                          // refresh the activity (keeps the confirmation)
       } catch (e) {
@@ -473,7 +477,7 @@
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
           if (btn) { btn.innerText = 'Copied'; btn.classList.add('done'); setTimeout(() => { btn.innerText = 'Copy image'; btn.classList.remove('done'); }, 1600); }
       } catch (e) {
-          toast('Copying images is blocked here: drag the page into the ticket\u2019s note instead, or attach the JPG from the folder.');
+          toast('Can\u2019t copy images here: drag the page into the note instead.');
       }
   }
   function reviewAfterExport(prod) {
@@ -552,7 +556,7 @@
       let prod = step === 'production', ok = prod ? await generateProduction() : await generatePackage();
       if (ok) {
           reviewAfterExport(prod);
-          toast(prod ? 'Exported. Saving a new version…' : 'Exported. Saving a new version… The note and the JPG pages are below.');
+          toast(prod ? 'Exported. Saving a new version…' : 'Exported. Saving a new version…');
           await saveVersion({ quiet: true, note: prod ? 'Exported the production package' : 'Exported the design package' });
       }
   }
@@ -616,7 +620,7 @@
   }
   function startNewProject() {
       if (pkgItems.length && hasUnsavedChanges() && !confirm('Start a new project? Unsaved work in the current project will be lost (its autosaved draft stays in Saved projects).')) return false;
-      resetPackage(); clearCustomerFields(); lastSavedSnap = ''; lastDraftSnap = ''; forgetLocalDraft(); pageOrder = []; exportedPhase = {}; lastPhase = 'design';
+      resetPackage(); clearCustomerFields(); lastSavedSnap = ''; lastDraftSnap = ''; forgetLocalDraft(); pageOrder = []; pageLayout = null; exportedPhase = {}; lastPhase = 'design';
       renderCustomCards(); updateSelectionBar(); updateProofStatus(); showTab('design');
       return true;
   }
@@ -632,7 +636,7 @@
       HOME_FIELDS.forEach(k => { let el = document.getElementById('hf-' + k); if (el) el.value = ''; });
       let hs = document.getElementById('hf-has-sub'); if (hs) { hs.checked = false; document.getElementById('hf-sub-wrap').style.display = 'none'; }
       updateProjectLabel(); renderPreview();
-      toast('Project created. Pick products on the left; Edit Job Info is at the top.');
+      toast('Project created. Pick products on the left.');
   }
 
   // =====================================================================
@@ -1241,7 +1245,7 @@
               let n = document.getElementById(`crdn-${uid}`); if (n) n.innerText = part.drawPick.length;
               part.letterLines = prev.letterLines.map(l => Object.assign({}, l, { id: 'L' + (++lineSeq) }));
               renderLetterLines(part);
-              part.fmode = Object.assign({}, prev.fmode || {}); part.fcustom = Object.assign({}, prev.fcustom || {});
+              part.fmode = Object.assign({}, prev.fmode || {}); part.fcustom = Object.assign({}, prev.fcustom || {}); part.fhex = Object.assign({}, prev.fhex || {});
               applyFieldModes(part);
           }
       }
@@ -1531,7 +1535,8 @@
       if (hasC) parts.push(`C${cm[0]} M${cm[1]} Y${cm[2]} K${cm[3]}${src === 'rgb' ? ' (approx.)' : ''}`);
       if (hasR) parts.push(`R${rg[0]} G${rg[1]} B${rg[2]}${src === 'cmyk' ? ' (approx.)' : ''}`);
       if (!name.trim() && !hasC && !hasR) return required ? { val: 'Enter Custom Color', hex: '', warn: true } : { val: '', hex: '', warn: false };
-      return { val: parts.join(' \u00B7 '), hex: ccHex(fid), warn: false };
+      let hex = ccHex(fid) || colorFromName(name);
+      return Object.assign({ val: parts.join(' \u00B7 '), hex: hex, warn: false }, hex ? {} : { emptySw: true });
   }
   // vinyl / db / rowmark pickers: "Custom color" checkbox swaps the swatch button for the custom panel
   function ccToggle(fid) {
@@ -1686,7 +1691,10 @@
       let f = appData.components[part.comp].fields[fi], cur = fieldMode(part, fi);
       let m = document.getElementById('field-menu');
       if (!m) { m = document.createElement('div'); m.id = 'field-menu'; m.setAttribute('role', 'menu'); document.body.appendChild(m); }
-      m.innerHTML = `<div class="fm-head">${esc(formLabel(f))}</div>` + FIELD_MODES.map(([k, label]) =>
+      let pal = COLOR_TYPES.indexOf(f.type) !== -1 ? `<button type="button" role="menuitem" class="fm-item fm-pal" onclick="openPaletteSearch('${uid}', ${fi})">` +
+          `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>` +
+          `Search Pantone / Sherwin-Williams…</button><div class="fm-sep"></div>` : '';
+      m.innerHTML = `<div class="fm-head">${esc(formLabel(f))}</div>` + pal + FIELD_MODES.map(([k, label]) =>
           (k === 'removed' ? '<div class="fm-sep"></div>' : '') +
           `<button type="button" role="menuitemradio" aria-checked="${k === cur}" class="fm-item${k === cur ? ' on' : ''}${k === 'removed' ? ' danger' : ''}" ` +
           `onclick="setFieldMode('${uid}', ${fi}, '${k}')">${label}${k === cur ? ' \u2713' : ''}</button>`).join('');
@@ -1708,6 +1716,7 @@
       }
       if (mode) part.fmode[fi] = mode; else delete part.fmode[fi];
       closeFieldMenu();
+      if (cellEdit && cellEdit.uid === uid && cellEdit.fi === fi) { if (mode === 'removed') { setTimeout(closeCellEditor, 0); } else setTimeout(renderCellModes, 0); }
       applyFieldMode(part, fi);
       renderRemovedFields(part);
       refreshAll();
@@ -1890,14 +1899,15 @@
   }
 
   // ---------- SWATCH MODALS ----------
-  function showSwatchModal(title, items, fid) {
-      modalItems = items; modalTarget = fid;
+  let modalOnPick = null;
+  function showSwatchModal(title, items, fid, onPick) {
+      modalItems = items; modalTarget = fid; modalOnPick = onPick || null;
       document.getElementById('modal-title').innerText = title;
       let grid = items.length ? '' : '<p style="padding:20px;">No colors found. Check the color tab in the Google Sheet.</p>';
       items.forEach((it, i) => {
           let inner = it.svg ? pictoSvgHtml(it.svg, '#000') : '';
           let style = it.svg ? 'background:#fff;' : `background:${cssBg(it.hex)};`;
-          let q = [it.label, it.sub, it.value].filter(Boolean).join(' ').toLowerCase();
+          let q = [it.label, it.sub, it.value, it.kw].filter(Boolean).join(' ').toLowerCase();
           grid += `<div class="swatch-card" data-q="${esc(q)}" onclick="pickSwatch(${i})">
                      <div class="swatch-card-color" style="${style}">${inner}</div>
                      <div class="swatch-card-label">${esc(it.label)}${it.sub ? `<br><span style="font-weight:normal;color:#888;">${esc(it.sub)}</span>` : ''}</div>
@@ -1924,6 +1934,7 @@
 
   function pickSwatch(i) {
       let it = modalItems[i], fid = modalTarget; if (!it || !fid) return;
+      if (modalOnPick) { let f = modalOnPick; modalOnPick = null; closeModal(); f(it); return; }
       document.getElementById(`mpv-${fid}`).value = it.value || it.label;
       document.getElementById(`mhex-${fid}`).value = it.hex || '';
       document.getElementById(`mtxt-${fid}`).innerText = it.label;
@@ -1972,6 +1983,59 @@
           return { label, hex: c.hex, value };
       });
       showSwatchModal(brand === 'SW' ? 'Sherwin-Williams Colors' : 'PMS Colors', items, fid);
+  }
+
+  // ---------- v4.9: search the Pantone + Sherwin-Williams palettes from any color field's ... menu ----------
+  let PALETTE = null;
+  function paletteItems() {
+      if (PALETTE) return PALETTE;
+      let sw = (appData.colors_sw || []).filter(c => c.hex).map(c => {
+          let code = String(c.code || ''), label = /^SW\d/i.test(code) ? `${code.replace(/^SW/i, 'SW ')} ${c.name}` : c.name;
+          return { label, hex: c.hex, sub: 'Sherwin-Williams', value: label.toUpperCase().indexOf('SW') === 0 ? label : `SW ${label}`, brand: 'SW' };
+      });
+      let pms = (appData.colors_pms || []).filter(c => c.hex).map(c => ({ label: c.name, hex: c.hex, sub: 'Pantone (PMS)', value: /^pms/i.test(c.name) ? c.name : `PMS ${c.name}`, brand: 'PMS', kw: 'pantone pms c u coated' }));
+      return (PALETTE = pms.concat(sw));
+  }
+  function openPaletteSearch(uid, fi) {
+      closeFieldMenu();
+      let part = allParts.find(x => x.uid === uid); if (!part) return;
+      let fid = `${uid}_${fi}`, f = appData.components[part.comp].fields[fi];
+      showSwatchModal(`Pantone / Sherwin-Williams · ${formLabel(f)}`, paletteItems(), fid, it => usePaletteColor(part, fi, it));
+  }
+  function usePaletteColor(part, fi, it) {
+      let fid = `${part.uid}_${fi}`, f = appData.components[part.comp].fields[fi], byId = id => document.getElementById(id);
+      let brand = byId(`mb-${fid}`);
+      if (brand && (f.type === 'paint' || f.type === 'finish')) {                  // the field has its own paint picker: use it
+          if (f.type === 'finish') { let sel = byId(`mf-${fid}`); if (sel) sel.value = CUSTOM_PAINT; }
+          if (fieldMode(part, fi)) setFieldMode(part.uid, fi, '');
+          brand.value = it.brand; paintBrandChanged(fid);
+          byId(`mpv-${fid}`).value = it.value; byId(`mhex-${fid}`).value = it.hex || '';
+          byId(`mtxt-${fid}`).innerText = it.label;
+          let col = byId(`mcol-${fid}`); if (col) { col.innerHTML = ''; col.style.background = cssBg(it.hex); }
+          let clr = byId(`mclr-${fid}`); if (clr) clr.style.display = 'flex';
+      } else {                                                                     // any other color field: a custom answer with its color
+          part.fcustom = part.fcustom || {}; part.fhex = part.fhex || {};
+          part.fcustom[fi] = it.value; part.fhex[fi] = { v: it.value, hex: it.hex };
+          setFieldMode(part.uid, fi, 'custom');
+      }
+      refreshAll();
+      toast(`Using ${it.value}`);
+  }
+  // a typed color name -> its color: Sherwin-Williams (code or name), Pantone, Oracal, finishes and basic colors
+  function colorFromName(v) {
+      let q = String(v || '').trim(); if (!q) return '';
+      let n = q.toUpperCase().replace(/^CUSTOM:\s*/, '').replace(/\s+/g, ' ');
+      let hit = colorHex(n); if (hit) return hit;
+      let sw = n.match(/\bSW\s*-?\s*(\d{4})\b/);
+      if (sw) { let c = (appData.colors_sw || []).find(c => String(c.code || '').replace(/\D/g, '') === sw[1]); if (c && c.hex) return c.hex; }
+      let bare = n.replace(/^(SW|PMS|PANTONE)\s+/, '').replace(/^(\d{3,4})\s*[CU]$/, '$1');
+      let pm = (appData.colors_pms || []).find(c => { let k = String(c.name).toUpperCase().replace(/^(PMS|PANTONE)\s+/, ''); return k === bare; });
+      if (pm && pm.hex) return pm.hex;
+      let byName = (appData.colors_sw || []).find(c => String(c.name || '').toUpperCase() === bare);
+      if (byName && byName.hex) return byName.hex;
+      let or = n.match(/\b(\d{3,4}[A-Z]{0,2})\s+(\d{2,3})\b/);
+      if (or) { let c = (appData.colors_oracal || []).find(c => String(c.series).replace(/\.0$/, '').toUpperCase() === or[1] && String(c.code).replace(/\.0$/, '').padStart(3, '0') === or[2].padStart(3, '0')); if (c && c.hex) return c.hex; }
+      return '';
   }
 
   function openPictoModal(fid) {
@@ -2185,8 +2249,12 @@
           let answered = () => Object.assign(base, { type: 'prodans', val: ans, warn: false, tbd: false, prodAns: true });
           if (mode === 'missing') { items.push(ans ? answered() : Object.assign(base, { type: 'missing', val: 'Enter ' + formLabel(f), warn: true })); return; }
           if (mode === 'custom') {
-              let v = String((part.fcustom || {})[fi] || '').trim();
-              items.push(Object.assign(base, v ? { type: 'custom', val: v, warn: false } : ans ? answered() : { type: 'custom', val: 'Enter ' + formLabel(f), warn: true }));
+              let v = String((part.fcustom || {})[fi] || '').trim(), sw = {};
+              if (v && COLOR_TYPES.indexOf(f.type) !== -1) {                 // v4.9: a color box: the picked / recognised color, else an empty box
+                  let ph = (part.fhex || {})[fi], hex = ph && ph.v === v ? ph.hex : colorFromName(v);
+                  sw = hex ? { hex } : { emptySw: true };
+              }
+              items.push(Object.assign(base, v ? Object.assign({ type: 'custom', val: v, warn: false }, sw) : ans ? answered() : { type: 'custom', val: 'Enter ' + formLabel(f), warn: true }));
               return;
           }
           let d = getDisplay(part, f, fi);
@@ -2348,20 +2416,69 @@
       return pages;
   }
 
-  function packagePages() {
+  // v4.9: the designer's page layout ([{ id, uids }], in print order); null = automatic
+  let pageLayout = null, pageGid = 0;
+  function partBlock(part, it) {
+      let items = collectPartItems(part);
+      let zones = compZones(appData.components[part.comp]);
+      let cols = zones.map(z => items.filter(i => i.zone === z)).filter(c => c.length);
+      if (!cols.length) return null;
+      return { part, title: partLabel(part), cols, notes: partNotes(part), newPage: part.newPage,
+               rows: Math.max.apply(null, cols.map(c => c.length)), pageGroup: Number(it.defs[part.di].pageGroup) || (part.di + 1) };
+  }
+  function packagePages() { return orderPages(pageLayout ? layoutPages() : autoPages()); }
+  function syncPageLayout() {                    // parts added since: their own page after their product's last page; parts removed: gone
+      let live = allParts.filter(p => pkgItems.some(it => it.iid === p.iid)).map(p => p.uid);
+      pageLayout.forEach(g => { g.uids = g.uids.filter(u => live.indexOf(u) !== -1); });
+      live.forEach(u => {
+          if (pageLayout.some(g => g.uids.indexOf(u) !== -1)) return;
+          let iid = allParts.find(p => p.uid === u).iid, at = -1;
+          pageLayout.forEach((g, i) => { if (g.uids.some(x => (allParts.find(p => p.uid === x) || {}).iid === iid)) at = i; });
+          let g = { id: 'g' + (++pageGid), uids: [u] };
+          if (at === -1) pageLayout.push(g); else pageLayout.splice(at + 1, 0, g);
+      });
+      pageLayout = pageLayout.filter(g => g.uids.length);
+  }
+  function tagShared(blocks) {                   // on a page shared by several products each table says which product it is
+      blocks.forEach(b => { let it = pkgItems.find(x => x.iid === b.part.iid), n = prName(it);
+          if (b.title.toUpperCase() !== n.toUpperCase() && b.title.toUpperCase().indexOf(n.toUpperCase() + ' - ') !== 0) b.title = n + ' - ' + b.title; });
+  }
+  function layoutPages() {
+      syncPageLayout();
+      let pages = [], count = {}, matched = {}, itemOf = u => { let p = allParts.find(x => x.uid === u); return p && pkgItems.find(it => it.iid === p.iid); };
+      pageLayout.forEach(g => {
+          let blocks = g.uids.map(u => { let p = allParts.find(x => x.uid === u); return p && p.enabled ? partBlock(p, itemOf(u)) : null; }).filter(Boolean);
+          if (!blocks.length) return;
+          let items = []; blocks.forEach(b => { let it = itemOf(b.part.uid); if (items.indexOf(it) === -1) items.push(it); });
+          let it = items[0], page = { item: it, blocks, gid: g.id, n: (count[it.iid] = (count[it.iid] || 0) + 1) };
+          if (items.length > 1) { page.mix = items.slice(1); tagShared(blocks); }
+          let dr = pageDrawings(it, blocks); page.drawings = dr.shown;
+          dr.all.forEach(m => { let k = m.part.iid, l = matched[k] = matched[k] || []; if (!l.some(x => x.d.id === m.d.id)) l.push(m); });
+          pages.push(page);
+      });
+      pkgItems.forEach(it => {                     // a product with no table yet still gets its page; blank pages follow its last page
+          let mine = pages.filter(pg => pg.item === it || (pg.mix || []).indexOf(it) !== -1);
+          if (!mine.length && !(it.blanks || []).length && !pages.some(pg => pg.item === it)) pages.push({ item: it, blocks: [], n: (count[it.iid] = (count[it.iid] || 0) + 1), drawings: [] });
+          let last = -1; pages.forEach((pg, i) => { if (pg.item === it || (pg.mix || []).indexOf(it) !== -1) last = i; });
+          (it.blanks || []).forEach((b, k) => { let pg = { item: it, blocks: [], n: (count[it.iid] = (count[it.iid] || 0) + 1), drawings: [], blank: true, title: blankTitle(b) };
+              if (last === -1) pages.push(pg); else pages.splice(++last, 0, pg); });
+      });
+      pkgItems.forEach(it => {
+          let total = count[it.iid] || 0;
+          pages.forEach(pg => { if (pg.item === it) pg.total = total; });
+          renderItemDrawings(it, matched[it.iid] || []);
+          let shared = pages.some(pg => (pg.mix || []).indexOf(it) !== -1);
+          let tag = document.getElementById(`ipages-${it.iid}`);
+          if (tag) tag.innerText = !total ? 'shares a page' : `${total} page${total > 1 ? 's' : ''}${shared ? ' + shared' : ''}`;
+      });
+      return pages;
+  }
+  function autoPages() {
       let pages = [];
       pkgItems.forEach(it => {
           it._joinMissed = false;
           let blocks = [];
-          allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => {
-              let items = collectPartItems(part);
-              let zones = compZones(appData.components[part.comp]);
-              let cols = zones.map(z => items.filter(i => i.zone === z)).filter(c => c.length);
-              if (!cols.length) return;
-              blocks.push({ part, title: partLabel(part), cols, notes: partNotes(part), newPage: part.newPage,
-                            rows: Math.max.apply(null, cols.map(c => c.length)),
-                            pageGroup: Number(it.defs[part.di].pageGroup) || (part.di + 1) });
-          });
+          allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => { let b = partBlock(part, it); if (b) blocks.push(b); });
           let ip = paginateBlocks(blocks), blanks = it.blanks || [];
           let matched = [], host = pages[pages.length - 1], shared = false;
           if (it.joinPrev && ip.length && ip[0].length) {
@@ -2390,8 +2507,184 @@
           if (tag) tag.innerText = !total ? 'shares a page' : `${total} page${total > 1 ? 's' : ''}${shared ? ' + shared' : ''}`;
           renderItemJoin(it);
       });
-      return orderPages(pages);
+      return pages;
   }
+  // ---------- v4.10: pages added on the Production tab only (after the production proofs, before the snapshot) ----------
+  const PROD_ITEM = { iid: 'PX', kind: 'production', name: 'Production page', defs: [], blanks: [] };
+  let prodExtra = [], prodExtraSeq = 0;
+  function prodExtraPages() { return prodExtra.map(x => ({ item: PROD_ITEM, blocks: [], n: x.id, total: 1, drawings: [], blank: true, prodExtra: true, title: x.title || 'Production page', xid: x.id })); }
+  function prodPageList(pages) { return (pages || packagePages()).concat(prodExtraPages()); }
+  function addProdPage() {
+      let id = ++prodExtraSeq; prodExtra.push({ id, title: 'Production page' });
+      activeArtKey = 'prod-PX:' + id; renderPreview();
+      let el = document.getElementById('bar-prod-PX-' + id); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      toast('Production page added.');
+  }
+  function renameProdPage(id, v) { let x = prodExtra.find(x => x.id === id); if (x) { x.title = String(v || '').trim() || 'Production page'; renderPreview(); } }
+  function removeProdPage(id) {
+      let k = 'prod-PX:' + id, has = (pageArt[k] || []).length + (pageMeasures[k] || []).length + (pageTexts[k] || []).length;
+      if (has && !confirm('Remove this production page and everything on it?')) return;
+      prodExtra = prodExtra.filter(x => x.id !== id); delete pageArt[k]; delete pageMeasures[k]; delete pageTexts[k];
+      if (activeArtKey === k) activeArtKey = null; clearLayerSel(); renderPreview();
+  }
+
+  // ---------- v4.10: Production locked until the design proof is exported; unlocking copies the design layers over once ----------
+  let prodUnlocked = false;
+  function updateProdLock() {
+      let b = document.getElementById('tab-btn-production'); if (!b) return;
+      b.classList.toggle('locked', !prodUnlocked);
+      b.innerHTML = (prodUnlocked ? '' : `<svg class="tab-lock" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`) + 'Production';
+      b.title = prodUnlocked ? '' : 'Locked until the design proof is exported (click to unlock it early)';
+  }
+  function copyDesignLayersToProduction() {
+      const D = PG.AB, A = PROD_IN, k = Math.min(A.w / D.w, A.h / D.h), ox = A.x - D.x * k, oy = A.y - D.y * k;
+      let X = x => ox + x * k, Y = y => oy + y * k, n = 0;
+      packagePages().forEach(page => {
+          let dk = pageKey(page), pk = 'prod-' + dk, arts = pageArt[dk] || [], meas = pageMeasures[dk] || [], txts = pageTexts[dk] || [];
+          if (!arts.length && !meas.length && !txts.length) return;
+          let used = layerTokens(pk).map(t => +String((layerItem(pk, t) || {}).grp || 'G0').slice(1)), next = Math.max.apply(null, used.concat([0])), remap = {};
+          let grp = g => g ? (remap[g] = remap[g] || 'G' + (++next)) : undefined, keepGrp = (c, g) => { if (g) c.grp = grp(g); else delete c.grp; return c; };
+          if (arts.length) {                       // same spot and size on the production artboard
+              let dreg = artRegion(page, page.blocks.length ? fitTable(page) : null), preg = prodArtRegion(page.blocks.length ? fitProdTable(page) : null);
+              let pa = pageArt[pk] = pageArt[pk] || [], had = pa.map((x, i) => artPlacement(preg, pa.length, i, x));
+              let rects = arts.map((a, i) => { let r = artPlacement(dreg, arts.length, i, a); return { x: X(r.x), y: Y(r.y), w: r.w * k, h: r.h * k }; });
+              arts.forEach(a => pa.push(keepGrp(Object.assign({}, a), a.grp)));
+              let N = pa.length; had.forEach((r, i) => fitArtTo(preg, N, i, pa[i], r)); rects.forEach((r, j) => fitArtTo(preg, N, had.length + j, pa[had.length + j], r));
+          }
+          if (meas.length) { let pm = pageMeasures[pk] = pageMeasures[pk] || [];
+              meas.forEach(m => pm.push(keepGrp(Object.assign({}, m, { x1: X(m.x1), y1: Y(m.y1), x2: X(m.x2), y2: Y(m.y2) }), m.grp))); }
+          if (txts.length) { let pt = pageTexts[pk] = pageTexts[pk] || [];
+              txts.forEach(t => { let c = JSON.parse(JSON.stringify(t)); c.x = X(t.x); c.y = Y(t.y); c.w = t.w * k;
+                                  c.paras = c.paras.map(p => p.map(r => Object.assign(r, { s: Math.round((r.s || TXT_DEF) * k * 2) / 2 }))); pt.push(keepGrp(c, t.grp)); }); }
+          n += arts.length + meas.length + txts.length;
+      });
+      return n;
+  }
+  function unlockProduction(how) {
+      if (prodUnlocked) return 0;
+      prodUnlocked = true;
+      let n = copyDesignLayersToProduction();
+      updateProdLock();
+      toast(`Production unlocked.${n ? ` ${n} design layer${n === 1 ? '' : 's'} copied over.` : ''}`);
+      return n;
+  }
+  function askUnlockProduction() {
+      appConfirm({ title: 'Production is locked', yes: 'Unlock', no: 'Cancel',
+          msg: 'It unlocks when the design proof is exported. Unlock it now anyway?',
+          note: 'Design layers (images, measurements, text) are copied to the production pages once.',
+          onYes: () => { unlockProduction('manual'); showTab('production'); } });
+  }
+  // a small in-app confirm: { title, msg, note, yes, no, onYes }
+  function appConfirm(o) {
+      let m = document.getElementById('po-modal');
+      if (!m) { m = document.createElement('div'); m.id = 'po-modal'; m.className = 'po-modal'; document.body.appendChild(m); }
+      m.innerHTML = `<div class="po-dialog" role="alertdialog" aria-modal="true" aria-labelledby="po-mh"><h3 id="po-mh">${esc(o.title)}</h3><p>${esc(o.msg)}</p>${o.note ? `<p class="po-note">${esc(o.note)}</p>` : ''}` +
+                    `<div class="po-acts"><button type="button" class="btn-plain" id="po-no">${esc(o.no || 'Cancel')}</button><button type="button" class="btn-filled" id="po-yes">${esc(o.yes || 'OK')}</button></div></div>`;
+      m.style.display = 'flex';
+      let close = () => { m.style.display = 'none'; };
+      m.querySelector('#po-no').onclick = close;
+      m.querySelector('#po-yes').onclick = () => { close(); o.onYes(); };
+      m.onclick = e => { if (e.target === m) close(); };
+      m.querySelector('#po-yes').focus();
+  }
+
+  // ---------- v4.9: Pages organizer (top of the Specs column) ----------
+  const FIT_OK = 0.8;                            // tables may shrink to 80% before a page counts as too full
+  function pageFit(page) {
+      let lay = fitTable(page), ncol = detailColumns((page.drawings || []).length);
+      let maxH = PG.AB.h - 30 - 30 - 26 - 60, maxW = PG.AB.w - 52 - (ncol ? ncol * (DD.T + DD.G) + 14 : 0);
+      return { s: lay.s, over: lay.h > maxH + 0.5 || lay.w > maxW + 0.5, tight: lay.s < FIT_OK - 1e-6 || lay.h > maxH + 0.5 || lay.w > maxW + 0.5 };
+  }
+  function renderPageOrg(pages) {
+      let box = document.getElementById('page-org'); if (!box) return;
+      let tp = pages.map((pg, i) => ({ pg, num: i + 1 + (withCover ? 1 : 0) })).filter(x => !x.pg.blank && x.pg.blocks.length);
+      let sec = document.getElementById('pp-org-sec'), cnt = document.getElementById('po-count');
+      if (!tp.length) { if (sec) sec.style.display = 'none'; box.innerHTML = ''; return; }
+      if (sec) sec.style.display = ''; if (cnt) cnt.innerText = String(tp.length);
+      let card = b => { let it = pkgItems.find(x => x.iid === b.part.iid), pn = prName(it), t = partLabel(b.part);
+          return `<div class="po-card" draggable="true" data-uid="${b.part.uid}" title="Drag onto another page to share it, or between pages for its own page">` +
+                 `<span class="po-grip" aria-hidden="true"><svg viewBox="0 0 10 16" width="8" height="13"><g fill="currentColor"><circle cx="2" cy="2" r="1.4"/><circle cx="8" cy="2" r="1.4"/><circle cx="2" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="2" cy="14" r="1.4"/><circle cx="8" cy="14" r="1.4"/></g></svg></span>` +
+                 `<span class="po-t">${esc(t)}${t.toUpperCase() !== pn.toUpperCase() ? `<small>${esc(pn)}</small>` : ''}</span></div>`; };
+      let gap = i => `<div class="po-gap" data-at="${i}"><span>New page</span></div>`;
+      box.innerHTML = `<div class="po-head"><span class="po-hint">Drag tables to share a page or split them</span>` +
+          (pageLayout ? `<button type="button" class="po-reset" onclick="resetPageLayout()" title="Go back to the automatic page layout">Automatic</button>` : '') + `</div>` +
+          `<div class="po-list">` + tp.map((x, i) => { let f = pageFit(x.pg);
+              return gap(i) + `<div class="po-page${f.tight ? ' tight' : ''}" data-i="${i}"><div class="po-ph"><b>Page ${x.num}</b>` +
+                     (f.tight ? `<span class="po-warn" title="Taller than the recommended table height: the tables print at ${Math.round(f.s * 100)}% size${f.over ? ' and still overflow' : ''}">&#9888; ${f.over ? 'Too tall' : Math.round(f.s * 100) + '% size'}</span>` : '') +
+                     `</div>${x.pg.blocks.map(card).join('')}</div>`; }).join('') + gap(tp.length) + `</div>`;
+      box._pages = tp.map(x => x.pg);
+  }
+  let poOpen = true;
+  function togglePageOrg() { poOpen = !poOpen; renderPageOrg(packagePages()); }
+  function currentLayout() {                     // what the organizer shows, as a layout
+      let pages = (document.getElementById('page-org') || {})._pages || packagePages().filter(pg => !pg.blank && pg.blocks.length);
+      return pages.map(pg => ({ id: pg.gid || 'g' + (++pageGid), uids: pg.blocks.map(b => b.part.uid) }));
+  }
+  function resetPageLayout() { pageLayout = null; pageOrder = []; renderPreview(); toast('Automatic page layout.'); }
+  // move table uid into page i (before card `before`), or onto a new page at gap position `at`
+  function movePageTable(uid, target, before) {
+      let lay = currentLayout();
+      lay.forEach(g => { g.uids = g.uids.filter(u => u !== uid); });
+      if (target.at != null) lay.splice(target.at, 0, { id: 'g' + (++pageGid), uids: [uid] });
+      else { let g = lay[target.i]; if (!g) return; let k = before ? g.uids.indexOf(before) : -1; if (k === -1) g.uids.push(uid); else g.uids.splice(k, 0, uid); }
+      pageLayout = lay.filter(g => g.uids.length); pageOrder = [];
+      renderPreview();
+  }
+  function tryJoinPage(uid, i, before) {
+      let lay = currentLayout(), g = lay[i]; if (!g || g.uids.indexOf(uid) !== -1 && !before) { movePageTable(uid, { i }, before); return; }
+      let uids = g.uids.filter(u => u !== uid).concat([uid]);
+      let itemOf = u => { let p = allParts.find(x => x.uid === u); return p && pkgItems.find(it => it.iid === p.iid); };
+      let blocks = uids.map(u => { let p = allParts.find(x => x.uid === u); return p && p.enabled ? partBlock(p, itemOf(u)) : null; }).filter(Boolean);
+      if (blocks.length > 1) {
+          let items = []; blocks.forEach(b => { let it = itemOf(b.part.uid); if (items.indexOf(it) === -1) items.push(it); });
+          let pg = { item: items[0], blocks, mix: items.length > 1 ? items.slice(1) : undefined }; pg.drawings = pageDrawings(items[0], blocks).shown;
+          let f = pageFit(pg);
+          if (f.tight) {
+              askPageFit(`Together these tables print at ${Math.round(f.s * 100)}% size${f.over ? ' and still run off the page' : ''}.`,
+                          () => movePageTable(uid, { i }, before));
+              return;
+          }
+      }
+      movePageTable(uid, { i }, before);
+  }
+  function askPageFit(msg, go) {
+      let m = document.getElementById('po-modal');
+      if (!m) { m = document.createElement('div'); m.id = 'po-modal'; m.className = 'po-modal'; document.body.appendChild(m); }
+      m.innerHTML = `<div class="po-dialog" role="alertdialog" aria-modal="true" aria-labelledby="po-mh"><h3 id="po-mh">&#9888; Taller than recommended</h3><p>${esc(msg)}</p><p>Put them on one page anyway?</p>` +
+                    `<div class="po-acts"><button type="button" class="btn-plain" id="po-no">Keep them apart</button><button type="button" class="btn-filled" id="po-yes">Proceed</button></div></div>`;
+      m.style.display = 'flex';
+      let close = () => { m.style.display = 'none'; };
+      m.querySelector('#po-no').onclick = close;
+      m.querySelector('#po-yes').onclick = () => { close(); go(); };
+      m.onclick = e => { if (e.target === m) close(); };
+      m.querySelector('#po-yes').focus();
+  }
+  // drag and drop (mouse); Alt+Up / Alt+Down on a focused card moves it a page up or down
+  let poDrag = null;
+  document.addEventListener('dragstart', e => {
+      let c = e.target.closest && e.target.closest('#page-org .po-card'); if (!c) return;
+      poDrag = c.dataset.uid; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', poDrag); } catch (x) { /* ignore */ }
+      setTimeout(() => c.classList.add('dragging'), 0);
+  });
+  document.addEventListener('dragend', () => { poDrag = null; document.querySelectorAll('#page-org .dragging, #page-org .over').forEach(el => el.classList.remove('dragging', 'over')); });
+  document.addEventListener('dragover', e => {
+      if (!poDrag) return;
+      let t = e.target.closest && e.target.closest('#page-org .po-page, #page-org .po-gap'); if (!t) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('#page-org .over').forEach(el => { if (el !== t) el.classList.remove('over'); });
+      t.classList.add('over');
+  });
+  document.addEventListener('drop', e => {
+      if (!poDrag) return;
+      let t = e.target.closest && e.target.closest('#page-org .po-page, #page-org .po-gap'); if (!t) return;
+      e.preventDefault();
+      let uid = poDrag; poDrag = null; t.classList.remove('over');
+      if (t.classList.contains('po-gap')) { movePageTable(uid, { at: +t.dataset.at }); return; }
+      let card = e.target.closest('.po-card'), before = null;
+      if (card && card.dataset.uid !== uid) { let r = card.getBoundingClientRect(); before = e.clientY < r.top + r.height / 2 ? card.dataset.uid : (card.nextElementSibling && card.nextElementSibling.dataset.uid) || null; }
+      tryJoinPage(uid, +t.dataset.i, before);
+  });
+
   // staging: page order the designer dragged in the Pages panel (keys "item:n"); new pages keep their natural place
   let pageOrder = [];
   function orderPages(pages) {
@@ -2481,7 +2774,7 @@
       let P = { lab: 8.3 * s, val: 12.2 * s, padX: 8.5 * s, padY: 8 * s, gap: 5.5 * s, lineH: 14.8 * s };   // staging: larger for print
       let label = item.label.toUpperCase() + ':';
       let lw = tw(label, P.lab, true);
-      let hasSw = item.gradient || item.svg || (item.hex && (!item.warn || item.warnLabel === 'LOW CONTRAST'));
+      let hasSw = item.gradient || item.svg || (item.hex && (!item.warn || item.warnLabel === 'LOW CONTRAST')) || (item.emptySw && !item.warn);
       let swW = hasSw ? (item.svg ? 24 * s : 34 * s) + 8 * s : 0;
       let text = item.warn ? `${item.warnLabel}: ${item.val}` : item.val;
       let maxVal = Math.max(90 * s, 290 * s - lw - P.gap - swW - 2 * P.padX);
@@ -2565,8 +2858,8 @@
                      `<g transform="translate(${(sx + (sz - vb[2] * k) / 2).toFixed(2)},${(sy + (sz - vb[3] * k) / 2).toFixed(2)}) scale(${k.toFixed(4)})"><path d="${esc(it.svg.path)}" fill="${it.picFill || '#000000'}"/></g>`;
           } else {
               let sw = 34 * (P.val / 11), sh = 14 * (P.val / 11), sy = y + (h - sh) / 2;
-              let fill = it.gradient ? 'url(#fullcolor)' : (normHex(it.hex) === 'transparent' ? '#FFFFFF' : normHex(it.hex));
-              out += R(sx, sy, sw, sh, fill, '#555555', 0.9);
+              let fill = it.emptySw && !it.hex ? '#FFFFFF' : it.gradient ? 'url(#fullcolor)' : (normHex(it.hex) === 'transparent' ? '#FFFFFF' : normHex(it.hex));
+              out += it.emptySw && !it.hex ? `<g id="Color_Box_Empty">${R(sx, sy, sw, sh, fill, '#000000', 0.9)}</g>` : R(sx, sy, sw, sh, fill, '#555555', 0.9);
               if (normHex(it.hex) === 'transparent') out += L(sx, sy + sh, sx + sw, sy, '#999999', 0.6);
           }
       }
@@ -2741,7 +3034,7 @@
       o += `<g id="Artboard">` + R(AB.x, AB.y, AB.w, AB.h, '#FFFFFF');
       let lay = page.blocks.length ? fitTable(page) : null;
       o += drawArt(page, artRegion(page, lay));          // staging: images and measurements sit UNDER the watermark and table
-      o += drawMeasures(page);
+      o += drawMeasures(page) + drawTexts(page);
       if (String(TEMPLATE.Watermark || 'On').toUpperCase() !== 'OFF')
           o += `<g id="Watermark"${EXPORTING ? '' : ' pointer-events="none"'}>` + IMG(AB.x, AB.y, AB.w, AB.h, watermarkImage(), 'none') + `</g>`;
       if (lay) o += drawTable(page, lay, AB.x + 26, AB.y + AB.h - 30);
@@ -2769,7 +3062,7 @@
       let o = sheetHead().replace('</defs>', EXPORTING ? '</defs>' : `<clipPath id="abclip"><rect x="${AB.x}" y="${AB.y}" width="${AB.w}" height="${AB.h}"/></clipPath></defs>`) +
               `<g id="Artboard">` + R(AB.x, AB.y, AB.w, AB.h, '#FFFFFF');
       let region = { x: AB.x + 16, y: AB.y + 16, w: AB.w - 32, h: AB.h - 32 };
-      o += drawArt(COVER_PAGE, region) + drawMeasures(COVER_PAGE);
+      o += drawArt(COVER_PAGE, region) + drawMeasures(COVER_PAGE) + drawTexts(COVER_PAGE);
       if (String(TEMPLATE.Watermark || 'On').toUpperCase() !== 'OFF')
           o += `<g id="Watermark"${EXPORTING ? '' : ' pointer-events="none"'}>` + IMG(AB.x, AB.y, AB.w, AB.h, watermarkImage(), 'none') + `</g>`;
       o += drawArtHandles(COVER_PAGE, region) + R(AB.x, AB.y, AB.w, AB.h, 'none', LINE, 0.8) + `</g>`;
@@ -2803,16 +3096,17 @@
       let o = sheetHead() + (EXPORTING ? '' : `<defs><clipPath id="prodclip"><rect x="${A.x}" y="${A.y}" width="${A.w}" height="${A.h}"/></clipPath></defs>`) +
               `<g id="Artboard">` + R(A.x, A.y, A.w, A.h, '#FFFFFF');
       let lay = page.blocks.length ? fitProdTable(page) : null, region = prodArtRegion(lay);
+      if (page.prodExtra) { o += `<g id="Page_Title">` + T(A.x + 20, A.y + 34, String(page.title).toUpperCase(), 18, { bold: true, fill: PROD, ls: 1 }) + `</g>`; region = { x: region.x, y: region.y + 34, w: region.w, h: region.h - 34 }; }
       ART_AB = A; ART_CLIP = 'prodclip';
       try { o += drawArt(page, region); } finally { ART_AB = null; ART_CLIP = 'abclip'; }
-      o += drawMeasures(page);
+      o += drawMeasures(page) + drawTexts(page);
       if (lay) {
           let x = A.x + 20, bottom = A.y + A.h - 14, bs = 12 * Math.max(lay.s, 0.8), badgeTop = bottom - lay.h - bs * 1.9;
           let keep = TBL; TBL = TBL_PROD; BADGE_PREFIX = String(info.custName || '').toUpperCase();
           try { o += drawTable(page, lay, x, bottom); } finally { TBL = keep; BADGE_PREFIX = ''; }
       }
       o += drawArtHandles(page, region) + `</g>`;
-      let what = `${pageName(page).toUpperCase()}${page.total > 1 ? ` ${page.n}/${page.total}` : ''}`;
+      let what = page.prodExtra ? String(page.title).toUpperCase() : `${pageName(page).toUpperCase()}${page.total > 1 ? ` ${page.n}/${page.total}` : ''}`;
       return o + productionFrame(`PRODUCTION PROOF ${n} / ${total}`, [prodTicket(info), what].filter(Boolean).join(' · ')) + `</svg>`;
   }
 
@@ -2880,8 +3174,11 @@
   // every spec of the job, flat: product, section, label, value, swatch
   function jobSpecs() {
       let out = [];
-      pkgItems.forEach(it => allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => collectPartItems(part).forEach(i =>
-          out.push({ product: prName(it), section: partLabel(part), label: String(i.label).toUpperCase(), val: i.val, hex: i.hex, gradient: i.gradient, warn: i.warn, tbd: i.tbd, segs: i.segs }))));
+      pkgItems.forEach(it => allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => {
+          let noRoute = part.comp === 'CORO_SIGN' && !/^\s*yes/i.test(getRaw(part, 'ROUTING'));     // we only route Coroplast to shape
+          collectPartItems(part).forEach(i =>
+              out.push({ product: prName(it), section: partLabel(part), label: String(i.label).toUpperCase(), val: i.val, hex: i.hex, gradient: i.gradient, warn: i.warn, tbd: i.tbd, segs: i.segs, noRoute }));
+      }));
       return out;
   }
   function specDepts(sp) {
@@ -2893,6 +3190,7 @@
       if (/ORACAL|ARLON|3M |VINYL|PRINT/.test(V) && d.indexOf('vinyl') === -1 && /COLOR|GRAPHIC|FACE/.test(L)) d.push('vinyl');
       if (/ROUTED|ROUTING/.test(V) && d.indexOf('cnc') === -1) d.push('cnc');
       if (/LETTERS/.test(sp.product.toUpperCase()) && /QTY|TEXT|THICKNESS/.test(L) && d.indexOf('cnc') === -1) d.push('cnc');
+      if (sp.noRoute) d = d.filter(x => x !== 'cnc');
       return d;
   }
   function snapshotData(pages) {
@@ -3570,8 +3868,8 @@
   // v4.7: layers picked in the Layers panel ('a0' = image 0, 'm1' = measurement 1) on the active page; groups live on the items (.grp)
   let layerSel = [], layerSelKey = null;
   function selLayers(key) { return layerSelKey === key ? layerSel : []; }
-  function layerItem(key, tok) { return tok[0] === 'a' ? (pageArt[key] || [])[+tok.slice(1)] : (pageMeasures[key] || [])[+tok.slice(1)]; }
-  function layerTokens(key) { return (pageArt[key] || []).map((a, i) => 'a' + i).concat((pageMeasures[key] || []).map((m, i) => 'm' + i)); }
+  function layerItem(key, tok) { return tok[0] === 'a' ? (pageArt[key] || [])[+tok.slice(1)] : tok[0] === 't' ? (pageTexts[key] || [])[+tok.slice(1)] : (pageMeasures[key] || [])[+tok.slice(1)]; }
+  function layerTokens(key) { return (pageArt[key] || []).map((a, i) => 'a' + i).concat((pageMeasures[key] || []).map((m, i) => 'm' + i)).concat((pageTexts[key] || []).map((t, i) => 't' + i)); }
   function groupTokens(key, grp) { return grp ? layerTokens(key).filter(t => (layerItem(key, t) || {}).grp === grp) : []; }
   function groupNames(key) {                           // G3 -> "Group 1" in the order the groups first appear
       let names = {}, n = 0;
@@ -3629,7 +3927,7 @@
   function regionFor(key) {
       let prod = /^prod-/.test(key), base = key.replace(/^prod-/, ''), AB = PG.AB;
       if (base === pageKey(COVER_PAGE)) return { x: AB.x + 16, y: AB.y + 16, w: AB.w - 32, h: AB.h - 32 };
-      let page = packagePages().find(p => pageKey(p) === base); if (!page) return null;
+      let page = (prod ? prodPageList() : packagePages()).find(p => pageKey(p) === base); if (!page) return null;
       return prod ? prodArtRegion(page.blocks.length ? fitProdTable(page) : null) : artRegion(page, page.blocks.length ? fitTable(page) : null);
   }
   // set an image's scale / offset so it lands exactly on rect (page units), whatever the region and image count
@@ -3639,25 +3937,27 @@
       a.dx = rect.x + rect.w / 2 - (region.x + i * (cw + gap) + cw / 2); a.dy = rect.y + rect.h / 2 - (region.y + region.h / 2);
   }
   function copyLayers() {
-      let key = layerSelKey, toks = selLayers(key); if (!key || !toks.length) { toast('Pick a layer in the Layers panel first (Ctrl+click for several).'); return; }
-      layerClip = { from: key, arts: [], meas: [] };
+      let key = layerSelKey, toks = selLayers(key); if (!key || !toks.length) { toast('Pick a layer first.'); return; }
+      layerClip = { from: key, arts: [], meas: [], texts: [] };
       toks.forEach(t => { let it = layerItem(key, t); if (!it) return;
           if (t[0] === 'a') { let reg = regionFor(key), arts = pageArt[key] || [];
                               layerClip.arts.push(Object.assign({}, it, { rect: reg ? artPlacement(reg, arts.length, +t.slice(1), it) : null })); }
+          else if (t[0] === 't') layerClip.texts.push(JSON.parse(JSON.stringify(it)));
           else layerClip.meas.push(JSON.parse(JSON.stringify(it))); });
-      let n = layerClip.arts.length + layerClip.meas.length;
-      toast(`Copied ${n} layer${n === 1 ? '' : 's'}. Pick any page (Design or Production) and press Ctrl+V or Paste.`);
+      let n = layerClip.arts.length + layerClip.meas.length + layerClip.texts.length;
+      toast(`Copied ${n} layer${n === 1 ? '' : 's'}. Select a page and press Ctrl+V.`);
       renderLayers();
   }
   function pasteLayers(key) {
       key = key || activeArtKey;
       if (!layerClip) { toast('Nothing copied yet: pick layers and press Ctrl+C or Copy.'); return; }
-      if (!key) { toast('Click a page\u2019s bar first (it turns gold), then paste.'); return; }
-      let arts = pageArt[key] = pageArt[key] || [], meas = pageMeasures[key] = pageMeasures[key] || [], off = 0;
+      if (!key) { toast('Select a page first, then paste.'); return; }
+      let arts = pageArt[key] = pageArt[key] || [], meas = pageMeasures[key] = pageMeasures[key] || [], txts = pageTexts[key] = pageTexts[key] || [], off = 0;
       let reg = regionFor(key), had = reg ? arts.map((x, i) => artPlacement(reg, arts.length, i, x)) : [];
       let near = (r, q, o) => r && q && Math.abs(r.x - (q.x + o)) < 0.5 && Math.abs(r.y - (q.y + o)) < 0.5 && Math.abs(r.w - q.w) < 0.5;
       let clash = o => layerClip.arts.some(a => arts.some((x, i) => x.src === a.src && near(had[i], a.rect, o))) ||
-                       layerClip.meas.some(m => meas.some(x => x.x1 === m.x1 + o && x.y1 === m.y1 + o));
+                       layerClip.meas.some(m => meas.some(x => x.x1 === m.x1 + o && x.y1 === m.y1 + o)) ||
+                       (layerClip.texts || []).some(t => txts.some(x => Math.abs(x.x - (t.x + o)) < 0.5 && Math.abs(x.y - (t.y + o)) < 0.5));
       while (clash(off) && off < 120) off += 12;                // already there: nudge the copy so it does not hide the original
       let used = layerTokens(key).map(t => +String((layerItem(key, t) || {}).grp || 'G0').slice(1)), next = Math.max.apply(null, used.concat([0])), remap = {};
       let grp = g => g ? (remap[g] = remap[g] || 'G' + (++next)) : undefined, toks = [];
@@ -3668,11 +3968,12 @@
           layerClip.arts.forEach((a, j) => { let i = had.length + j; if (a.rect) fitArtTo(reg, n, i, arts[i], { x: a.rect.x + off, y: a.rect.y + off, w: a.rect.w, h: a.rect.h }); });
       }
       layerClip.meas.forEach(m => { let c = JSON.parse(JSON.stringify(m)); c.x1 += off; c.y1 += off; c.x2 += off; c.y2 += off; if (m.grp) c.grp = grp(m.grp); else delete c.grp; meas.push(c); toks.push('m' + (meas.length - 1)); });
-      if (!arts.length) delete pageArt[key]; if (!meas.length) delete pageMeasures[key];
+      (layerClip.texts || []).forEach(t => { let c = JSON.parse(JSON.stringify(t)); c.x += off; c.y += off; if (t.grp) c.grp = grp(t.grp); else delete c.grp; txts.push(c); toks.push('t' + (txts.length - 1)); });
+      if (!arts.length) delete pageArt[key]; if (!meas.length) delete pageMeasures[key]; if (!txts.length) delete pageTexts[key];
       if (activeArtKey !== key) setActiveArt(key);
       layerSel = toks; layerSelKey = key; selArt = toks.length === 1 && toks[0][0] === 'a' ? `${key}|${toks[0].slice(1)}` : null;
       renderPreview();
-      toast(`Pasted ${toks.length} layer${toks.length === 1 ? '' : 's'} on ${pageLabel(key)}.`);
+      toast(`Pasted ${toks.length} layer${toks.length === 1 ? '' : 's'}.`);
   }
   // the other members of a dragged layer's group, moved live by (dx, dy) from their start positions
   function groupMover(key, tok) {
@@ -3681,14 +3982,16 @@
           let o = layerItem(key, t);
           if (t[0] === 'a') { let el = document.querySelector(`.sheet image[data-art="${key}|${t.slice(1)}"]`);
                               return { t, o, el, x: el ? +el.getAttribute('x') : 0, y: el ? +el.getAttribute('y') : 0, dx: o.dx, dy: o.dy }; }
+          if (t[0] === 't') return { t, o, el: document.querySelector(`.sheet g[data-txt="${key}|${t.slice(1)}"]`), x: o.x, y: o.y };
           return { t, o, x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 };
       });
       return {
           move(dx, dy) { others.forEach(m => {
               if (m.t[0] === 'a') { if (m.el) { m.el.setAttribute('x', (m.x + dx).toFixed(2)); m.el.setAttribute('y', (m.y + dy).toFixed(2)); } }
+              else if (m.t[0] === 't') { if (m.el) m.el.setAttribute('transform', `translate(${dx.toFixed(2)} ${dy.toFixed(2)})`); }
               else { m.o.x1 = m.x1 + dx; m.o.y1 = m.y1 + dy; m.o.x2 = m.x2 + dx; m.o.y2 = m.y2 + dy; patchMeasure(key, +m.t.slice(1)); }
           }); },
-          done(dx, dy) { others.forEach(m => { if (m.t[0] === 'a') { m.o.dx = m.dx + dx; m.o.dy = m.dy + dy; } }); }
+          done(dx, dy) { others.forEach(m => { if (m.t[0] === 'a') { m.o.dx = m.dx + dx; m.o.dy = m.dy + dy; } else if (m.t[0] === 't') { m.o.x = m.x + dx; m.o.y = m.y + dy; } }); }
       };
   }
   function drawArtHandles(page, region) {
@@ -3714,6 +4017,7 @@
       groupTokens(key, grp).forEach(t => {
           let it = layerItem(key, t);
           if (t[0] === 'a') { let r = artPlacement(region, arts.length, +t.slice(1), it); add(r.x, r.y); add(r.x + r.w, r.y + r.h); }
+          else if (t[0] === 't') { let b = textBox(it); add(b.x, b.y); add(b.x + b.w, b.y + b.h); }
           else { add(it.x1, it.y1); add(it.x2, it.y2); }
       });
       return box && { x: box.x0 - 6, y: box.y0 - 6, w: box.x1 - box.x0 + 12, h: box.y1 - box.y0 + 12 };
@@ -3741,6 +4045,7 @@
           let o = layerItem(key, t);
           if (t[0] === 'a') { let el = svg.querySelector(`image[data-art="${key}|${t.slice(1)}"]`);
                               return { t, o, el, r: el ? { x: +el.getAttribute('x'), y: +el.getAttribute('y'), w: +el.getAttribute('width'), h: +el.getAttribute('height') } : null, s0: o.scale, dx0: o.dx, dy0: o.dy }; }
+          if (t[0] === 't') return { t, o, t0: JSON.parse(JSON.stringify({ x: o.x, y: o.y, w: o.w, paras: o.paras })), el: svg.querySelector(`g[data-txt="${key}|${t.slice(1)}"]`) };
           return { t, o, m0: { x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 } };
       });
       let sc = (v, a) => a + (v - a) * k;
@@ -3752,12 +4057,15 @@
           items.forEach(it => {
               if (it.t[0] === 'a') { if (it.el && it.r) { it.el.setAttribute('x', sc(it.r.x, ax).toFixed(2)); it.el.setAttribute('y', sc(it.r.y, ay).toFixed(2));
                                                          it.el.setAttribute('width', (it.r.w * k).toFixed(2)); it.el.setAttribute('height', (it.r.h * k).toFixed(2)); } }
+              else if (it.t[0] === 't') { if (it.el) it.el.setAttribute('transform', `translate(${(ax * (1 - k)).toFixed(2)} ${(ay * (1 - k)).toFixed(2)}) scale(${k.toFixed(4)})`); }
               else { it.o.x1 = sc(it.m0.x1, ax); it.o.y1 = sc(it.m0.y1, ay); it.o.x2 = sc(it.m0.x2, ax); it.o.y2 = sc(it.m0.y2, ay); patchMeasure(key, +it.t.slice(1)); }
           });
       };
       let up = () => {
           document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up);
           items.forEach(it => {
+              if (it.t[0] === 't') { it.o.x = sc(it.t0.x, ax); it.o.y = sc(it.t0.y, ay); it.o.w = it.t0.w * k;
+                                     it.o.paras = it.t0.paras.map(p => p.map(r => Object.assign({}, r, { s: Math.max(2, Math.round((r.s || TXT_DEF) * k * 2) / 2) }))); return; }
               if (it.t[0] !== 'a' || !it.r) return;
               let cx = it.r.x + it.r.w / 2, cy = it.r.y + it.r.h / 2;
               it.o.scale = Math.min(8, Math.max(0.05, it.s0 * k)); it.o.dx = it.dx0 + (sc(cx, ax) - cx); it.o.dy = it.dy0 + (sc(cy, ay) - cy);
@@ -3784,7 +4092,7 @@
   function drawArt(page, region) {
       let arts = pageArt[artKey(page)] || [];
       if (!arts.length || region.w < 40 || region.h < 40) return '';
-      let o = EXPORTING ? `<g id="Artwork">` : `<g id="Artwork" clip-path="url(#${ART_CLIP})">`;
+      let o = EXPORTING || SYNC_VIEW ? `<g id="Artwork">` : `<g id="Artwork" clip-path="url(#${ART_CLIP})">`;
       arts.forEach((a, i) => {
           let r = artPlacement(region, arts.length, i, a), src = a.src;
           if (EXPORTING) { let c = cropArt(a, r); if (!c) return; r = c; src = c.src; }
@@ -3850,23 +4158,77 @@
       key = activeArtKey;
       document.querySelectorAll('.sheet-tools').forEach(el => el.classList.toggle('active', el.dataset.key === key));
       document.querySelectorAll('.sheet[data-key]').forEach(el => el.classList.toggle('active', el.dataset.key === key));
-      renderPagePanelMarks(); renderLayers();
+      renderPagePanelMarks(); renderLayers(); renderPageBar();
   }
   function artScale(key, i, f) { let a = (pageArt[key] || [])[i]; if (a) { a.scale = Math.min(4, Math.max(0.1, a.scale * f)); renderPreview(); } }
   function artFit(key, i) { let a = (pageArt[key] || [])[i]; if (a) { a.scale = 1; a.dx = 0; a.dy = 0; renderPreview(); } }
   function artRemove(key, i) { let l = pageArt[key] || []; l.splice(i, 1); if (!l.length) delete pageArt[key]; if (selArt && selArt.indexOf(key + '|') === 0) selArt = null; renderPreview(); }
 
   function artToolbar(p, pageNo) {
-      let key = artKey(p), arts = pageArt[key] || [], meas = pageMeasures[key] || [];
-      let b = (fn, label, title, cls) => `<button type="button" class="st-btn${cls ? ' ' + cls : ''}" title="${title}" onclick="event.stopPropagation(); ${fn}">${label}</button>`;
-      return `<div class="sheet-tools${key === activeArtKey ? ' active' : ''}" id="bar-${key.replace(':', '-')}" data-key="${key}" onclick="setActiveArt('${key}', true)" title="Click to select this page (Ctrl+V pastes a screenshot onto it); click again to deselect">` +
-             `<span class="st-title">Page ${pageNo} &middot; ${p.cover ? 'Cover' : esc(prName(p.item))}${p.blank ? ' &middot; ' + esc(p.title) : ''}${p.total > 1 ? ` <span class="st-note">${p.n} of ${p.total}</span>` : ''}</span>` +
-             b(`pickArt('${key}')`, '+ Add image', 'Add JPEG / PNG artwork or screenshots to this page (or drop / paste them)') +
-             b(`toggleMeasure('${key}')`, measureKey === key ? 'Measuring… (Esc)' : '+ Add measurement', 'Draw a dimension line: click, drag and release on the page (Shift = straight)', 'st-measure' + (measureKey === key ? ' on' : '')) +
-             (arts.length || meas.length ? `<span class="st-hint">${arts.length} image${arts.length === 1 ? '' : 's'} &middot; ${meas.length} measurement${meas.length === 1 ? '' : 's'}</span>`
-                                         : `<span class="st-hint">${key === activeArtKey ? 'selected: Ctrl+V pastes here' : 'drop an image here, or select and Ctrl+V'}</span>`) +
+      let key = artKey(p);
+      return `<div class="sheet-tools${key === activeArtKey ? ' active' : ''}" id="bar-${key.replace(':', '-')}" data-key="${key}" onclick="setActiveArt('${key}', true)" title="Click to select this page">` +
+             (p.prodExtra ? `<span class="st-title">Page ${pageNo} &middot; <input type="text" class="st-name" value="${esc(p.title)}" aria-label="Page name" title="Page name (prints on the page)" onclick="event.stopPropagation()" onchange="renameProdPage(${p.xid}, this.value)"></span>`
+                          : `<span class="st-title">Page ${pageNo} &middot; ${p.cover ? 'Cover' : esc(prName(p.item))}${p.blank ? ' &middot; ' + esc(p.title) : ''}${p.total > 1 ? ` <span class="st-note">${p.n} of ${p.total}</span>` : ''}</span>`) +
+             (p.prodExtra ? `<button type="button" class="st-btn st-remove" onclick="event.stopPropagation(); removeProdPage(${p.xid})">Remove page</button>` : '') +
              `</div>`;
   }
+  // ---------- v4.10: ONE toolbar for the selected page (top of the pages), with zoom ----------
+  let pageZoom = 'fit';
+  try { pageZoom = localStorage.getItem('ss_zoom') || 'fit'; } catch (e) { /* storage off */ }
+  const ZOOMS = [['fit', 'Fit width'], ['page', 'Fit page'], ['0.5', '50%'], ['0.75', '75%'], ['1', '100%'], ['1.25', '125%'], ['1.5', '150%'], ['2', '200%']];
+  function renderPageBar() {
+      let bar = document.getElementById(step === 'production' ? 'pbar-prod' : 'pbar-design'); if (!bar) return;
+      let key = activeArtKey, el = key && document.querySelector(`.sheet-tools[data-key="${key}"] .st-title`), on = !!(key && el);
+      let label = on ? (el.querySelector('input') ? el.innerText.replace(/·\s*$/, '· ' + el.querySelector('input').value) : el.innerText) : '';
+      let b = (fn, txt, title, cls) => `<button type="button" class="pb-btn${cls ? ' ' + cls : ''}" ${on ? `onclick="${fn}"` : 'disabled'} title="${title}">${txt}</button>`;
+      let ic = d => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+      let side = (k, d, t) => `<button type="button" class="pb-side${sidesHidden[k] ? ' off' : ''}" onclick="toggleSide('${k}')" aria-pressed="${!sidesHidden[k]}" title="${sidesHidden[k] ? 'Show' : 'Hide'} the ${t}">` +
+          `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="${d}"/></svg></button>`;
+      bar.innerHTML = side('left', 'M9 4v16', 'left panel') + `<span class="pb-page">${on ? esc(label.trim()) : '<i>Click a page to select it</i>'}</span>` +
+          b(`pickArt('${key}')`, ic('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>') + 'Image', 'Add an image (or paste / drop one on the page)') +
+          b(`toggleMeasure('${key}')`, ic('<path d="M3 12h18M3 8v8M21 8v8"/>') + (measureKey && measureKey === key ? 'Measuring… (Esc)' : 'Measurement'), 'Draw a dimension line (Shift = straight)', measureKey && measureKey === key ? 'on' : '') +
+          b(`addText('${key}')`, ic('<path d="M5 6h14M12 6v13"/>') + 'Text', 'Add a text box') +
+          `<span class="pb-zoom"><button type="button" class="pb-z" onclick="stepZoom(-1)" aria-label="Zoom out" title="Zoom out">&minus;</button>` +
+          `<select class="pb-zsel" aria-label="Zoom" title="Zoom (or Ctrl + scroll wheel)" onchange="setZoom(this.value)">${ZOOMS.some(z => z[0] === String(pageZoom)) ? '' : `<option value="${pageZoom}" selected>${Math.round(+pageZoom * 100)}%</option>`}${ZOOMS.map(([v, t]) => `<option value="${v}"${String(pageZoom) === v ? ' selected' : ''}>${t}</option>`).join('')}</select>` +
+          `<button type="button" class="pb-z" onclick="stepZoom(1)" aria-label="Zoom in" title="Zoom in">+</button></span>` + side('right', 'M15 4v16', 'right panel');
+  }
+  let sidesHidden = { left: false, right: false };
+  try { sidesHidden = Object.assign(sidesHidden, JSON.parse(localStorage.getItem('ss_sides') || '{}')); } catch (e) { /* storage off */ }
+  function applySides() { document.body.classList.toggle('hide-left', !!sidesHidden.left); document.body.classList.toggle('hide-right', !!sidesHidden.right); }
+  function toggleSide(k) { sidesHidden[k] = !sidesHidden[k]; try { localStorage.setItem('ss_sides', JSON.stringify(sidesHidden)); } catch (e) { /* storage off */ } applySides(); applyZoom(); renderPageBar(); }
+  setTimeout(applySides, 0);
+  function setZoom(v) { pageZoom = v; try { localStorage.setItem('ss_zoom', v); } catch (e) { /* storage off */ } applyZoom(); renderPageBar(); }
+  function stepZoom(d) {
+      let nums = ZOOMS.filter(z => !isNaN(+z[0])).map(z => +z[0]), cur = isNaN(+pageZoom) ? zoomNow() : +pageZoom;
+      let next = d > 0 ? nums.find(z => z > cur + 0.01) : nums.slice().reverse().find(z => z < cur - 0.01);
+      if (next) setZoom(String(next));
+  }
+  function zoomNow() { let s_ = document.querySelector(step === 'production' ? '#qa-sheets' : '#sheets'); return s_ ? s_.getBoundingClientRect().width / 1056 : 1; }
+  function applyZoom() {
+      ['sheets', 'qa-sheets'].forEach(id => {
+          let box = document.getElementById(id); if (!box) return;
+          let area = box.parentElement, aw = area.clientWidth - 56;
+          let w = pageZoom === 'fit' ? null : pageZoom === 'page' ? Math.min(aw, (area.clientHeight - 175) * 1100 / 850) : 1056 * +pageZoom;
+          box.style.maxWidth = 'none'; box.style.width = w ? Math.max(300, w) + 'px' : '';
+      });
+  }
+  window.addEventListener('resize', () => { if (pageZoom === 'page') applyZoom(); });
+  document.addEventListener('wheel', e => {
+      if (!(e.ctrlKey || e.metaKey) || !e.target.closest || !e.target.closest('#preview-area, #qa-area')) return;
+      e.preventDefault();
+      let area = e.target.closest('#preview-area, #qa-area'), box = area.querySelector('#sheets, #qa-sheets');
+      let cur = isNaN(+pageZoom) ? box.getBoundingClientRect().width / 1056 : +pageZoom;
+      let next = Math.min(3, Math.max(0.3, cur * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
+      let r = area.getBoundingClientRect(), fx = (e.clientX - r.left + area.scrollLeft) / area.scrollWidth, fy = (e.clientY - r.top + area.scrollTop) / area.scrollHeight;
+      pageZoom = String(Math.round(next * 100) / 100); applyZoom();
+      area.scrollLeft = fx * area.scrollWidth - (e.clientX - r.left); area.scrollTop = fy * area.scrollHeight - (e.clientY - r.top);   // zoom around the pointer
+      clearTimeout(applyZoom._t); applyZoom._t = setTimeout(() => { try { localStorage.setItem('ss_zoom', pageZoom); } catch (x) { /* storage off */ } renderPageBar(); }, 200);
+  }, { passive: false });
+  // a click anywhere on a page selects it
+  document.addEventListener('click', e => {
+      let sh = e.target.closest && e.target.closest('.sheet[data-key]'); if (!sh || measureKey || txtEdit) return;
+      if (activeArtKey !== sh.dataset.key) setActiveArt(sh.dataset.key);
+  });
 
   let thumbN = 0;
   function inlineSvg(svg) {
@@ -3923,15 +4285,18 @@
       let box = document.getElementById('pl-list'), lab = document.getElementById('pl-page'); if (!box) return;
       let key = activeArtKey;
       if (!key) { if (lab) lab.innerText = ''; box.innerHTML = '<div class="pl-empty">Select a page to see its images and measurements.</div>'; return; }
-      let pages = packagePages(), pi = pages.findIndex(p => artKey(p) === key);
+      let pages = step === 'production' ? prodPageList() : packagePages(), pi = pages.findIndex(p => artKey(p) === key);
       let coff = step === 'design' && withCover ? 1 : 0;
       if (lab) lab.innerText = key === artKey(COVER_PAGE) ? '· cover' : (pi === -1 ? '' : `· page ${pi + 1 + coff}`);
-      let arts = pageArt[key] || [], meas = pageMeasures[key] || [], sel = selLayers(key), names = groupNames(key);
+      let arts = pageArt[key] || [], meas = (pageMeasures[key] || []).concat(pageTexts[key] || []), sel = selLayers(key), names = groupNames(key);
       let row = t => {
           let it = layerItem(key, t), on = sel.indexOf(t) !== -1 ? ' on' : '', gc = it.grp ? ' pl-in-grp' : '', i = +t.slice(1);
           if (t[0] === 'a') return `<div class="pl-row${on}${gc}" onclick="pickLayer('${key}', '${t}', event)"><span class="pl-ic">&#9635;</span>` +
               `<span class="pl-name" title="${esc(it.name)}">${esc(it.name || 'Image ' + (i + 1))}</span>` +
               `<button type="button" class="pl-x" title="Remove this image" onclick="event.stopPropagation(); selArt = null; clearLayerSel(); artRemove('${key}', ${i})">&times;</button></div>`;
+          if (t[0] === 't') return `<div class="pl-row${on}${gc}" onclick="pickLayer('${key}', '${t}', event)" ondblclick="openTextEditor('${key}', ${i})" title="Double-click to edit"><span class="pl-ic pl-txt">T</span>` +
+              `<span class="pl-name">${esc(txtName(it))}</span>` +
+              `<button type="button" class="pl-x" title="Remove this text" onclick="event.stopPropagation(); removeText('${key}', ${i})">&times;</button></div>`;
           return `<div class="pl-row${on}${gc}" onclick="pickLayer('${key}', '${t}', event)"><span class="pl-ic pl-red">&#8596;</span>` +
               `<input type="text" id="meas-${key}-${i}" class="pl-in" value="${esc(it.label)}" placeholder="inches" title="Value printed on the line" oninput="setMeasureLabel('${key}', ${i}, this.value)">` +
               `<button type="button" class="pl-x" title="Remove this measurement" onclick="event.stopPropagation(); clearLayerSel(); removeMeasure('${key}', ${i})">&times;</button></div>`;
@@ -3945,8 +4310,8 @@
           html += `<div class="pl-grp${allOn ? ' on' : ''}"><div class="pl-row pl-grp-head${allOn ? ' on' : ''}" onclick="pickGroup('${key}', '${g}', event)" title="Click to select the whole group">` +
                   `<span class="pl-ic">&#10697;</span><span class="pl-name">${esc(names[g])}</span><span class="pl-count">${toks.length}</span></div>` + toks.map(row).join('') + `</div>`;
       });
-      if (!arts.length && !meas.length) html += `<div class="pl-empty">No images or measurements on this page yet. Use + Add image / + Add measurement on the page bar${layerClip ? ', or paste copied layers' : ''}.</div>`;
-      let nClip = layerClip ? layerClip.arts.length + layerClip.meas.length : 0;
+      if (!arts.length && !meas.length) html += `<div class="pl-empty">No images, measurements or text on this page yet. Use Image / Measurement / Text in the toolbar above the pages${layerClip ? ', or paste copied layers' : ''}.</div>`;
+      let nClip = layerClip ? layerClip.arts.length + layerClip.meas.length + (layerClip.texts || []).length : 0;
       if (arts.length + meas.length || nClip) {
           let grouped = sel.some(t => (layerItem(key, t) || {}).grp);
           if (arts.length + meas.length > 1)
@@ -3958,6 +4323,210 @@
       }
       box.innerHTML = html;
   }
+
+  // =====================================================================
+  //  v4.10 TEXT LAYERS: { x, y, w, align, paras: [[{ t, b, i, u, c, s }]], grp }  (s = size in page units, 1 = 0.01")
+  // =====================================================================
+  let pageTexts = {}, txtEdit = null, SYNC_VIEW = false;
+  const TXT_FONT = 'Arial, Helvetica, sans-serif', TXT_DEF = 18, TXT_PT = 0.72;          // 18 units = 0.18" (13 pt)
+  const TXT_SIZES = [6, 8, 10, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96];                 // menu, in points
+  function txtPlain(tx) { return tx.paras.map(p => p.map(r => r.t).join('')).join('\n'); }
+  function txtName(tx) { let t = txtPlain(tx).replace(/\s+/g, ' ').trim(); return t ? (t.length > 28 ? t.slice(0, 27) + '…' : t) : 'Empty text'; }
+  // lines of styled pieces, word-wrapped to the box width
+  function layoutText(tx) {
+      let lines = [], y = 0;
+      tx.paras.forEach(para => {
+          let words = [];
+          para.forEach(r => String(r.t).split(/(\s+)/).forEach(w => { if (w !== '') words.push({ t: w, r }); }));
+          let line = [], lw = 0, flush = () => {
+              let size = Math.max.apply(null, line.length ? line.map(x => x.r.s || TXT_DEF) : [para[0] ? para[0].s || TXT_DEF : TXT_DEF]);
+              while (line.length && /^\s+$/.test(line[line.length - 1].t)) { lw -= tw(line[line.length - 1].t, line[line.length - 1].r.s || TXT_DEF, line[line.length - 1].r.b); line.pop(); }
+              let h = size * 1.22; y += h;
+              lines.push({ segs: line, w: lw, h, base: y - size * 0.24, size }); line = []; lw = 0;
+          };
+          words.forEach(w => {
+              let ww = tw(w.t, w.r.s || TXT_DEF, w.r.b);
+              if (/^\s+$/.test(w.t)) { if (line.length) { line.push(w); lw += ww; } return; }
+              if (line.length && lw + ww > tx.w) flush();
+              line.push(w); lw += ww;
+          });
+          flush();
+      });
+      return { lines, h: Math.max(y, TXT_DEF * 1.22) };
+  }
+  function textSVG(tx, key, i, live) {
+      let L_ = layoutText(tx), f = v => v.toFixed(2), o = `<g id="Text_${i + 1}"${live ? ` data-txt="${key}|${i}" style="cursor:move"` : ''}>`;
+      if (live) o += `<rect x="${f(tx.x)}" y="${f(tx.y)}" width="${f(tx.w)}" height="${f(L_.h)}" fill="#FFFFFF" fill-opacity="0.001"/>`;
+      if (live && !txtPlain(tx).trim()) o += `<text x="${f(tx.x + 4)}" y="${f(tx.y + TXT_DEF)}" font-family="${TXT_FONT}" font-size="${TXT_DEF}" fill="#9AA1A9" font-style="italic">Double-click to type</text>`;
+      L_.lines.forEach(ln => {
+          if (!ln.segs.length) return;
+          let x = tx.x + (tx.align === 'center' ? (tx.w - ln.w) / 2 : tx.align === 'right' ? tx.w - ln.w : 0);
+          o += `<text x="${f(x)}" y="${f(tx.y + ln.base)}" font-family="${TXT_FONT}" xml:space="preserve">`;
+          let run = null, buf = '';
+          let out = () => { if (!run || buf === '') return; let r = run;
+              o += `<tspan font-size="${f(r.s || TXT_DEF)}"${r.b ? ' font-weight="bold"' : ''}${r.i ? ' font-style="italic"' : ''}${r.u ? ' text-decoration="underline"' : ''} fill="${r.c || '#000000'}">${xText(buf)}</tspan>`; };
+          ln.segs.forEach(sg => { if (sg.r !== run) { out(); run = sg.r; buf = ''; } buf += sg.t; });
+          out();
+          o += `</text>`;
+      });
+      return o + `</g>`;
+  }
+  function textBox(tx) { return { x: tx.x, y: tx.y, w: tx.w, h: layoutText(tx).h }; }
+  function drawTexts(page) {
+      let key = artKey(page), list = pageTexts[key] || []; if (!list.length) return '';
+      let live = !EXPORTING && !SYNC_VIEW, sel = live ? selLayers(key) : [], f = v => v.toFixed(2), o = `<g id="Text_Layers">`;
+      list.forEach((tx, i) => { if (txtEdit && txtEdit.key === key && txtEdit.i === i) return; o += textSVG(tx, key, i, live); });
+      if (live) sel.filter(t => t[0] === 't').forEach(t => {
+          let i = +t.slice(1), tx = list[i]; if (!tx) return; let b = textBox(tx);
+          o += `<rect x="${f(b.x - 3)}" y="${f(b.y - 3)}" width="${f(b.w + 6)}" height="${f(b.h + 6)}" fill="none" stroke="#1A73E8" stroke-width="1.2" stroke-dasharray="5,3" pointer-events="none"/>`;
+          if (sel.length === 1) o += `<rect data-txt-handle="${key}|${i}" x="${f(b.x + b.w)}" y="${f(b.y + b.h / 2 - 7)}" width="6" height="14" rx="2" fill="#FFFFFF" stroke="#1A73E8" stroke-width="1.4" style="cursor:ew-resize"/>`;
+      });
+      return o + `</g>`;
+  }
+  function addText(key) {
+      let reg = regionFor(key) || { x: PG.AB.x + 16, y: PG.AB.y + 16, w: 400, h: 200 };
+      let list = pageTexts[key] = pageTexts[key] || [], w = Math.min(320, reg.w * 0.6);
+      list.push({ x: reg.x + (reg.w - w) / 2, y: reg.y + Math.max(0, reg.h / 2 - 20 - list.length * 10), w, align: 'left', paras: [[{ t: '', s: TXT_DEF, c: '#000000' }]] });
+      let i = list.length - 1;
+      activeArtKey = key; layerSel = ['t' + i]; layerSelKey = key; selArt = null;
+      renderPreview();
+      openTextEditor(key, i);
+  }
+  function removeText(key, i) { let l = pageTexts[key] || []; l.splice(i, 1); if (!l.length) delete pageTexts[key]; clearLayerSel(); renderPreview(); }
+
+  // ---- editing: a box typed in place over the page, with a small toolbar ----
+  const TXT_SWATCHES = ['#000000', '#FFFFFF', '#C1272D', '#0B57D0', '#1E7B34', '#F2A900', '#5B2C8F', '#6E7781'];
+  function rgbHex(c) { let m = String(c).match(/\d+(\.\d+)?/g); if (!m) return '#000000'; return '#' + m.slice(0, 3).map(v => (+v).toString(16).padStart(2, '0').slice(-2)).join('').toUpperCase(); }
+  function openTextEditor(key, i) {
+      if (txtEdit) commitTextEditor();
+      let tx = (pageTexts[key] || [])[i]; if (!tx) return;
+      let sheet = document.querySelector(`.sheet[data-key="${key}"]`), svg = sheet && sheet.querySelector('svg'); if (!svg) return;
+      txtEdit = { key, i };
+      let g = svg.querySelector(`g[data-txt="${key}|${i}"]`); if (g) g.style.visibility = 'hidden';
+      let ctm = svg.getScreenCTM(), sr = sheet.getBoundingClientRect(), k = ctm.a;
+      let left = ctm.a * tx.x + ctm.e - sr.left, top = ctm.d * tx.y + ctm.f - sr.top;
+      sheet.style.position = 'relative';
+      let ed = document.createElement('div'); ed.id = 'txt-editor'; ed.className = 'txt-editor';
+      ed.style.left = left + 'px'; ed.style.top = top + 'px'; ed.style.width = (tx.w * k) + 'px';
+      let html = tx.paras.map(p => `<div style="text-align:${tx.align || 'left'}">` + (p.filter(r => r.t !== '').map(r =>
+          `<span style="font-size:${((r.s || TXT_DEF) * k).toFixed(2)}px;color:${r.c || '#000000'};font-weight:${r.b ? 700 : 400};font-style:${r.i ? 'italic' : 'normal'};text-decoration:${r.u ? 'underline' : 'none'}">${esc(r.t)}</span>`).join('') || '<br>') + `</div>`).join('');
+      ed.innerHTML = `<div class="te-bar" contenteditable="false">` +
+          `<button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button><button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>` +
+          `<button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>` +
+          `<select class="te-size" title="Text size (points)" aria-label="Text size">${TXT_SIZES.map(v => `<option value="${v}">${v} pt</option>`).join('')}</select>` +
+          `<span class="te-sw">${TXT_SWATCHES.map(c => `<button type="button" data-color="${c}" title="${c}" style="background:${c}"></button>`).join('')}<input type="color" class="te-color" title="Any color" value="#000000"></span>` +
+          `<span class="te-al">${['left', 'center', 'right'].map(a => `<button type="button" data-align="${a}" class="${(tx.align || 'left') === a ? 'on' : ''}" title="Align ${a}">${a === 'left' ? '&#8676;' : a === 'center' ? '&#8596;' : '&#8677;'}</button>`).join('')}</span>` +
+          `<button type="button" class="te-done" data-done="1">Done</button></div>` +
+          `<div class="te-body" contenteditable="true" spellcheck="true" style="font-family:${TXT_FONT};font-size:${(TXT_DEF * k).toFixed(2)}px">${html}</div>`;
+      sheet.appendChild(ed);
+      let body = ed.querySelector('.te-body'); txtEdit.ed = ed; txtEdit.k = k; txtEdit.body = body;
+      let bar = ed.querySelector('.te-bar'), br = bar.getBoundingClientRect(), shr = sheet.getBoundingClientRect();   // keep the toolbar on the page
+      if (br.right > shr.right - 6) bar.style.left = Math.max(shr.left + 6 - (sr.left + left), shr.right - 6 - br.right) + 'px';
+      if (br.top < 6) { bar.style.bottom = 'auto'; bar.style.top = 'calc(100% + 8px)'; }
+      try { document.execCommand('styleWithCSS', false, true); } catch (x) { /* older browsers */ }
+      let sizeSel = ed.querySelector('.te-size'); sizeSel.value = String(Math.round((tx.paras[0] && tx.paras[0][0] ? tx.paras[0][0].s || TXT_DEF : TXT_DEF) * TXT_PT));
+      if (!sizeSel.value) sizeSel.value = '14';
+      ed.addEventListener('mousedown', e => { if (e.target.closest('.te-bar') && !e.target.closest('select, input')) e.preventDefault(); });   // keep the selection
+      ed.addEventListener('click', e => {
+          let b = e.target.closest('button'); if (!b) return;
+          if (b.dataset.done) { commitTextEditor(); return; }
+          body.focus();
+          if (b.dataset.cmd) document.execCommand(b.dataset.cmd);
+          if (b.dataset.color) teApplyColor(b.dataset.color);
+          if (b.dataset.align) { ed.querySelectorAll('.te-al button').forEach(x => x.classList.toggle('on', x === b)); body.querySelectorAll('div').forEach(d => d.style.textAlign = b.dataset.align); txtEdit.align = b.dataset.align; }
+      });
+      sizeSel.addEventListener('change', () => teApplySize(+sizeSel.value));
+      ed.querySelector('.te-color').addEventListener('input', e => teApplyColor(e.target.value));
+      body.addEventListener('paste', e => { e.preventDefault(); let t = (e.clipboardData || window.clipboardData).getData('text/plain'); document.execCommand('insertText', false, t); });
+      body.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); commitTextEditor(); } e.stopPropagation(); });
+      body.focus();
+      let r = document.createRange(); r.selectNodeContents(body); r.collapse(false); let sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(r);
+  }
+  function teSelectionOrAll() {
+      let sl = window.getSelection(), body = txtEdit.body;
+      if (!sl.rangeCount || sl.isCollapsed || !body.contains(sl.anchorNode)) { let r = document.createRange(); r.selectNodeContents(body); sl.removeAllRanges(); sl.addRange(r); }
+  }
+  function teApplyColor(c) { txtEdit.body.focus(); teSelectionOrAll(); document.execCommand('foreColor', false, c); }
+  function teApplySize(pt) {
+      let body = txtEdit.body, px = (pt / TXT_PT) * txtEdit.k;
+      body.focus(); teSelectionOrAll();
+      document.execCommand('styleWithCSS', false, false); document.execCommand('fontSize', false, '7'); document.execCommand('styleWithCSS', false, true);
+      body.querySelectorAll('font[size="7"]').forEach(fn => { let sp = document.createElement('span'); sp.style.fontSize = px.toFixed(2) + 'px'; while (fn.firstChild) sp.appendChild(fn.firstChild); fn.replaceWith(sp); });
+      body.querySelectorAll('span').forEach(sp => { if (sp.style.fontSize === 'xxx-large') sp.style.fontSize = px.toFixed(2) + 'px'; });
+  }
+  // the edited box -> paragraphs of styled runs
+  function readEditor(body, k) {
+      let paras = [[]], cur = () => paras[paras.length - 1];
+      let walk = (node, top) => {
+          node.childNodes.forEach(n => {
+              if (n.nodeType === 3) {
+                  if (!n.nodeValue) return;
+                  let el = n.parentElement, cs = getComputedStyle(el), u = false;
+                  for (let a = el; a && a !== body.parentElement; a = a.parentElement) if (/underline/.test(getComputedStyle(a).textDecorationLine || '') || a.tagName === 'U') { u = true; break; }
+                  let r = { t: n.nodeValue.replace(/ /g, ' '), b: +cs.fontWeight >= 600 || cs.fontWeight === 'bold', i: cs.fontStyle === 'italic', u, c: rgbHex(cs.color), s: Math.round(parseFloat(cs.fontSize) / k * 2) / 2 };
+                  let last = cur()[cur().length - 1];
+                  if (last && last.b === r.b && last.i === r.i && last.u === r.u && last.c === r.c && last.s === r.s) last.t += r.t; else cur().push(r);
+              } else if (n.nodeName === 'BR') { paras.push([]); }
+              else if (n.nodeType === 1) {
+                  let block = /^(DIV|P)$/.test(n.nodeName);
+                  if (block && cur().length) paras.push([]);
+                  walk(n, false);
+                  if (block && n.nextSibling && cur().length) paras.push([]);
+              }
+          });
+      };
+      walk(body, true);
+      while (paras.length > 1 && !paras[paras.length - 1].length) paras.pop();
+      return paras.map(p => p.length ? p : [{ t: '', s: TXT_DEF, c: '#000000' }]);
+  }
+  function commitTextEditor() {
+      if (!txtEdit) return;
+      let { key, i, ed, body, k } = txtEdit, tx = (pageTexts[key] || [])[i];
+      if (tx && body) { tx.paras = readEditor(body, k); if (txtEdit.align) tx.align = txtEdit.align; }
+      if (ed) ed.remove();
+      txtEdit = null;
+      if (tx && !txtPlain(tx).trim()) { removeText(key, i); return; }
+      renderPreview();
+  }
+  document.addEventListener('pointerdown', e => {
+      if (!txtEdit || !e.target.closest || e.target.closest('#txt-editor')) return;
+      commitTextEditor();
+  }, true);
+  // click: pick; drag: move (with its group); double-click: type
+  document.addEventListener('dblclick', e => {
+      let g = e.target.closest && e.target.closest('g[data-txt]'); if (!g) return;
+      let [key, i] = g.getAttribute('data-txt').split('|'); openTextEditor(key, +i);
+  });
+  document.addEventListener('pointerdown', e => {
+      if (!e.target.closest || txtEdit) return;
+      let h = e.target.closest('[data-txt-handle]');
+      if (h) {                                     // right edge: the box width (text re-wraps)
+          e.preventDefault(); e.stopPropagation();
+          let [key, i] = h.getAttribute('data-txt-handle').split('|'), tx = (pageTexts[key] || [])[+i]; if (!tx) return;
+          let svg = h.ownerSVGElement, x0 = tx.x;
+          let move = ev => { let pt = svgPoint(svg, ev); tx.w = Math.max(30, pt.x - x0); let g = svg.querySelector(`g[data-txt="${key}|${i}"]`);
+                             if (g) { let tmp = document.createElementNS('http:' + '/' + '/www.w3.org/2000/svg', 'svg'); tmp.innerHTML = textSVG(tx, key, +i, true); g.replaceWith(tmp.firstChild); }
+                             h.setAttribute('x', (tx.x + tx.w).toFixed(2)); };
+          let up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); renderPreview(); };
+          document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+          return;
+      }
+      let g = e.target.closest('g[data-txt]'); if (!g || measureKey) return;
+      e.preventDefault();
+      let [key, idx] = g.getAttribute('data-txt').split('|'), i = +idx, tx = (pageTexts[key] || [])[i]; if (!tx) return;
+      let tok = 't' + i;
+      if (selLayers(key).indexOf(tok) === -1 || e.ctrlKey || e.metaKey || e.shiftKey) {
+          if (e.ctrlKey || e.metaKey || e.shiftKey) { pickLayer(key, tok, e); return; }
+          layerSel = tx.grp ? groupTokens(key, tx.grp) : [tok]; layerSelKey = key; selArt = null;
+          setActiveArt(key); renderPreview(); g = document.querySelector(`.sheet g[data-txt="${key}|${i}"]`); if (!g) return;
+      }
+      let svg = g.ownerSVGElement, start = svgPoint(svg, e), x0 = tx.x, y0 = tx.y, gm = groupMover(key, tok), d = { dx: 0, dy: 0 }, moved = false;
+      let move = ev => { let pt = svgPoint(svg, ev); d = { dx: pt.x - start.x, dy: pt.y - start.y }; if (Math.abs(d.dx) + Math.abs(d.dy) > 1) moved = true;
+                         g.setAttribute('transform', `translate(${d.dx.toFixed(2)} ${d.dy.toFixed(2)})`); if (gm) gm.move(d.dx, d.dy); };
+      let up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up);
+                       if (moved) { tx.x = x0 + d.dx; tx.y = y0 + d.dy; if (gm) gm.done(d.dx, d.dy); renderPreview(); } };
+      document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+  });
 
   // =====================================================================
   //  MEASUREMENTS: red dimension lines with a typed value (inches), drawn over the page
@@ -3982,7 +4551,7 @@
                `<rect x="${f(-w / 2)}" y="${f(-h / 2)}" width="${f(w)}" height="${f(h)}" fill="#FFFFFF"/>` +
                `<text x="0" y="${f(size * 0.36)}" font-family="Arial" font-size="${size}" font-weight="bold" fill="${txt ? MEAS_RED : '#999999'}" text-anchor="middle">${xText(shown)}</text></g>`;
       }
-      if (!EXPORTING && measureKey === key) {  // on-screen, Measure mode only: wide grab area + end handles
+      if (!EXPORTING && !SYNC_VIEW && measureKey === key) {  // on-screen, Measure mode only: wide grab area + end handles
           o += `<line data-meas-hit="${key}|${i}|line" x1="${f(m.x1)}" y1="${f(m.y1)}" x2="${f(m.x2)}" y2="${f(m.y2)}" stroke="rgba(0,0,0,0)" stroke-width="12" style="cursor:move"/>` +
                `<circle data-meas-hit="${key}|${i}|p1" cx="${f(m.x1)}" cy="${f(m.y1)}" r="4" fill="#FFFFFF" stroke="${MEAS_RED}" stroke-width="1.2" style="cursor:crosshair"/>` +
                `<circle data-meas-hit="${key}|${i}|p2" cx="${f(m.x2)}" cy="${f(m.y2)}" r="4" fill="#FFFFFF" stroke="${MEAS_RED}" stroke-width="1.2" style="cursor:crosshair"/>`;
@@ -3991,8 +4560,8 @@
   }
   function drawMeasures(page) {
       let key = artKey(page), list = pageMeasures[key] || [];
-      let inert = !EXPORTING && measureKey !== key ? ' pointer-events="none"' : '';
-      let halo = EXPORTING ? '' : selLayers(key).filter(t => t[0] === 'm').map(t => { let m = list[+t.slice(1)]; return m ? L(m.x1, m.y1, m.x2, m.y2, '#8AB4F8', 6) : ''; }).join('');
+      let inert = !EXPORTING && !SYNC_VIEW && measureKey !== key ? ' pointer-events="none"' : '';
+      let halo = EXPORTING || SYNC_VIEW ? '' : selLayers(key).filter(t => t[0] === 'm').map(t => { let m = list[+t.slice(1)]; return m ? L(m.x1, m.y1, m.x2, m.y2, '#8AB4F8', 6) : ''; }).join('');
       return list.length ? (halo ? `<g id="Layer_Selection" pointer-events="none" opacity="0.7">${halo}</g>` : '') + `<g id="Measurements"${inert}>` + list.map((m, i) => measureSVG(m, key, i)).join('') + `</g>` : '';
   }
   function patchMeasure(key, i) {             // redraw one line in place (keeps focus in the toolbar box)
@@ -4005,7 +4574,7 @@
   function toggleMeasure(key) {
       measureKey = measureKey === key ? null : key;
       if (measureKey) activeArtKey = key;                   // Layers shows this page's measurements
-      if (measureKey) toast('Measure: click, drag and release on the page. Hold Shift for a straight line. Esc to stop.');
+      if (measureKey) toast('Drag on the page to measure. Shift = straight, Esc = done.');
       renderPreview();
   }
   function setMeasureLabel(key, i, v) { let m = (pageMeasures[key] || [])[i]; if (m) { m.label = v; patchMeasure(key, i); } }
@@ -4059,10 +4628,10 @@
   document.addEventListener('paste', e => {
       if (step === 'start' || !e.clipboardData) return;
       let files = [].slice.call(e.clipboardData.items || []).filter(it => it.kind === 'file' && /^image\//.test(it.type)).map(it => it.getAsFile());
-      if (!files.length && layerClip && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) { e.preventDefault(); pasteLayers(); return; }   // copied layers
+      if (!files.length && layerClip && !typingInField()) { e.preventDefault(); pasteLayers(); return; }   // copied layers
       if (!files.length) return;                       // plain text pastes into fields as usual
       e.preventDefault();
-      if (!activeArtKey) { toast('Click a page\u2019s bar first (it turns gold), then press Ctrl+V to paste the screenshot there.'); return; }
+      if (!activeArtKey) { toast('Select a page first, then press Ctrl+V.'); return; }
       addArtFiles(activeArtKey, files);
   });
   // Esc or a click on the empty preview background deselects the page
@@ -4137,17 +4706,24 @@
   }, true);
   document.addEventListener('keydown', e => {
       if (!(e.ctrlKey || e.metaKey) || (e.key !== 'c' && e.key !== 'C') || e.shiftKey || !layerSelKey || step === 'start') return;
-      if (/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '') || String(window.getSelection() || '')) return;
+      if (typingInField() || String(window.getSelection() || '')) return;
       e.preventDefault(); copyLayers();
   });
   document.addEventListener('keydown', e => {
       if (!(e.ctrlKey || e.metaKey) || (e.key !== 'g' && e.key !== 'G') || !layerSelKey || step === 'start') return;
-      if (/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) return;
+      if (typingInField()) return;
       e.preventDefault(); if (e.shiftKey) ungroupLayers(); else groupLayers();
   });
   // Delete key removes the selected image
   document.addEventListener('keydown', e => {
-      if (!selArt || (e.key !== 'Delete' && e.key !== 'Backspace') || /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '')) return;
+      if (selArt || txtEdit || (e.key !== 'Delete' && e.key !== 'Backspace') || typingInField() || !layerSelKey) return;
+      let key = layerSelKey, ts = selLayers(key).filter(t => t[0] === 't').map(t => +t.slice(1)).sort((a, b) => b - a);
+      if (!ts.length || ts.length !== selLayers(key).length) return;
+      e.preventDefault(); ts.forEach(i => (pageTexts[key] || []).splice(i, 1)); if (pageTexts[key] && !pageTexts[key].length) delete pageTexts[key];
+      clearLayerSel(); renderPreview();
+  });
+  document.addEventListener('keydown', e => {
+      if (!selArt || (e.key !== 'Delete' && e.key !== 'Backspace') || typingInField()) return;
       let [key, i] = selArt.split('|'); selArt = null; artRemove(key, +i);
   });
   // click outside the images on a page: deselect the image
@@ -4172,9 +4748,57 @@
   }
   document.addEventListener('click', e => {
       let c = e.target.closest && e.target.closest('#sheets .cell-link');
-      if (!c || measureKey) return;
-      jumpToSpec(c.dataset.fid);
+      if (!c || measureKey || txtEdit) return;
+      if (!openCellEditor(c.dataset.fid)) jumpToSpec(c.dataset.fid);
   });
+  // v4.10: the field's own control moves into the pop-up while it is open (so it works exactly as in the Specs column)
+  let cellEdit = null;
+  function openCellEditor(fid) {
+      let m = String(fid).match(/^(p\d+)_(\d+)$/); if (!m) return false;
+      let part = allParts.find(x => x.uid === m[1]), fi = +m[2]; if (!part) return false;
+      let f = appData.components[part.comp].fields[fi], ctl = document.getElementById('mctl-' + fid), cus = document.getElementById('mo-' + fid);
+      if (!f || !ctl) return false;
+      closeCellEditor();
+      let it = pkgItems.find(x => x.iid === part.iid), where = [prName(it), partLabel(part)].filter((v, i, a) => v && a.indexOf(v) === i).join(' · ');
+      let md = document.getElementById('cell-modal');
+      if (!md) { md = document.createElement('div'); md.id = 'cell-modal'; md.className = 'po-modal'; document.body.appendChild(md); }
+      md.innerHTML = `<div class="cell-dialog" role="dialog" aria-modal="true" aria-labelledby="cd-h"><div class="cd-head"><div><small>${esc(where.toUpperCase())}</small><h3 id="cd-h">${esc(formLabel(f))}</h3></div>` +
+          `<button type="button" class="fg-menu cd-menu" aria-label="Options for ${esc(formLabel(f))}" title="More: palette search, default options, custom answer, TBD, MISSING or remove" onclick="openFieldMenu(event, '${part.uid}', ${fi})">\u22EF</button>` +
+          `<button type="button" class="cd-x" aria-label="Close" onclick="closeCellEditor()">&times;</button></div><div class="cd-body" id="cd-body"></div>` +
+          `<div class="cd-acts"><span class="cd-modes"></span><button type="button" class="btn-filled cd-done" onclick="closeCellEditor()">Done</button></div></div>`;
+      let ph1 = document.createComment('cell-edit'), ph2 = cus ? document.createComment('cell-edit') : null;
+      ctl.replaceWith(ph1); if (cus) cus.replaceWith(ph2);
+      let body = md.querySelector('#cd-body'); body.appendChild(ctl); if (cus) body.appendChild(cus);
+      cellEdit = { fid, uid: part.uid, fi, ctl, cus, ph1, ph2, md };
+      renderCellModes();
+      md.style.display = 'flex';
+      md.onclick = e => { if (e.target === md) closeCellEditor(); };
+      let first = body.querySelector('select, input:not([type=hidden]), textarea, button'); if (first) setTimeout(() => first.focus(), 30);
+      return true;
+  }
+  function renderCellModes() {
+      if (!cellEdit) return;
+      let part = allParts.find(x => x.uid === cellEdit.uid), cur = fieldMode(part, cellEdit.fi), box = cellEdit.md.querySelector('.cd-modes');
+      box.innerHTML = { tbd: '<span class="cd-state tbd">Marked TBD by Production</span>', custom: '<span class="cd-state cus">Custom answer</span>',
+                        missing: '<span class="cd-state miss">Left blank (prints MISSING)</span>' }[cur] || '';   // the choices themselves are in the ... menu
+      cellEdit.ctl.style.display = cur === 'tbd' || cur === 'missing' ? 'none' : '';
+  }
+  function cellMode(k) {
+      if (!cellEdit) return;
+      let part = allParts.find(x => x.uid === cellEdit.uid);
+      setFieldMode(cellEdit.uid, cellEdit.fi, fieldMode(part, cellEdit.fi) === k ? '' : k);
+      renderCellModes();
+      if (k === 'custom' && cellEdit.cus && cellEdit.cus.style.display !== 'none') cellEdit.cus.focus();
+  }
+  function closeCellEditor() {
+      if (!cellEdit) return;
+      let c = cellEdit; cellEdit = null;
+      c.ctl.style.display = '';
+      c.ph1.replaceWith(c.ctl); if (c.ph2) c.ph2.replaceWith(c.cus);
+      c.md.style.display = 'none';
+      refreshAll(); schedulePreview();
+  }
+  document.addEventListener('keydown', e => { if (cellEdit && e.key === 'Escape') { e.preventDefault(); closeCellEditor(); } });
 
   // =====================================================================
   //  PREVIEW
@@ -4184,8 +4808,10 @@
   let qaCount = 0;
   function renderPreview() {
       if (step === 'start') return;
+      if (txtEdit) { commitTextEditor(); return; }            // finish typing first (commit redraws)
       try {
           let pages = packagePages(), info = getCustomerInfo(), total = summaryTotal(pages);
+          if (step === 'design') renderPageOrg(pages);
           let strip = svg => svg.replace(/^<\?xml[^>]*>\s*/, '');
           let bar = (title, kind, i, extra) => `<div class="sheet-bar${extra || ''}"><span class="st-title">${title}</span></div>`;
           if (step === 'design') {
@@ -4204,17 +4830,20 @@
           } else if (step === 'production') {
               let qa = pages.length && qaOn() ? buildQAPages(pages, info, total) : [];
               qaCount = qa.length;
-              let html = pages.map((p, i) => artToolbar(p, i + 1) +
-                  `<div class="sheet prod${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildProductionSVG(p, i + 1, pages.length, info))}</div>`).join('');
+              let plist = prodPageList(pages);
+              let html = plist.map((p, i) => artToolbar(p, i + 1) +
+                  `<div class="sheet prod${artKey(p) === activeArtKey ? ' active' : ''}${artKey(p) === measureKey ? ' measuring' : ''}" data-key="${artKey(p)}">${strip(buildProductionSVG(p, i + 1, plist.length, info)).replace(/(id="|url\(#)fullcolor\b/g, `$1fullcolor_p${i}`)}</div>`).join('');
+              if (pages.length) html += `<div class="sheet-add"><button type="button" class="btn-tonal" onclick="addProdPage()">+ Add production page</button><span>A blank production page for images, notes or details; prints after the production proofs</span></div>`;
               if (pages.length) {
                   let snaps = buildSnapshotPages(pages, info);
                   snaps.forEach((svg, i) => html += bar(`Production snapshot${snaps.length > 1 ? ` ${i + 1} / ${snaps.length}` : ''} <span class="st-note">colors, materials and department tasks</span>`, 'snapshot', i, ' prod') + `<div class="sheet prod">${strip(svg)}</div>`);
               }
               html += qa.map((svg, i) => bar(`QA sheet ${i + 1} / ${qa.length}`, 'qa', i, ' portrait') + `<div class="sheet portrait">${strip(svg)}</div>`).join('');   // v4.3: QA last
               document.getElementById('qa-sheets').innerHTML = html || '<div class="sheets-empty">Add a product on the Design tab to see its QA sheet and production proofs.</div>';
-              renderProdCounts(pages); renderPagePanel(pages, info, total); renderLayers();
+              renderProdCounts(pages); renderPagePanel(plist, info, total); renderLayers();
           }
           document.getElementById('page-count').innerText = pages.length ? `${total} proof page${total === 1 ? '' : 's'}` : '';
+          renderPageBar(); applyZoom();
           updateCustomerTags(info);
           updateProjectLabel();
       } catch (e) { console.error('Preview error:', e); }
@@ -4540,10 +5169,11 @@
           parts: allParts.map(p => ({ iid: p.iid, di: p.di, custom: p.custom, notesOn: p.notesOn, notes: p.notes, newPage: p.newPage, enabled: p.enabled,
                                       letterLines: p.letterLines.map(l => Object.assign({}, l)), drawPick: p.drawPick.slice(),
                                       colorLines: JSON.parse(JSON.stringify(p.colorLines)), colorSeq: p.colorSeq, xcolors: (p.xcolors || []).slice(), xcolorSeq: p.xcolorSeq || 0, xfields: (p.xfields || []).slice(), xfieldSeq: p.xfieldSeq || 0,
-                                      fmode: Object.assign({}, p.fmode || {}), fcustom: Object.assign({}, p.fcustom || {}),
+                                      fmode: Object.assign({}, p.fmode || {}), fcustom: Object.assign({}, p.fcustom || {}), fhex: Object.assign({}, p.fhex || {}),
                                       fields: appData.components[p.comp].custom ? null : appData.components[p.comp].fields.map(f => String(f.variable).toUpperCase()),
                                       values: captureValues(document.getElementById(`part-${p.uid}`), p.uid) })),
-          excludedDrawings: Object.assign({}, excludedDrawings), customer, art, measures: JSON.parse(JSON.stringify(pageMeasures)), pageOrder: pageOrder.slice(), cover: withCover,
+          excludedDrawings: Object.assign({}, excludedDrawings), customer, art, measures: JSON.parse(JSON.stringify(pageMeasures)), texts: JSON.parse(JSON.stringify(pageTexts)), prodPages: prodExtra.map(x => Object.assign({}, x)), prodUnlocked, pageOrder: pageOrder.slice(), cover: withCover,
+          pageLayout: pageLayout ? pageLayout.map(g => g.uids.map(u => allParts.findIndex(p => p.uid === u)).filter(i => i !== -1)) : null,
           prod: { info: Object.assign({}, shopInfo), answers: Object.assign({}, prodAnswers) }
       };
       return { state, images };
@@ -4576,6 +5206,15 @@
           if (ti !== -1) out[`mf-~_${ti}`] = { v: texts.filter(Boolean).join(' / ') };
           sp.letterLines = [];
       }
+      // v4.9: FRAME MATERIAL "2\" Aluminum Angle" -> FRAME MATERIAL "Aluminum" + FRAME PROFILE "2\" Angle"
+      let fmI = m.now.indexOf('FRAME MATERIAL'), fmE = out[`mf-~_${fmI}`];
+      if (part.comp === 'PANEL_FRAME' && fmI !== -1 && m.now.indexOf('FRAME PROFILE') !== -1 && fmE && fmE.v && !/^(Aluminum|Steel|Wood)$/.test(String(fmE.v).trim())) {
+          let v = String(fmE.v), type = /steel/i.test(v) ? 'Steel' : /wood/i.test(v) ? 'Wood' : 'Aluminum';
+          let prof = v.replace(/\s*\b(Aluminum|Steel|Wood)\b\s*/i, ' ').replace(/\s+/g, ' ').trim();
+          let pI = m.now.indexOf({ Aluminum: 'FRAME PROFILE', Steel: 'FRAME PROFILE - ST', Wood: 'FRAME PROFILE - WD' }[type]);
+          out[`mf-~_${fmI}`] = Object.assign({}, fmE, { v: type });
+          if (pI !== -1 && prof) out[`mf-~_${pI}`] = { v: prof };
+      }
       return out;
   }
 
@@ -4587,7 +5226,7 @@
       if (!sp) return;
       let fm = savedFieldMap(part, sp), byNew = o => { if (!fm) return o; let r = {}; Object.keys(o || {}).forEach(k => { let j = fm.map[+k]; if (j !== undefined) r[j] = o[k]; }); return r; };
       sp.values = remapSavedValues(part, sp);
-      if (fm) { sp.colorLines = byNew(sp.colorLines); sp.fmode = byNew(sp.fmode); sp.fcustom = byNew(sp.fcustom); }
+      if (fm) { sp.colorLines = byNew(sp.colorLines); sp.fmode = byNew(sp.fmode); sp.fcustom = byNew(sp.fcustom); sp.fhex = byNew(sp.fhex); }
       part.colorLines = JSON.parse(JSON.stringify(sp.colorLines || {})); part.colorSeq = sp.colorSeq || 0;
       part.xcolors = (sp.xcolors || []).slice(); part.xcolorSeq = sp.xcolorSeq || 0;
       part.xfields = (sp.xfields || []).slice(); part.xfieldSeq = sp.xfieldSeq || 0;
@@ -4612,7 +5251,8 @@
   function resetPackage() {
       document.getElementById('items').innerHTML = '';
       pkgItems = []; allParts = []; selection = [];
-      pageArt = {}; pageMeasures = {}; excludedDrawings = {}; activeArtKey = null; measureKey = null; selArt = null; pageOrder = []; withCover = true;
+      if (txtEdit && txtEdit.ed) txtEdit.ed.remove(); txtEdit = null;
+      pageArt = {}; pageMeasures = {}; pageTexts = {}; prodExtra = []; prodExtraSeq = 0; prodUnlocked = false; updateProdLock(); excludedDrawings = {}; activeArtKey = null; measureKey = null; selArt = null; pageOrder = []; pageLayout = null; withCover = true;
       shopInfo = { wo: '', due: '', install: '' }; prodAnswers = {}; prodPanelSig = null;
       Object.keys(appData.components).forEach(id => { if (appData.components[id].custom) delete appData.components[id]; });
       customProducts = {};
@@ -4644,6 +5284,8 @@
           selection.push(si.key);
       });
       itemSeq = Math.max(itemSeq, st.seq.itemSeq || 0); blankSeq = st.seq.blankSeq || blankSeq; lineSeq = Math.max(lineSeq, st.seq.lineSeq || 0);
+      allParts.forEach(part => { if (part._saved) part._saved._uid = part.uid; });
+      pageLayout = Array.isArray(st.pageLayout) ? st.pageLayout.map(g => ({ id: 'g' + (++pageGid), uids: g.map(i => (st.parts[i] || {})._uid).filter(Boolean) })).filter(g => g.uids.length) : null;
       allParts.forEach(part => {
           let sp = part._saved; delete part._saved; if (!sp) return;
           applyValues(part.uid, sp.values);
@@ -4655,7 +5297,7 @@
           let inc = document.getElementById(`pinc-${part.uid}`); if (inc) inc.checked = part.enabled;
           let body = document.getElementById(`pbody-${part.uid}`); if (body) body.style.display = part.enabled ? 'block' : 'none';
           renderLetterLines(part);
-          part.fmode = Object.assign({}, sp.fmode || {}); part.fcustom = Object.assign({}, sp.fcustom || {});
+          part.fmode = Object.assign({}, sp.fmode || {}); part.fcustom = Object.assign({}, sp.fcustom || {}); part.fhex = Object.assign({}, sp.fhex || {});
           applyFieldModes(part);
       });
       excludedDrawings = Object.assign({}, st.excludedDrawings || {});
@@ -4664,7 +5306,9 @@
           if ('c' in v) el.checked = v.c; if ('v' in v) el.value = v.v;
       });
       document.getElementById('cf-sub-group').style.display = document.getElementById('cf-has-sub').checked ? 'flex' : 'none';
-      pageMeasures = JSON.parse(JSON.stringify(st.measures || {})); pageOrder = (st.pageOrder || []).slice(); withCover = st.cover === undefined ? false : !!st.cover;
+      pageMeasures = JSON.parse(JSON.stringify(st.measures || {})); pageTexts = JSON.parse(JSON.stringify(st.texts || {}));
+      prodUnlocked = st.prodUnlocked === undefined ? true : !!st.prodUnlocked; updateProdLock();
+      prodExtra = (st.prodPages || []).map(x => Object.assign({}, x)); prodExtraSeq = prodExtra.reduce((m, x) => Math.max(m, x.id), 0); pageOrder = (st.pageOrder || []).slice(); withCover = st.cover === undefined ? false : !!st.cover;
       shopInfo = Object.assign({ wo: '', due: '', install: '' }, (st.prod || {}).info || {}); prodAnswers = Object.assign({}, (st.prod || {}).answers || {}); prodPanelSig = null;
       for (let key of Object.keys(st.art || {})) {
           let list = [];
@@ -4705,7 +5349,7 @@
   }
   // v4.7.1: job info has its own window (top bar: Edit Job Info)
   function openJobInfo() {
-      if (step === 'start') { toast('Create or open a project first: its job info is on the home screen.'); return; }
+      if (step === 'start') { toast('Open a project first.'); return; }
       let rev = document.getElementById('cf-rev'); if (rev && !rev.value) rev.value = todayStr();
       document.getElementById('job-modal').style.display = 'flex';
       updateCustomerTags(getCustomerInfo());
@@ -4815,7 +5459,7 @@
   function reloadForUpdate(e, a) {
       if (!appUrl) {                                       // address not known (server code older than v4.8.2)
           if (e) e.preventDefault();
-          toast('Press F5 (or the browser\u2019s reload button) to reload SignStudio' + (hasUnsavedChanges() ? '; your work is saved as a draft first.' : '.'));
+          toast('Press F5 to reload SignStudio' + (hasUnsavedChanges() ? ' (your work is saved as a draft).' : '.'));
           if (hasUnsavedChanges()) autosaveTick();
           return false;
       }
@@ -4921,7 +5565,7 @@
                   lastSavedSnap = ''; lastDraftSnap = currentSnap();                // restored work is not a saved revision yet
                   rememberLocalDraft(r.key);
                   closeLibrary(); updateProofStatus(); showTab('design');
-                  toast(`Restored unsaved changes from ${String(r.savedAt).slice(0, 16)}. Use Save to keep them as a version.`);
+                  toast(`Restored unsaved changes from ${String(r.savedAt).slice(0, 16)}.`);
                   if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
               } catch (e) { console.error(e); alert('Could not open the draft: ' + e.message); }
           })
@@ -5025,7 +5669,7 @@
                   clearCustomerFields();
                   currentProof = null; currentDraft = null; draftUploaded = {}; lastSavedSnap = ''; lastDraftSnap = '';
                   closeLibrary(); updateProofStatus(); showTab('design'); refreshAll();
-                  toast('New proof started from a copy. Customer info is cleared; Save makes its own v1.');
+                  toast('New proof started from a copy (job info cleared).');
                   if (missing.length) alert('These items are no longer in the Google Sheet and were left out: ' + missing.join(', '));
               } catch (e) { console.error(e); alert('Could not copy this proof: ' + e.message); renderLibrary(); }
           })
@@ -5158,7 +5802,7 @@
       if (!missingCustomerOk('design package')) return;
       let info = getCustomerInfo(), base = exportBase(info);
       let r = await exportZip(exportBtn(), `${base} - Design Proof.zip`, (save, progress, zipped) => fillDesign(save, progress, zipped, withCover, ''));
-      if (r) { exportedPhase.design = true; updateStepper(); }
+      if (r) { exportedPhase.design = true; unlockProduction('export'); updateStepper(); }
       return r;
   }
   async function generateAll(cover) {
@@ -5168,6 +5812,7 @@
       let info = getCustomerInfo(), base = exportBase(info);
       return await exportZip(document.getElementById('export-btn'), `${base} - All.zip`, async (save, progress, zipped) => {
           await fillDesign(save, progress, zipped, !!cover, 'Design Proof/');
+          unlockProduction('export');
           await fillProduction(save, progress, zipped, 'Production/');
       });
   }
@@ -5192,9 +5837,10 @@
   async function fillProductionInner(save, progress, zipped, prefix) {
       let pages = packagePages(), info = getCustomerInfo(), base = exportBase(prodInfo(info)), total = summaryTotal(pages), pad = n => String(n).padStart(2, '0');
       let fb = zipped ? shortBase(prodInfo(info), base) : base, jobs = [], jpegs = [];
-      pages.forEach((p, i) => jobs.push({ file: `${fb} - prod${pad(i + 1)}`, svg: () => buildProductionSVG(p, i + 1, pages.length, info) }));
+      let plist = prodPageList(pages);
+      plist.forEach((p, i) => jobs.push({ file: `${fb} - prod${pad(i + 1)}`, svg: () => buildProductionSVG(p, i + 1, plist.length, info) }));
       let snaps = buildSnapshotPages(pages, info);
-      snaps.forEach((svg, k) => jobs.push({ file: `${fb} - prod${pad(pages.length + 1 + k)} - snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, svg: () => svg }));
+      snaps.forEach((svg, k) => jobs.push({ file: `${fb} - prod${pad(plist.length + 1 + k)} - snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, svg: () => svg }));
       if (qaOn()) buildQAPages(pages, info, total).forEach((svg, i) => jobs.push({ file: `${fb} - qa${pad(i + 1)}`, svg: () => svg, w: 2550, h: 3300 }));   // v4.3: QA last
       for (let i = 0; i < jobs.length; i++) {
           progress(`Production page ${i + 1} of ${jobs.length}...`);
