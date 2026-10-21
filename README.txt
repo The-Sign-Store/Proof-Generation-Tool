@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.9.2  (October 21, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.9.3  (October 21, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -296,6 +296,9 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.9.3  (2026-10-21)
+  - Letter QTY & HEIGHT gets a SETS box: "2 Sets of 23 @ 30"" in one cell.
+
 v4.9.2  (2026-10-21)
   - Compact proof tables: fields pack into the fewest rows the columns allow
     (fewer empty grey cells, shorter tables); order kept.
