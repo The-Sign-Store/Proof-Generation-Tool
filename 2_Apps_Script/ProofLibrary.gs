@@ -456,3 +456,34 @@ function fdAddNote(req) {
 
 /** The web app's address, so "Reload now" can reload the whole browser tab (v4.8.2). */
 function getAppUrl() { return ScriptApp.getService().getUrl() || ''; }
+
+// =====================================================================  v4.10: VERSIONS + WHO HAS A PROJECT OPEN
+/** Every saved version of one proof, newest first: who saved it, when, the note and the approval status. */
+function listProofRevs(proofId) {
+  return proofRows_().filter(r => r.Proof_ID === proofId)
+    .map(r => ({ rev: r.Rev, savedAt: r.Saved_At, savedBy: r.Saved_By, note: r.Note, status: r.Status }))
+    .sort((a, b) => b.rev - a.rev);
+}
+const HOLD_STALE_MS = 2 * 60 * 1000;            // a tab that stopped checking in for 2 minutes no longer holds the project
+/** Marks a project as open in this tab. Someone else holding it (and still checking in) = { ok: false, holder } unless takeover. */
+function holdProof(proofId, session, takeover, hint) {
+  if (!proofId) return { ok: true };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const props = PropertiesService.getScriptProperties(), key = 'HOLD_' + proofId, nowMs = Date.now(), me = user_() || String(hint || '').slice(0, 60) || 'someone';
+    let cur = null;
+    try { cur = JSON.parse(props.getProperty(key) || 'null'); } catch (e) { cur = null; }
+    if (cur && cur.session !== session && nowMs - cur.at < HOLD_STALE_MS && !takeover)
+      return { ok: false, holder: { user: cur.user, since: cur.since, tookOver: !!cur.tookOver } };
+    const mine = cur && cur.session === session;
+    props.setProperty(key, JSON.stringify({ user: me, session: session, at: nowMs, since: mine ? cur.since : now_().minute, tookOver: !!takeover || (mine && cur.tookOver) }));
+    return { ok: true, tookFrom: takeover && cur && cur.session !== session ? cur.user : '' };
+  } finally { lock.releaseLock(); }
+}
+/** This tab is done with the project. */
+function releaseProof(proofId, session) {
+  if (!proofId) return;
+  const props = PropertiesService.getScriptProperties(), key = 'HOLD_' + proofId;
+  try { const cur = JSON.parse(props.getProperty(key) || 'null'); if (cur && cur.session === session) props.deleteProperty(key); } catch (e) { /* nothing held */ }
+}

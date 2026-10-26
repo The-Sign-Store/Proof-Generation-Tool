@@ -1,6 +1,6 @@
 # SignStudio (Sign Proof Generator)
 
-**Current version: v4.9.3** · The Sign Store Online, Inc. · Design Department
+**Current version: v4.10** · The Sign Store Online, Inc. · Design Department
 
 The Sign Proof Generator is a Google Apps Script web app that builds complete, print-ready sign proof packages from a Google Sheet. Designers pick products and components and fill in the specs. They add customer and project info, then download one zip with these files:
 
@@ -110,6 +110,21 @@ The full version history is in the [Changelog](#changelog) below.
 ## Changelog
 
 All notable changes, newest first.
+
+### [4.10] – 2026-10-26
+#### Added
+- **Editable production snapshot**, now portrait like the QA sheet: change any section title, task title or value; add or remove colors, materials, tasks and sections; drag tasks between departments. Edits stay when specs change; changed sections are flagged (Use specs / Reset to automatic). Edits carry over to the QA checklist.
+- Snapshot colors grouped by product; header reads customer · project · Design Ticket #; blank **Work Order #** line (pen) on the snapshot and QA sheet.
+- **Shear / hand cut** department: 3mm ACM on the shear unless routed or 1" corners; 6mm ACM and acrylic on the router; polycarbonate hand cut.
+- **QA Approval · Manager Sign-off** block, compact, at the top of QA page 1; Design Ticket # in the QA header.
+- **Saved versions** menu on the top-bar version chip: open any version to roll back or forward, with who saved it and the note.
+- **One editor at a time**: opening a project someone else has open says who and since when; open read-only or take over.
+- AI rendering disclaimer in the design proof sidebar (Description has 7 lines).
+- Etched Glass Vinyl; Routed Aluminum Face FACE FINISH Paint / Digital Print Vinyl; "Pattern needed?" (Styrene / Paper) for flush, tape and direct mounting.
+#### Changed
+- Measurements and text boxes: red only, 14 px on design pages, 16 px on production pages; vertical labels read bottom to top.
+- Standoff sizes in inches (1" dia. x 1-1/8", 5/8" dia. x 1"); thickness titles name the material (e.g. ACM Thickness).
+- Every "+ Add Another" copies the section above; Table order starts closed.
 
 ### [4.9.3] – 2026-10-21
 #### Added

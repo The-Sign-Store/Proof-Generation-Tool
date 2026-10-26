@@ -1,6 +1,6 @@
 <script>
   // =====================================================================
-  //  SIGNSTUDIO v4.9.3  -  Design + Production
+  //  SIGNSTUDIO v4.10  -  Design + Production
   //  Step 1: pick any mix of products / components
   //  Step 2: fill in specs (sections paginate onto 11" x 8.5" proof sheets)
   //  Step 3: customer info, then export editable SVG + JPG per page (zip)
@@ -9,7 +9,7 @@
   // =====================================================================
 
   window.__JS_LOADED = true;
-  const APP_VERSION = '4.9.3';
+  const APP_VERSION = '4.10';
   let appData = {};
   let TEMPLATE = {};
   let selection = [];          // ordered keys: "P::<product>" or "C::<component id>"
@@ -205,7 +205,7 @@
               let plist = prodPageList(pages);
               plist.forEach((p, i) => cards.push({ svg: buildProductionSVG(p, i + 1, plist.length, info), label: `Production proof ${i + 1} / ${plist.length} · ${p.prodExtra ? p.title : prName(p.item)}` }));
               let snaps = buildSnapshotPages(pages, info);
-              snaps.forEach((svg, i) => cards.push({ svg, label: `Production snapshot${snaps.length > 1 ? ` ${i + 1} / ${snaps.length}` : ''}` }));
+              snaps.forEach((svg, i) => cards.push({ svg, label: `Production snapshot${snaps.length > 1 ? ` ${i + 1} / ${snaps.length}` : ''}`, portrait: true }));
               qa.forEach((svg, i) => cards.push({ svg, label: `QA sheet ${i + 1} / ${qa.length}`, portrait: true }));
           } else {
               let cover = withCover, off = cover ? 1 : 0, total = summaryTotal(pages);
@@ -573,7 +573,7 @@
   function goSelect() { showTab('design'); }
   function goCustomer() { showTab('design'); }
   function goSpecs() { showTab('design'); }
-  function goStart() { showTab('start'); loadStartList(); }
+  function goStart() { showTab('start'); loadStartList(); syncHold(); }
   function updateProjectLabel() {
       let st = document.getElementById('save-title'); if (st && document.getElementById('save-modal').style.display === 'flex') st.innerText = proofLabel();
       let el = document.getElementById('project-label'); if (!el) return;
@@ -959,7 +959,7 @@
       if (!appData.components[d.component]) { group.innerHTML = `<div class="part-card" style="color:#c1272d;">Unknown Component_ID: ${esc(d.component)}</div>`; return; }
       addPart(it, di);
       {                                                         // every product / component section can be added again
-          let btn = document.createElement('button'), clone = CLONE_COMPONENTS.indexOf(d.component) !== -1 || !!appData.components[d.component].custom;
+          let btn = document.createElement('button'), clone = true;   // v4.10: every section copies the one above
           btn.type = 'button'; btn.className = 'swatch-btn add-part-btn'; btn.id = `madd-${iid}-${di}`;
           btn.innerHTML = appData.components[d.component].custom && (!d.title || UNNAMED.test(d.title)) ? '+ Add Another Component' : `+ Add Another ${esc(d.title || appData.components[d.component].name)}`;
           if (clone) btn.title = 'Adds another full section with the same settings as the one above; edit what differs';
@@ -2641,7 +2641,7 @@
                      `</div>${x.pg.blocks.map(card).join('')}</div>`; }).join('') + gap(tp.length) + `</div>`;
       box._pages = tp.map(x => x.pg);
   }
-  let poOpen = true;
+  let poOpen = false;            // v4.10: closed until opened
   function togglePageOrg() { poOpen = !poOpen; renderPageOrg(packagePages()); }
   function currentLayout() {                     // what the organizer shows, as a layout
       let pages = (document.getElementById('page-org') || {})._pages || packagePages().filter(pg => !pg.blank && pg.blocks.length);
@@ -3010,12 +3010,16 @@
       o += L(lx + tw('Description:', 11, false) + 3, 446, rx, 446, '#CCCCCC', 0.5);
       let noteLines = info.notes ? info.notes.split(/\n/).reduce((a, p) => a.concat(wrapText(p, 9, false, 140)), []) : [];
       o += `<g id="Description_Text">`;
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 7; i++) {
           let y = 466 + i * 18;
           o += L(929, y, rx, y, '#CCCCCC', 0.5);
           o += `<g id="Description_Line_${i + 1}">` + T(930, y - 3, noteLines[i] || ' ', 9, { fill: '#333333' }) + `</g>`;
       }
       o += `</g></g>`;
+      // v4.10: AI rendering disclaimer, between the description and the ETL block
+      { let dt = TEMPLATE.AI_Disclaimer || 'AI rendered images are for artistic proofing purposes only and may not properly indicate all the realities of final production.';
+        let dl = wrapText(dt, 8.5, true, x1 - x0 - 14), dh = dl.length * 11 + 10, dy = 646 - dh;
+        o += `<g id="AI_Disclaimer">` + R(x0, dy, x1 - x0, dh, RED_BOX) + dl.map((t, k) => T(cx, dy + 14 + k * 11, t, 8.5, { anchor: 'middle', bold: true, fill: '#FFFFFF' })).join('') + `</g>`; }
       // ETL block
       o += `<g id="ETL">` + IMG(929, 658, 36.5, 48, PROOF_ASSETS.etl);
       let etl = TEMPLATE.ETL_Text || '', y = 664.5, words = etl.split(/\s+/), cur = '', lines = [];
@@ -3212,6 +3216,7 @@
       { name: 'Vinyl', slug: 'vinyl', color: '#D0337A', re: /VINYL|GRAPHIC|PRINT|MEDIA|LAMINATE|DECAL|WEED|MASK|APPLICATION|CONTOUR/ },
       { name: 'Metal fabrication', slug: 'metal', color: '#5B6470', re: /CABINET|RETURN|POLE|POST|FRAME|BACKS|BACKER|RETAINER|SKIN|CONSTRUCTION|GAUGE|BASE|REVEAL|CAP\b|STANDOFF|RACEWAY|BRACKET|FOOTER|EMBED|SPACER|PIN|TRIM CAP/ },
       { name: 'CNC / routing', slug: 'cnc', color: '#1E6FD9', re: /ROUT|CORNER|SHAPE|PUSH-?THRU|THICKNESS|COPY|LETTER/ },
+      { name: 'Shear / hand cut', slug: 'cut', color: '#8A5A00', re: /^$/ },
       { name: 'Electrical', slug: 'electrical', color: '#E8A400', re: /ILLUMINAT|LED|POWER|PHOTO|TIMER|DISCONNECT|ETL|ELECTRICAL|EMC|MODULE|PITCH|LIGHTING|DISPLAY|WIRING|SWITCH/ },
       { name: 'Paint', slug: 'paint', color: '#23885A', re: /PAINT|FINISH/ }
   ];
@@ -3221,10 +3226,22 @@
       let out = [];
       pkgItems.forEach(it => allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => {
           let noRoute = part.comp === 'CORO_SIGN' && !/^\s*yes/i.test(getRaw(part, 'ROUTING'));     // we only route Coroplast to shape
+          let cut = cutRoute(part);
           collectPartItems(part).forEach(i =>
-              out.push({ product: prName(it), section: partLabel(part), label: String(i.label).toUpperCase(), val: i.val, hex: i.hex, gradient: i.gradient, warn: i.warn, tbd: i.tbd, segs: i.segs, noRoute }));
+              out.push({ product: prName(it), section: partLabel(part), label: String(i.label).toUpperCase(), val: i.val, hex: i.hex, gradient: i.gradient, warn: i.warn, tbd: i.tbd, segs: i.segs, noRoute, cut, comp: part.comp }));
       }));
       return out;
+  }
+  // v4.10: where a sheet is cut. 3mm ACM: shear (97%), unless routed to shape or corners bigger than the hand rounder (1");
+  // 6mm ACM and acrylic: router. Polycarbonate: hand cut off the reel (in specDepts, by value).
+  function cutRoute(part) {
+      let c = part.comp, th = String(getRaw(part, 'THICKNESS') || '').toLowerCase();
+      if (c === 'ACM_PANEL') {
+          if (/6\s*mm/.test(th)) return 'cnc';
+          return /^\s*yes/i.test(getRaw(part, 'ROUTING')) || /(^|[^/\d])1"/.test(getRaw(part, 'CORNERS')) ? 'cnc' : 'cut';
+      }
+      if (c === 'ACRYLIC_PANEL') return 'cnc';
+      return null;
   }
   function specDepts(sp) {
       if (/magnet/i.test(sp.product)) return ['vinyl'];          // v4.5: magnets are printed, laminated and cut in the Vinyl department
@@ -3236,6 +3253,9 @@
       if (/ROUTED|ROUTING/.test(V) && d.indexOf('cnc') === -1) d.push('cnc');
       if (/LETTERS/.test(sp.product.toUpperCase()) && /QTY|TEXT|THICKNESS/.test(L) && d.indexOf('cnc') === -1) d.push('cnc');
       if (sp.noRoute) d = d.filter(x => x !== 'cnc');
+      if (sp.cut && /THICKNESS|CORNER|ROUT/.test(L)) { d = d.filter(x => x !== 'cnc' && x !== 'cut'); d.push(sp.cut); }
+      if (/POLYCARBONATE/.test(V)) { d = d.filter(x => x !== 'cnc'); if (d.indexOf('cut') === -1) d.push('cut'); }
+      if (/FINISH/.test(L) && /PRINT|VINYL/.test(V)) { d = d.filter(x => x !== 'paint'); if (d.indexOf('vinyl') === -1) d.push('vinyl'); }
       return d;
   }
   function snapshotData(pages) {
@@ -3248,119 +3268,286 @@
       let depts = DEPTS.map(d => Object.assign({}, d, { rows: specs.filter(sp => specDepts(sp).indexOf(d.slug) !== -1 && !/^(NONE|NO|N\/A)$/i.test(String(sp.val).trim())) }));
       return { specs, colors, mats, depts };
   }
-  // v4.6: the pre-production coordinator's sheet: colors, materials, then every department's tasks as concise tables
-  // (one row per product section, its specs flowed across the row). Runs onto more pages when the job is big.
+  // v4.10: the snapshot as data (what the page prints and what the editor edits)
+  //   { colors: [{ title, rows: [{ val, use, hex, gradient, warn, tbd }] }], mats: [{ val, use }],
+  //     depts: [{ slug, name, color, groups: [{ title, tasks: [{ label, val, hex, gradient, warn, tbd, segs }] }] }] }
+  let snapEdit = null;                               // { doc, base }: the edited snapshot and the automatic one it started from
+  function colorGroups() {
+      let out = [];
+      pkgItems.forEach(it => {
+          let g = { title: prName(it), rows: [] }, seen = {};
+          allParts.filter(p => p.iid === it.iid && p.enabled).forEach(part => collectPartItems(part).forEach(i => {
+              let colorish = i.hex || i.gradient || /COLOR|FINISH|PAINT|VINYL|LED|TRIM CAP|RETURN|FACE/.test(String(i.label).toUpperCase());
+              if (!i.xcolor && (!colorish || !(i.hex || i.gradient || /COLOR/.test(String(i.label).toUpperCase())))) return;
+              let use = [partLabel(part) !== prName(it) ? partLabel(part) : '', i.label].filter(Boolean).join(' · ');
+              let k = i.val + '|' + use; if (seen[k]) return; seen[k] = 1;
+              g.rows.push({ val: i.val, use, hex: i.hex || '', gradient: !!i.gradient, warn: !!i.warn, tbd: !!i.tbd });
+          }));
+          if (g.rows.length) out.push(g);
+      });
+      return out;
+  }
+  function autoSnap(pages) {
+      let d = snapshotData(pages);
+      return {
+          colors: colorGroups(),
+          mats: d.mats.map(m => ({ val: m.val, use: m.uses.join(', ') })),
+          depts: d.depts.map(x => {
+              let groups = [];
+              x.rows.forEach(r => {
+                  let t = r.product + (r.section && r.section !== r.product ? ' · ' + r.section : '');
+                  let g = groups.find(q => q.title === t); if (!g) { g = { title: t, origTitle: t, tasks: [] }; groups.push(g); }
+                  g.tasks.push({ id: `${x.slug}|${t}|${r.label}|${g.tasks.length}`, gt: t, label: r.label, val: String(r.val == null ? '' : r.val), hex: r.hex || '', gradient: !!r.gradient, warn: !!r.warn, tbd: !!r.tbd, segs: r.segs || null });
+              });
+              return { slug: x.slug, name: x.name, color: x.color, groups };
+          })
+      };
+  }
+  function curSnap(pages) { return snapEdit ? snapEdit.doc : autoSnap(pages); }
+  // sections whose specs changed since the snapshot was edited
+  function snapChanges(pages) {
+      if (!snapEdit) return [];
+      let auto = autoSnap(pages), base = snapEdit.base, out = [], sig = g => JSON.stringify(g.tasks.map(t => [t.label, t.val]));
+      auto.depts.forEach(d => {
+          let bd = base.depts.find(x => x.slug === d.slug) || { groups: [] };
+          d.groups.forEach(g => { let bg = bd.groups.find(x => x.title === g.title);
+              if (!bg) out.push({ slug: d.slug, title: g.title, kind: 'new' }); else if (sig(bg) !== sig(g)) out.push({ slug: d.slug, title: g.title, kind: 'changed' }); });
+          bd.groups.forEach(bg => { if (!d.groups.some(g => g.title === bg.title)) out.push({ slug: d.slug, title: bg.title, kind: 'gone' }); });
+      });
+      let csig = x => JSON.stringify(x.colors.map(g => [g.title, g.rows.map(r => r.val + '|' + r.use)])), msig = x => JSON.stringify(x.mats.map(m => m.val));
+      if (csig(auto) !== csig(base)) out.push({ slug: 'colors', title: 'Colors', kind: 'changed' });
+      if (msig(auto) !== msig(base)) out.push({ slug: 'mats', title: 'Materials', kind: 'changed' });
+      return out;
+  }
+  // PRODUCTION SNAPSHOT: portrait 8.5 x 11, like the QA sheet; runs onto more pages when the job is big
   function buildSnapshotPages(pages, info) {
-      const A = PROD_IN, d = snapshotData(pages), X = A.x + 20, W = A.w - 40, BOTTOM = A.y + A.h - 12;
+      const W = 850, H = 1100, X = 40, WW = W - 80, BOTTOM = H - 46, doc = curSnap(pages);
       let out = [], o = '', y = 0;
-      const job = [info.project, `${pkgItems.length} product${pkgItems.length === 1 ? '' : 's'}`, `${pages.length} production proof${pages.length === 1 ? '' : 's'}`].filter(Boolean).join('  ·  ');
+      const tk = String(info.ticket || '').replace(/\D/g, ''), sub = [info.custName, info.project, tk ? `Design Ticket #${tk}` : ''].filter(Boolean).join('  ·  ');
       function start(first) {
-          o = sheetHead() + `<g id="Production_Snapshot">`;
+          o = svgHead(W, H, 8.5, 11) + `<g id="Production_Snapshot">`;
           if (first) {
-              o += T(X, A.y + 34, 'PRODUCTION SNAPSHOT', 26, { bold: true, fill: PROD, ls: 1.4 }) +
-                   (info.custName ? T(X + W, A.y + 34, info.custName, 20, { anchor: 'end', bold: true, fill: PROD }) : '') +
-                   T(X, A.y + 56, job, 13, { fill: '#444444' });
-              y = A.y + 68;
+              o += T(X, 64, 'PRODUCTION SNAPSHOT', 24, { bold: true, fill: PROD, ls: 1.2 }) + (sub ? T(X, 88, sub, 13, { bold: true, fill: '#333333' }) : '');
+              o += `<g id="Work_Order">` + T(X + WW - 190, 64, 'WORK ORDER #', 9, { bold: true, fill: '#666666', ls: 0.8 }) + L(X + WW - 108, 66, X + WW, 66, '#555555', 0.8) + `</g>`;   // filled in by pen
+              y = 118;
           } else {
-              o += T(X, A.y + 26, 'PRODUCTION SNAPSHOT (CONT.)', 15, { bold: true, fill: PROD, ls: 1 }) +
-                   (info.custName ? T(X + W, A.y + 26, info.custName, 13, { anchor: 'end', bold: true, fill: PROD }) : '');
-              y = A.y + 36;
+              o += T(X, 56, 'PRODUCTION SNAPSHOT (CONT.)', 15, { bold: true, fill: PROD, ls: 1 }) + (sub ? T(X + WW, 56, sub, 11, { anchor: 'end', bold: true, fill: '#333333' }) : '');
+              y = 82;
           }
-          o += L(X, y, X + W, y, PROD, 1.2); y += 12;
       }
       function finish() { out.push(o + `</g>`); }
-      function valueMark(x, by, v, fs, r) {                  // value text; yellow MISSING / purple TBD highlight like the proofs
-          let w = tw(v, fs, true), m = '';
+      function valueMark(x, by, v, fs, r) {
+          let w = tw(v, fs, true);
           if (r.segs && !r.warn) return segsSVG(x, by, r.segs, fs);
-          if (r.warn) { missN++; m = `<g id="MISSING_${missN}">` + R(x - 2, by - fs, w + 4, fs * 1.3, TAG_BG, '#D6A100', 0.6) + T(x, by, v, fs, { bold: true, fill: TAG_TX }) + `</g>`; }
-          else if (r.tbd) m = `<g id="TBD_${++missN}">` + R(x - 2, by - fs, w + 4, fs * 1.3, TBD_BG, null, 0, ' rx="2"') + `</g>` + T(x, by, v, fs, { bold: true, fill: TBD_TX });
-          else m = T(x, by, v, fs, { bold: true, fill: '#111111' });
-          return m;
+          if (r.warn) { missN++; return `<g id="MISSING_${missN}">` + R(x - 2, by - fs, w + 4, fs * 1.3, TAG_BG, '#D6A100', 0.6) + T(x, by, v, fs, { bold: true, fill: TAG_TX }) + `</g>`; }
+          if (r.tbd) return `<g id="TBD_${++missN}">` + R(x - 2, by - fs, w + 4, fs * 1.3, TBD_BG, null, 0, ' rx="2"') + `</g>` + T(x, by, v, fs, { bold: true, fill: TBD_TX });
+          return T(x, by, v, fs, { bold: true, fill: '#111111' });
       }
       function swatch(x, y0, r, w, h) {
           return R(x, y0, w, h, r.gradient ? 'url(#fullcolor)' : (!r.hex || normHex(r.hex) === 'transparent' ? '#FFFFFF' : normHex(r.hex)), '#555555', 0.6, ' rx="2"');
       }
       start(true);
-      // ---- colors | materials (compact, up to 6 rows each, two sub-columns when long) ----
-      const gap = 28, colW = (W - gap) / 2, rh = 22, fs = 11.5, MAXR = 6;
-      function listBlock(x, title, list, row) {
-          let s2 = T(x, y + 2, title, 13, { bold: true, fill: PROD, ls: 1.2 }) + L(x, y + 8, x + colW, y + 8, PROD, 1);
-          if (!list.length) return { svg: s2 + T(x, y + 30, title === 'COLORS' ? 'No colors yet.' : 'No materials yet.', 12, { fill: '#888888' }), rows: 1 };
-          let cols = list.length > MAXR ? 2 : 1, shown = list.slice(0, MAXR * cols), per = Math.ceil(shown.length / cols), cw = (colW - (cols - 1) * 14) / cols;
-          shown.forEach((it, k) => { s2 += row(x + Math.floor(k / per) * (cw + 14), y + 14 + (k % per) * rh, cw, it); });
-          if (list.length > shown.length) s2 += T(x, y + 14 + per * rh + 10, `+ ${list.length - shown.length} more in the department tasks below`, 10, { fill: '#555555', italic: true });
-          return { svg: s2, rows: per + (list.length > shown.length ? 0.6 : 0) };
-      }
-      let cb = listBlock(X, 'COLORS', d.colors, (x, ry, cw, c) => {
-          let nm = wrapText(c.val, fs, true, cw - 44)[0] || '', w = tw(nm, fs, true), use = wrapText(c.use || '', 9.5, false, Math.max(10, cw - 52 - w))[0] || '';
-          return swatch(x, ry + 4, c, 30, rh - 8) + valueMark(x + 38, ry + rh / 2 + 4, nm, fs, c) + T(x + 44 + w, ry + rh / 2 + 4, use, 9.5, { fill: '#666666' });
+      // ---- colors (by product) | materials ----
+      const gap = 26, colW = (WW - gap) / 2, rh = 19, fs = 10.5, GH = 18;
+      let cy = y, cx = X;
+      o += T(X, y, 'COLORS', 13, { bold: true, fill: PROD, ls: 1.2 }) + T(X + colW + gap, y, 'MATERIALS', 13, { bold: true, fill: PROD, ls: 1.2 });
+      cy = y + 10;
+      if (!doc.colors.length) { o += T(X, cy + 18, 'No colors yet.', 11, { fill: '#888888' }); cy += 26; }
+      doc.colors.forEach(g => {
+          o += T(cx, cy + 13, String(g.title).toUpperCase(), 9, { bold: true, fill: '#4A2475', ls: 0.6 }); cy += GH;
+          g.rows.forEach(c => {
+              let nm = wrapText(c.val || '', fs, true, colW - 44)[0] || '', w = tw(nm, fs, true), use = wrapText(c.use || '', 9, false, Math.max(10, colW - 52 - w))[0] || '';
+              o += swatch(cx, cy + 3, c, 28, rh - 7) + valueMark(cx + 36, cy + rh / 2 + 4, nm, fs, c) + T(cx + 42 + w, cy + rh / 2 + 4, use, 9, { fill: '#666666' });
+              cy += rh;
+          });
+          cy += 4;
       });
-      let mb = listBlock(X + colW + gap, 'MATERIALS', d.mats, (x, ry, cw, m) => {
-          let nm = wrapText(m.val, fs, true, cw - 16)[0] || '', w = tw(nm, fs, true), use = wrapText(m.uses.join(', '), 9.5, false, Math.max(10, cw - 22 - w))[0] || '';
-          return T(x + 4, ry + rh / 2 + 4, nm, fs, { bold: true, fill: '#111111' }) + T(x + 12 + w, ry + rh / 2 + 4, use, 9.5, { fill: '#666666' });
+      let my = y + 10, mx = X + colW + gap;
+      if (!doc.mats.length) { o += T(mx, my + 18, 'No materials yet.', 11, { fill: '#888888' }); my += 26; }
+      doc.mats.forEach(m => {
+          let nm = wrapText(m.val || '', fs, true, colW - 16)[0] || '', w = tw(nm, fs, true), use = wrapText(m.use || '', 9, false, Math.max(10, colW - 22 - w))[0] || '';
+          o += T(mx, my + rh / 2 + 4, nm, fs, { bold: true, fill: '#111111' }) + T(mx + 8 + w, my + rh / 2 + 4, use, 9, { fill: '#666666' });
+          my += rh;
       });
-      o += cb.svg + mb.svg;
-      y += 14 + Math.max(cb.rows, mb.rows) * rh + 22;
+      y = Math.max(cy, my) + 22;
       // ---- department tasks ----
-      o += T(X, y, 'DEPARTMENT TASKS', 15, { bold: true, fill: PROD, ls: 1.2 }) +
-           T(X + W, y, 'Pre-production: check every task against the proofs before the job is released', 10.5, { anchor: 'end', italic: true, fill: '#555555' });
-      y += 10;
-      const SEC_W = 230, VX = X + SEC_W + 12, VW = X + W - VX - 8, LS = 8.5, VS = 11, LINE_H = 17;
-      let active = d.depts.filter(x => x.rows.length);
+      if (y + 60 > BOTTOM) { finish(); start(false); }
+      o += T(X, y, 'DEPARTMENT TASKS', 14, { bold: true, fill: PROD, ls: 1.2 });
+      y += 8;
+      const SEC_W = 190, VX = X + SEC_W + 10, VW = X + WW - VX - 8, LS = 8, VS = 10.5, LINE_H = 16;
+      let active = doc.depts.filter(x => x.groups.some(g => g.tasks.length));
       function deptHead(x, cont) {
-          o += R(X, y, W, 24, '#F3EEF9', null, 0, ' rx="4"') + R(X, y, 8, 24, x.color, null, 0, ' rx="3"') +
-               T(X + 18, y + 16.5, x.name.toUpperCase() + (cont ? ' (CONT.)' : ''), 12.5, { bold: true, fill: '#1F2328', ls: 0.6 }) +
-               T(X + W - 10, y + 16.5, `${x.rows.length} spec${x.rows.length === 1 ? '' : 's'}`, 10.5, { anchor: 'end', fill: '#555555' });
-          y += 24;
+          let n = x.groups.reduce((a, g) => a + g.tasks.length, 0);
+          o += R(X, y, WW, 22, '#F3EEF9', null, 0, ' rx="4"') + R(X, y, 7, 22, x.color, null, 0, ' rx="3"') +
+               T(X + 16, y + 15.5, String(x.name).toUpperCase() + (cont ? ' (CONT.)' : ''), 11.5, { bold: true, fill: '#1F2328', ls: 0.6 }) +
+               T(X + WW - 10, y + 15.5, `${n} task${n === 1 ? '' : 's'}`, 10, { anchor: 'end', fill: '#555555' });
+          y += 22;
       }
       active.forEach(x => {
-          // group this department's specs by product section, in package order
-          let groups = [];
-          x.rows.forEach(r => {
-              let k = r.product + (r.section && r.section !== r.product ? ' · ' + r.section : '');
-              let g = groups.find(q => q.k === k); if (!g) { g = { k, rows: [] }; groups.push(g); } g.rows.push(r);
-          });
-          // flow each group's "LABEL value" tokens across the row
+          let groups = x.groups.filter(g => g.tasks.length);
           groups.forEach(g => {
-              let lines = [[]], cx = 0;
-              g.rows.forEach(r => {
-                  let lab = r.label, lw = tw(lab, LS, true) * 1.07 + 5, sw = r.hex || r.gradient ? 18 : 0;
+              let lines = [[]], lx = 0;
+              g.tasks.forEach(r => {
+                  let lab = String(r.label || '').toUpperCase(), lw = lab ? tw(lab, LS, true) * 1.07 + 5 : 0, sw = r.hex || r.gradient ? 17 : 0;
                   let room = VW - lw - sw, v = String(r.val || '');
                   if (tw(v, VS, true) > room) { v = wrapText(v, VS, true, room - tw('...', VS, true))[0] + '...'; }
                   let w = lw + sw + tw(v, VS, true);
-                  if (cx && cx + w > VW) { lines.push([]); cx = 0; }
-                  lines[lines.length - 1].push({ r, lab, v, lw, sw, x: cx }); cx += w + 20;
+                  if (lx && lx + w > VW) { lines.push([]); lx = 0; }
+                  lines[lines.length - 1].push({ r: v === r.val ? r : Object.assign({}, r, { segs: null }), lab, v, lw, sw, x: lx }); lx += w + 18;
               });
-              let secLines = wrapText(g.k, 10.5, true, SEC_W - 12).slice(0, 3);
-              g.lines = lines; g.sec = secLines; g.h = Math.max(lines.length, secLines.length) * LINE_H + 9;
+              let secLines = wrapText(g.title, 10, true, SEC_W - 12).slice(0, 3);
+              g._lines = lines; g._sec = secLines; g._h = Math.max(lines.length, secLines.length) * LINE_H + 8;
           });
-          y += 12;
-          if (y + 24 + groups[0].h > BOTTOM) { finish(); start(false); }
+          y += 10;
+          if (y + 22 + groups[0]._h > BOTTOM) { finish(); start(false); }
           deptHead(x, false);
           groups.forEach((g, k) => {
-              if (y + g.h > BOTTOM) { finish(); start(false); deptHead(x, true); }
-              o += R(X, y, W, g.h, k % 2 ? '#FFFFFF' : '#FAF8FD', null, 0) + L(X, y + g.h, X + W, y + g.h, '#E2D9EE', 0.6);
-              g.sec.forEach((t, li) => o += T(X + 12, y + 17 + li * LINE_H, t, 10.5, { bold: li === 0, fill: '#333333' }));
-              g.lines.forEach((ln, li) => ln.forEach(tk => {
-                  let bx = VX + tk.x, by = y + 17 + li * LINE_H;
-                  o += T(bx, by, tk.lab, LS, { bold: true, fill: TBL_PROD.label, ls: 0.5 });
-                  bx += tk.lw;
-                  if (tk.sw) { o += swatch(bx, by - 9, tk.r, 14, 11); bx += tk.sw; }
-                  o += valueMark(bx, by, tk.v, VS, tk.r);
+              if (y + g._h > BOTTOM) { finish(); start(false); deptHead(x, true); }
+              o += R(X, y, WW, g._h, k % 2 ? '#FFFFFF' : '#FAF8FD', null, 0) + L(X, y + g._h, X + WW, y + g._h, '#E2D9EE', 0.6);
+              g._sec.forEach((t, li) => o += T(X + 10, y + 16 + li * LINE_H, t, 10, { bold: li === 0, fill: '#333333' }));
+              g._lines.forEach((ln, li) => ln.forEach(tk2 => {
+                  let bx = VX + tk2.x, by = y + 16 + li * LINE_H;
+                  if (tk2.lab) o += T(bx, by, tk2.lab, LS, { bold: true, fill: TBL_PROD.label, ls: 0.5 });
+                  bx += tk2.lw;
+                  if (tk2.sw) { o += swatch(bx, by - 9, tk2.r, 13, 10); bx += tk2.sw; }
+                  o += valueMark(bx, by, tk2.v, VS, tk2.r);
               }));
-              y += g.h;
+              y += g._h;
           });
       });
-      let idle = d.depts.filter(x => !x.rows.length).map(x => x.name);
-      if (!active.length) { y += 24; o += T(X, y, 'No department tasks yet: add specs on the Design tab.', 12, { fill: '#888888' }); }
+      let idle = doc.depts.filter(x => !x.groups.some(g => g.tasks.length)).map(x => x.name);
+      if (!active.length) { y += 24; o += T(X, y, 'No department tasks yet: add specs on the Design tab.', 11, { fill: '#888888' }); }
       if (idle.length) {
           if (y + 26 > BOTTOM) { finish(); start(false); }
-          y += 22; o += T(X, y, 'Not needed on this job: ' + idle.join(', '), 10.5, { italic: true, fill: '#777777' });
+          y += 22; o += T(X, y, 'Not needed on this job: ' + idle.join(', '), 10, { italic: true, fill: '#777777' });
       }
       finish();
-      const right = [prodTicket(info), String(info.project || '').toUpperCase()].filter(Boolean).join(' · ');
-      return out.map((svg, k) => svg + productionFrame(`PRODUCTION · SNAPSHOT${out.length > 1 ? ` ${k + 1}/${out.length}` : ''}`, right) + `</svg>`);
+      return out.map(svg => svg + `<g id="Production_Frame">` + R(PF / 2, PF / 2, W - PF, H - PF, 'none', PROD, PF) + `</g></svg>`);
   }
+  // ---------- v4.10: snapshot editor (pop-up): every title and value, add / remove, drag tasks between departments ----------
+  let snapWork = null, snapDrag = null;
+  function openSnapEditor() {
+      let pages = packagePages(); if (!pages.length) return;
+      snapWork = { doc: JSON.parse(JSON.stringify(curSnap(pages))), base: JSON.parse(JSON.stringify(snapEdit ? snapEdit.base : autoSnap(pages))) };
+      DEPTS.forEach(d => { if (!snapWork.doc.depts.some(x => x.slug === d.slug)) snapWork.doc.depts.push({ slug: d.slug, name: d.name, color: d.color, groups: [] }); });
+      let md = document.getElementById('snap-modal');
+      if (!md) { md = document.createElement('div'); md.id = 'snap-modal'; md.className = 'po-modal'; document.body.appendChild(md); }
+      md.style.display = 'flex'; md.onclick = e => { if (e.target === md) closeSnapEditor(); };
+      renderSnapEditor();
+  }
+  function closeSnapEditor() { let md = document.getElementById('snap-modal'); if (md) md.style.display = 'none'; snapWork = null; }
+  function snapFlag(slug, title) {
+      let pages = packagePages(), auto = autoSnap(pages), base = snapWork.base, sig = g => JSON.stringify(g.tasks.map(t => [t.label, t.val]));
+      let ad = auto.depts.find(x => x.slug === slug), bd = base.depts.find(x => x.slug === slug);
+      let ag = ad && ad.groups.find(g => g.title === title), bg = bd && bd.groups.find(g => g.title === title);
+      if (ag && !bg) return 'new'; if (!ag && bg) return 'gone'; if (ag && bg && sig(ag) !== sig(bg)) return 'changed'; return '';
+  }
+  function renderSnapEditor() {
+      let md = document.getElementById('snap-modal'); if (!md || !snapWork) return;
+      let keep = md.querySelector('.se-body'), sc = keep ? keep.scrollTop : 0, d = snapWork.doc, pages = packagePages(), auto = autoSnap(pages);
+      let inp = (path, v, ph, cls) => `<input type="text" class="${cls || ''}" data-p="${path}" value="${esc(v == null ? '' : v)}" placeholder="${esc(ph || '')}">`;
+      let x = (fn, t) => `<button type="button" class="se-x" title="${t}" aria-label="${t}" onclick="${fn}">&times;</button>`;
+      let hexOf = r => r.gradient ? '#FF7F00' : (/^#[0-9a-f]{6}$/i.test(normHex(r.hex || '')) ? normHex(r.hex) : '#FFFFFF');
+      let html = `<div class="snap-dialog" role="dialog" aria-modal="true" aria-labelledby="se-h"><div class="se-head"><div><h3 id="se-h">Edit production snapshot</h3>` +
+          `<p>Change any title or value, add or remove rows, and drag tasks between departments. Edits stay when the specs change; changed sections are flagged.</p></div>` +
+          `<button type="button" class="cd-x" aria-label="Close" onclick="closeSnapEditor()">&times;</button></div><div class="se-body">`;
+      // colors by product
+      html += `<section class="se-sec-block"><h4>Colors <span>by product</span></h4>` + d.colors.map((g, gi) =>
+          `<div class="se-group"><div class="se-ghead">${inp(`colors.${gi}.title`, g.title, 'Product', 'se-gtitle')}${x(`snapDo('delColorGroup', ${gi})`, 'Remove this product group')}</div>` +
+          g.rows.map((r, ri) => `<div class="se-row se-crow"><input type="color" data-p="colors.${gi}.rows.${ri}.hex" value="${hexOf(r)}" title="Swatch color">${inp(`colors.${gi}.rows.${ri}.val`, r.val, 'Color')}${inp(`colors.${gi}.rows.${ri}.use`, r.use, 'Where it goes')}${x(`snapDo('delColor', ${gi}, ${ri})`, 'Remove color')}</div>`).join('') +
+          `<button type="button" class="se-add" onclick="snapDo('addColor', ${gi})">+ Add color</button></div>`).join('') +
+          `<button type="button" class="se-add" onclick="snapDo('addColorGroup')">+ Add product group</button></section>`;
+      // materials
+      html += `<section class="se-sec-block"><h4>Materials</h4>` + d.mats.map((m, mi) =>
+          `<div class="se-row se-mrow">${inp(`mats.${mi}.val`, m.val, 'Material')}${inp(`mats.${mi}.use`, m.use, 'Where it goes')}${x(`snapDo('delMat', ${mi})`, 'Remove material')}</div>`).join('') +
+          `<button type="button" class="se-add" onclick="snapDo('addMat')">+ Add material</button></section>`;
+      // departments
+      html += `<section class="se-sec-block"><h4>Department tasks <span>drag a task onto another section or department</span></h4>` + d.depts.map((dp, di) =>
+          `<div class="se-dept" data-di="${di}" ondragover="snapOver(event)" ondragleave="snapLeave(event)" ondrop="snapDrop(event, ${di}, -1, -1)">` +
+          `<div class="se-dhead" style="border-left-color:${dp.color}">${inp(`depts.${di}.name`, dp.name, 'Department', 'se-dname')}<span class="se-count">${dp.groups.reduce((a, g) => a + g.tasks.length, 0)} tasks</span></div>` +
+          dp.groups.map((g, gi) => { let fl = snapFlag(dp.slug, g.title);
+              return `<div class="se-group se-tgroup" ondragover="snapOver(event)" ondragleave="snapLeave(event)" ondrop="snapDrop(event, ${di}, ${gi}, -1)"><div class="se-ghead">${inp(`depts.${di}.groups.${gi}.title`, g.title, 'Product · section', 'se-gtitle')}` +
+                     (fl ? `<span class="se-flag ${fl}">${fl === 'changed' ? 'Specs changed' : fl === 'new' ? 'New in specs' : 'Gone from specs'}</span>` + (fl !== 'gone' ? `<button type="button" class="se-use" onclick="snapDo('useSpecs', ${di}, ${gi})">Use specs</button>` : '') : '') +
+                     x(`snapDo('delGroup', ${di}, ${gi})`, 'Remove this section') + `</div>` +
+                     g.tasks.map((t, ti) => `<div class="se-row se-task" draggable="true" ondragstart="snapStart(event, ${di}, ${gi}, ${ti})" ondragend="snapEnd()" ondragover="snapOver(event)" ondragleave="snapLeave(event)" ondrop="snapDrop(event, ${di}, ${gi}, ${ti})">` +
+                         `<span class="se-grip" title="Drag to move">&#8942;&#8942;</span>${inp(`depts.${di}.groups.${gi}.tasks.${ti}.label`, t.label, 'Title', 'se-tlabel')}${inp(`depts.${di}.groups.${gi}.tasks.${ti}.val`, t.val, 'Value')}${x(`snapDo('delTask', ${di}, ${gi}, ${ti})`, 'Remove task')}</div>`).join('') +
+                     `<button type="button" class="se-add" onclick="snapDo('addTask', ${di}, ${gi})">+ Add task</button></div>`; }).join('') +
+          `<button type="button" class="se-add" onclick="snapDo('addGroup', ${di})">+ Add section</button></div>`).join('') + `</section>`;
+      // sections new in the specs that the edited snapshot doesn't have yet
+      let missing = [];
+      auto.depts.forEach(ad => ad.groups.forEach(ag => { let dd = d.depts.find(q => q.slug === ad.slug); if (snapFlag(ad.slug, ag.title) === 'new' && !(dd && dd.groups.some(q => q.title === ag.title))) missing.push([ad.slug, ag.title]); }));
+      if (missing.length) html += `<section class="se-sec-block se-missing"><h4>New in the specs</h4>` + missing.map(([sl, t], k) =>
+          `<div class="se-row"><span>${esc((DEPTS.find(q => q.slug === sl) || {}).name || sl)} &middot; ${esc(t)}</span><button type="button" class="se-use" onclick="snapDo('addFromSpecs', '${sl}', ${k})">Add to snapshot</button></div>`).join('') + `</section>`;
+      snapWork.missing = missing;
+      html += `</div><div class="se-acts"><button type="button" class="btn-plain se-reset" onclick="snapDo('reset')" title="Throw away the edits and rebuild the snapshot from the specs">Reset to automatic</button>` +
+              `<span></span><button type="button" class="btn-plain" onclick="closeSnapEditor()">Cancel</button><button type="button" class="btn-filled" onclick="saveSnapEditor()">Save</button></div></div>`;
+      md.innerHTML = html;
+      md.querySelectorAll('[data-p]').forEach(el => el.addEventListener('input', () => snapSet(el.dataset.p, el.value, el.type === 'color')));
+      let body = md.querySelector('.se-body'); if (body) body.scrollTop = sc;
+  }
+  function snapSet(path, v, isColor) {
+      let k = path.split('.'), o = snapWork.doc;
+      for (let i = 0; i < k.length - 1; i++) o = o[isNaN(+k[i]) ? k[i] : +k[i]];
+      let last = k[k.length - 1];
+      o[last] = v;
+      if (last === 'val') { delete o.segs; o.warn = false; o.tbd = false; }
+      if (isColor) o.gradient = false;
+  }
+  function snapDo(what, a, b, c) {
+      let d = snapWork.doc, pages = packagePages();
+      if (what === 'reset') { snapEdit = null; closeSnapEditor(); renderPreview(); toast('Snapshot rebuilt from the specs.'); return; }
+      if (what === 'addColorGroup') d.colors.push({ title: 'Product', rows: [{ val: '', use: '', hex: '#FFFFFF' }] });
+      if (what === 'delColorGroup') d.colors.splice(a, 1);
+      if (what === 'addColor') d.colors[a].rows.push({ val: '', use: '', hex: '#FFFFFF' });
+      if (what === 'delColor') d.colors[a].rows.splice(b, 1);
+      if (what === 'addMat') d.mats.push({ val: '', use: '' });
+      if (what === 'delMat') d.mats.splice(a, 1);
+      if (what === 'addGroup') d.depts[a].groups.push({ title: 'New section', tasks: [{ label: '', val: '' }] });
+      if (what === 'delGroup') d.depts[a].groups.splice(b, 1);
+      if (what === 'addTask') d.depts[a].groups[b].tasks.push({ label: '', val: '' });
+      if (what === 'delTask') d.depts[a].groups[b].tasks.splice(c, 1);
+      if (what === 'useSpecs' || what === 'addFromSpecs') {
+          let auto = autoSnap(pages), slug = what === 'useSpecs' ? d.depts[a].slug : a, title = what === 'useSpecs' ? d.depts[a].groups[b].title : snapWork.missing[b][1];
+          let ag = (auto.depts.find(x => x.slug === slug) || { groups: [] }).groups.find(g => g.title === title);
+          let bd = snapWork.base.depts.find(x => x.slug === slug); if (!bd) { bd = { slug, groups: [] }; snapWork.base.depts.push(bd); }
+          let bi = bd.groups.findIndex(g => g.title === title);
+          if (ag) { if (bi === -1) bd.groups.push(JSON.parse(JSON.stringify(ag))); else bd.groups[bi] = JSON.parse(JSON.stringify(ag)); }
+          if (what === 'useSpecs' && ag) d.depts[a].groups[b] = JSON.parse(JSON.stringify(ag));
+          if (what === 'addFromSpecs' && ag) d.depts.find(x => x.slug === slug).groups.push(JSON.parse(JSON.stringify(ag)));
+      }
+      renderSnapEditor();
+  }
+  function snapStart(e, di, gi, ti) { snapDrag = { di, gi, ti }; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', 'task'); } catch (x) { /* old browsers */ } e.currentTarget.classList.add('dragging'); }
+  function snapEnd() { snapDrag = null; document.querySelectorAll('#snap-modal .drop-on').forEach(el => el.classList.remove('drop-on')); }
+  function snapOver(e) { if (!snapDrag) return; e.preventDefault(); e.stopPropagation(); document.querySelectorAll('#snap-modal .drop-on').forEach(el => el.classList.remove('drop-on')); e.currentTarget.classList.add('drop-on'); }
+  function snapLeave(e) { e.currentTarget.classList.remove('drop-on'); }
+  function snapDrop(e, di, gi, ti) {
+      if (!snapDrag) return; e.preventDefault(); e.stopPropagation();
+      let d = snapWork.doc, src = snapDrag, sg = d.depts[src.di].groups[src.gi], task = sg.tasks[src.ti];
+      snapEnd();
+      if (!task || (di === src.di && gi === src.gi && (ti === src.ti || ti === -1))) { renderSnapEditor(); return; }
+      sg.tasks.splice(src.ti, 1);
+      let target;
+      if (gi === -1) {                             // dropped on a department: the same section there (made if needed)
+          target = d.depts[di].groups.find(g => g.title === sg.title);
+          if (!target) { target = { title: sg.title, tasks: [] }; d.depts[di].groups.push(target); }
+      } else target = d.depts[di].groups[gi];
+      let at = ti === -1 ? target.tasks.length : (target === sg && ti > src.ti ? ti - 1 : ti);
+      target.tasks.splice(at, 0, task);
+      if (!sg.tasks.length && sg !== target) d.depts[src.di].groups.splice(src.gi, 1);
+      renderSnapEditor();
+  }
+  function saveSnapEditor() {
+      if (!snapWork) return;
+      let doc = snapWork.doc;
+      doc.colors.forEach(g => g.rows = g.rows.filter(r => String(r.val).trim() || String(r.use).trim()));
+      doc.colors = doc.colors.filter(g => g.rows.length);
+      doc.mats = doc.mats.filter(m => String(m.val).trim());
+      doc.depts.forEach(dp => { dp.groups.forEach(g => g.tasks = g.tasks.filter(t => String(t.label).trim() || String(t.val).trim())); dp.groups = dp.groups.filter(g => g.tasks.length); });
+      snapEdit = { doc, base: snapWork.base };
+      closeSnapEditor(); renderPreview(); toast('Snapshot saved. It keeps your edits; sections whose specs change are flagged.');
+  }
+  document.addEventListener('keydown', e => { if (snapWork && e.key === 'Escape' && !typingInField()) { e.preventDefault(); closeSnapEditor(); } });
   function buildSnapshotSVG(pages, info) { return buildSnapshotPages(pages, info)[0]; }
 
   // =====================================================================
@@ -3689,11 +3876,35 @@
   }
 
   // ---------- QA checklist data (same values as the proof tables) ----------
+  // v4.10: what the snapshot editor changed, for the QA checklist
+  function qaEdits() {
+      if (!snapEdit) return null;
+      let byId = {}, out = { vals: {}, extra: {}, rename: {} };
+      snapEdit.base.depts.forEach(d => d.groups.forEach(g => g.tasks.forEach(t => { if (t.id) byId[t.id] = t; })));
+      snapEdit.doc.depts.forEach(d => d.groups.forEach(g => {
+          let home = g.origTitle || '';
+          if (home && g.title !== home) out.rename[home] = g.title;
+          g.tasks.forEach(t => {
+              let b = t.id && byId[t.id];
+              if (b && (t.label !== b.label || t.val !== b.val)) out.vals[b.gt + '|' + b.label] = { label: t.label, val: t.val };
+              if (!t.id && (home || g.title)) (out.extra[home || g.title] = out.extra[home || g.title] || []).push({ label: t.label, val: t.val });
+          });
+      }));
+      return out;
+  }
   function qaData(pages, offset) {
-      let ranges = itemPageRanges(pages, offset);
+      let ranges = itemPageRanges(pages, offset), ed = qaEdits();
       return pkgItems.map((it, k) => {
           let sections = allParts.filter(p => p.iid === it.iid && p.enabled).map(part => {
-              return { title: partLabel(part), items: collectPartItems(part) };
+              let items = collectPartItems(part), title = partLabel(part);
+              if (ed) {                                        // v4.10: snapshot edits apply here too
+                  let key = prName(it) + (title !== prName(it) ? ' · ' + title : '');
+                  items = items.map(i => { let v = ed.vals[key + '|' + String(i.label).toUpperCase()];
+                      return v ? Object.assign({}, i, { label: v.label || i.label, val: v.val, warn: false, tbd: false, segs: null }) : i; });
+                  (ed.extra[key] || []).forEach(x => items.push({ label: x.label, val: x.val }));
+                  if (ed.rename[key]) { let nt = ed.rename[key], pre = prName(it) + ' · '; title = nt.indexOf(pre) === 0 ? nt.slice(pre.length) : nt; }
+              }
+              return { title, items };
           }).filter(x => x.items.length);
           let drawings = [];
           pages.filter(p => pageHas(p, it.iid)).forEach(p => (p.drawings || []).filter(m => !m.part || m.part.iid === it.iid).forEach(m => { if (drawings.indexOf(m.d.title) === -1) drawings.push(m.d.title); }));
@@ -3710,7 +3921,7 @@
   // ---------- QA checklist pages: portrait 8.5 x 11 (850 x 1100) ----------
   function buildQAPages(pages, info, proofTotal) {
       // staging: two columns, larger text
-      const W = 850, H = 1100, X = 40, XR = W - 40, TOP1 = 182, TOPN = 118, BOTTOM = 1000, GAP = 18, CW = (XR - X - GAP) / 2;
+      let TOP1 = 182; const W = 850, H = 1100, X = 40, XR = W - 40, TOPN = 118, BOTTOM = 1000, GAP = 18, CW = (XR - X - GAP) / 2;
       const LBL_W = 104, SWW = 26, INITW = 40, VS = 11, LS = 8.2;
       const VAL_W = CW - 10 - LBL_W - SWW - INITW - 14;
       const colX = c => X + c * (CW + GAP);
@@ -3732,11 +3943,12 @@
           rows.push({ t: 'gap', h: 10, item });
       });
       let finals = qaFinalChecks();
-      const NOTE_LINES = 8, NOTE_GAP = 22;
-      let finalRow = { t: 'final', checks: finals, h: 30 + finals.length * 21 + 56 + NOTE_LINES * NOTE_GAP };
+      const NOTE_LINES = 3, NOTE_GAP = 20, FROWS = Math.ceil(finals.length / 2);
+      let finalRow = { t: 'final', checks: finals, h: 28 + FROWS * 19 + 34 + NOTE_LINES * NOTE_GAP };
+      const FINAL_Y = 180; TOP1 = FINAL_Y + finalRow.h + 14;
 
       // paginate: fill the left column, then the right column, then a new page
-      let pagesOut = [], cur = [], col = 0, top = TOP1, y = TOP1, ends = [TOP1, TOP1];
+      let pagesOut = [], cur = [], col = 0, top = TOP1, y = TOP1, ends = [TOP1, TOP1];   // TOP1 sits under the Final Checks block
       let nextSlot = r => {
           ends[col] = y;
           if (col === 0) { col = 1; y = top; }
@@ -3750,10 +3962,9 @@
           cur.push(Object.assign({}, r, { y, col })); y += r.h;
       });
       ends[col] = y;
-      // final checks + QA sign-off: full width, kept whole, at the bottom of the last page
-      if (Math.max(ends[0], ends[1]) + 14 + finalRow.h > BOTTOM && cur.length) { pagesOut.push(cur); cur = []; }
-      cur.push(Object.assign({}, finalRow, { y: BOTTOM - finalRow.h, col: -1 }));
       pagesOut.push(cur);
+      // v4.10: final checks + QA sign-off: compact, full width, at the top of the first page
+      pagesOut[0].unshift(Object.assign({}, finalRow, { y: FINAL_Y, col: -1 }));
 
       let n = pagesOut.length, logoW = 128;
       return pagesOut.map((rowsOnPage, pi) => {
@@ -3764,22 +3975,22 @@
                L(X, 84, XR, 84, PROD, 1.6);
           let val = (v, x, yy) => v ? T(x, yy, v, 11, { bold: true }) : missingTag(x + tw('MISSING', 8, true) + 6, yy, 'MISSING', 8, { x, y: yy, size: 11, bold: true });
           if (pi === 0) {
-              let col3 = [X, 330, 590], r1 = 106, r2 = 134, r3 = 162;
-              [[col3[0], r1, 'CUSTOMER', info.custName], [col3[1], r1, 'PROJECT', info.project], [col3[2], r1, 'INV/EST #', info.inv],
+              let col3 = [X, 250, 450, 630], r1 = 106, r2 = 134, r3 = 162, tkv = String(info.ticket || '').replace(/\D/g, '');
+              [[col3[0], r1, 'CUSTOMER', info.custName], [col3[1], r1, 'PROJECT', info.project], [col3[2], r1, 'DESIGN TICKET #', tkv ? '#' + tkv : ''], [col3[3], r1, 'INV/EST #', info.inv],
                [col3[0], r2, 'INSTALLATION LOCATION', info.location], [col3[1], r2, 'SALESPERSON', info.sales], [col3[2], r2, 'DESIGNER', info.designer],
-               [col3[0], r3, 'ORIGINAL DATE', info.orig], [col3[1], r3, 'REVISION DATE', info.rev], [col3[2], r3, 'QA DUE / SHIP DATE', '__________']].forEach(([x, yy, lab, v]) => {
+               [col3[0], r3, 'ORIGINAL DATE', info.orig], [col3[1], r3, 'REVISION DATE', info.rev], [col3[2], r3, 'QA DUE / SHIP DATE', '__________'], [col3[3], r2, 'WORK ORDER #', '______________']].forEach(([x, yy, lab, v]) => {
                   o += T(x, yy - 10, lab, 7.5, { bold: true, fill: '#666666', ls: 0.8 });
-                  let cw = x === col3[2] ? XR - x : (x === col3[0] ? col3[1] : col3[2]) - x - 12, sz = 11, shown = v;
+                  let ci = col3.indexOf(x), cw = (ci === col3.length - 1 ? XR : col3[ci + 1]) - x - 12, sz = 11, shown = v;
                   while (v && tw(v, sz, true) > cw && sz > 8) sz -= 0.25;
                   if (v && tw(v, sz, true) > cw) { while (shown.length > 3 && tw(shown + '...', sz, true) > cw) shown = shown.slice(0, -1); shown += '...'; }
                   o += v ? T(x, yy + 4, shown, sz, { bold: true }) : val(v, x, yy + 4);
               });
               o += L(X, 172, XR, 172, '#CCCCCC', 0.6);
           } else {
-              o += T(X, 104, [info.custName || 'MISSING CUSTOMER', info.project].filter(Boolean).join('  ·  '), 11, { bold: true });
+              o += T(X, 104, [info.custName || 'MISSING CUSTOMER', info.project, String(info.ticket || '').replace(/\D/g, '') ? 'Design Ticket #' + String(info.ticket).replace(/\D/g, '') : ''].filter(Boolean).join('  ·  '), 11, { bold: true });
           }
           o += `</g><g id="QA_List">`;
-          if (rowsOnPage.some(r => r.col === 1)) o += L(X + CW + GAP / 2, pi ? TOPN : TOP1, X + CW + GAP / 2, BOTTOM - (rowsOnPage.some(r => r.t === 'final') ? rowsOnPage.find(r => r.t === 'final').h + 10 : 0), '#DDDDDD', 0.6);
+          if (rowsOnPage.some(r => r.col === 1)) o += L(X + CW + GAP / 2, pi ? TOPN : TOP1, X + CW + GAP / 2, Math.max.apply(null, rowsOnPage.filter(r => r.col === 1).map(r => r.y + r.h)), '#DDDDDD', 0.6);
           rowsOnPage.forEach(r => {
               let y = r.y, x0 = r.col === -1 ? X : colX(r.col), x1 = r.col === -1 ? XR : x0 + CW;
               let VAL_X = x0 + 8 + LBL_W, SW_X = x1 - INITW - SWW - 2, INIT_X = x1 - INITW + 4;
@@ -3821,25 +4032,27 @@
               } else if (r.t === 'final') {
                   const INIT_X = XR - INITW + 4;
                   const RED = PROD;                                   // staging: purple like the production proofs
-                  o += `<g id="QA_Final_Checks">` + R(X, y, XR - X, r.h, '#FFFFFF', RED, 2.2) + R(X, y, XR - X, 22, RED) +
-                       T(X + 10, y + 15, 'FINAL CHECKS', 10, { bold: true, fill: '#FFFFFF', ls: 1.2 }) +
-                       T(XR - 30, y + 15, 'OK / INIT.', 6.5, { anchor: 'middle', bold: true, fill: '#FFFFFF' });
-                  let cy = y + 28;
-                  r.checks.forEach(c => {
-                      o += R(X + 10, cy + 4, 10, 10, '#FFFFFF', '#555555', 0.9) + T(X + 28, cy + 13, c, 10.5, { bold: true, fill: '#222222' }) +
-                           L(INIT_X, cy + 15, XR - 8, cy + 15, '#999999', 0.6);
-                      cy += 21;
+                  o += `<g id="QA_Final_Checks">` + R(X, y, XR - X, r.h, '#FFFFFF', RED, 2.2) + R(X, y, XR - X, 20, RED) +
+                       T(X + 10, y + 14, 'QA APPROVAL  ·  MANAGER SIGN-OFF', 10, { bold: true, fill: '#FFFFFF', ls: 1.2 }) +
+                       T(X + (XR - X) / 2 - 6 - INITW / 2, y + 14, 'OK / INIT.', 6.5, { anchor: 'middle', bold: true, fill: '#FFFFFF' }) +
+                       T(XR - INITW / 2 - 6, y + 14, 'OK / INIT.', 6.5, { anchor: 'middle', bold: true, fill: '#FFFFFF' });
+                  let cy = y + 26, half = Math.ceil(r.checks.length / 2), cwid = (XR - X) / 2;
+                  r.checks.forEach((c, k) => {                // two columns of checks
+                      let cx = X + (k < half ? 0 : cwid), ry = cy + (k % half) * 19, ix = cx + cwid - INITW - 6, ct = c, cs = 9.5;
+                      while (tw(ct, cs, true) > ix - cx - 34 && cs > 7.5) cs -= 0.25;
+                      o += R(cx + 10, ry + 4, 9, 9, '#FFFFFF', '#555555', 0.9) + T(cx + 25, ry + 12, ct, cs, { bold: true, fill: '#222222' }) +
+                           L(ix, ry + 14, ix + INITW, ry + 14, '#999999', 0.6);
                   });
-                  let sy = cy + 6;
+                  if (half) o += L(X + cwid, cy, X + cwid, cy + half * 19 - 2, '#E2D9EE', 0.6);
+                  let sy = cy + half * 19 + 4;
                   o += L(X + 10, sy, XR - 10, sy, '#CDB8E6', 0.8);
-                  sy += 4;
                   o += T(X + 10, sy + 20, 'QA MANAGER', 9, { bold: true }) + L(X + 90, sy + 21, X + 330, sy + 21, '#555555', 0.6) +
                        T(X + 345, sy + 20, 'DATE', 9, { bold: true }) + L(X + 380, sy + 21, X + 480, sy + 21, '#555555', 0.6) +
                        R(X + 505, sy + 11, 10, 10, '#FFFFFF', '#555555', 0.9) + T(X + 521, sy + 20, 'PASS', 9, { bold: true }) +
                        R(X + 570, sy + 11, 10, 10, '#FFFFFF', '#555555', 0.9) + T(X + 586, sy + 20, 'FAIL - see notes', 9, { bold: true }) +
-                       T(X + 10, sy + 46, 'NOTES', 9, { bold: true });
-                  for (let k = 0; k < NOTE_LINES; k++)    // 10 writing lines; the first starts after the label
-                      o += L(k ? X + 10 : X + 55, sy + 47 + k * NOTE_GAP, XR - 10, sy + 47 + k * NOTE_GAP, '#555555', 0.6);
+                       T(X + 10, sy + 44, 'NOTES', 9, { bold: true });
+                  for (let k = 0; k < NOTE_LINES; k++)
+                      o += L(k ? X + 10 : X + 55, sy + 45 + k * NOTE_GAP, XR - 10, sy + 45 + k * NOTE_GAP, '#555555', 0.6);
                   o += `</g>`;
               }
           });
@@ -3860,7 +4073,7 @@
               out.push([item.n, item.name, rangeText(item.range), sec.title, it.label, it.val, it.warn ? it.warnLabel : (it.tbd ? 'TBD BY PRODUCTION' : 'OK'), '', '', ''])));
           item.drawings.forEach(d => out.push([item.n, item.name, rangeText(item.range), 'Detail drawing', 'Built per detail', d, 'OK', '', '', '']));
       });
-      qaFinalChecks().forEach(c => out.push(['', 'FINAL CHECKS', '', '', c, '', '', '', '', '']));
+      qaFinalChecks().forEach(c => out.push(['', 'QA APPROVAL', '', '', c, '', '', '', '', '']));
       return '\uFEFF' + out.map(r => r.map(q).join(',')).join('\r\n');
   }
 
@@ -4419,6 +4632,7 @@
   function textBox(tx) { return { x: tx.x, y: tx.y, w: tx.w, h: layoutText(tx).h }; }
   function drawTexts(page) {
       let key = artKey(page), list = pageTexts[key] || []; if (!list.length) return '';
+      normTexts(key);
       let live = !EXPORTING && !SYNC_VIEW, sel = live ? selLayers(key) : [], f = v => v.toFixed(2), o = `<g id="Text_Layers">`;
       list.forEach((tx, i) => { if (txtEdit && txtEdit.key === key && txtEdit.i === i) return; o += textSVG(tx, key, i, live); });
       if (live) sel.filter(t => t[0] === 't').forEach(t => {
@@ -4444,6 +4658,7 @@
   function rgbHex(c) { let m = String(c).match(/\d+(\.\d+)?/g); if (!m) return '#000000'; return '#' + m.slice(0, 3).map(v => (+v).toString(16).padStart(2, '0').slice(-2)).join('').toUpperCase(); }
   function openTextEditor(key, i) {
       if (txtEdit) commitTextEditor();
+      normTexts(key);
       let tx = (pageTexts[key] || [])[i]; if (!tx) return;
       let sheet = document.querySelector(`.sheet[data-key="${key}"]`), svg = sheet && sheet.querySelector('svg'); if (!svg) return;
       txtEdit = { key, i };
@@ -4458,19 +4673,17 @@
       ed.innerHTML = `<div class="te-bar" contenteditable="false">` +
           `<button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button><button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>` +
           `<button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>` +
-          `<select class="te-size" title="Text size (points)" aria-label="Text size">${TXT_SIZES.map(v => `<option value="${v}">${v} pt</option>`).join('')}</select>` +
-          `<span class="te-sw">${TXT_SWATCHES.map(c => `<button type="button" data-color="${c}" title="${c}" style="background:${c}"></button>`).join('')}<input type="color" class="te-color" title="Any color" value="#000000"></span>` +
+
           `<span class="te-al">${['left', 'center', 'right'].map(a => `<button type="button" data-align="${a}" class="${(tx.align || 'left') === a ? 'on' : ''}" title="Align ${a}">${a === 'left' ? '&#8676;' : a === 'center' ? '&#8596;' : '&#8677;'}</button>`).join('')}</span>` +
           `<button type="button" class="te-done" data-done="1">Done</button></div>` +
-          `<div class="te-body" contenteditable="true" spellcheck="true" style="font-family:${TXT_FONT};font-size:${(TXT_DEF * k).toFixed(2)}px">${html}</div>`;
+          `<div class="te-body" contenteditable="true" spellcheck="true" style="font-family:${TXT_FONT};font-size:${(annoSize(key) * k).toFixed(2)}px;color:${MEAS_RED}">${html}</div>`;
       sheet.appendChild(ed);
       let body = ed.querySelector('.te-body'); txtEdit.ed = ed; txtEdit.k = k; txtEdit.body = body;
       let bar = ed.querySelector('.te-bar'), br = bar.getBoundingClientRect(), shr = sheet.getBoundingClientRect();   // keep the toolbar on the page
       if (br.right > shr.right - 6) bar.style.left = Math.max(shr.left + 6 - (sr.left + left), shr.right - 6 - br.right) + 'px';
       if (br.top < 6) { bar.style.bottom = 'auto'; bar.style.top = 'calc(100% + 8px)'; }
       try { document.execCommand('styleWithCSS', false, true); } catch (x) { /* older browsers */ }
-      let sizeSel = ed.querySelector('.te-size'); sizeSel.value = String(Math.round((tx.paras[0] && tx.paras[0][0] ? tx.paras[0][0].s || TXT_DEF : TXT_DEF) * TXT_PT));
-      if (!sizeSel.value) sizeSel.value = '14';
+
       ed.addEventListener('mousedown', e => { if (e.target.closest('.te-bar') && !e.target.closest('select, input')) e.preventDefault(); });   // keep the selection
       ed.addEventListener('click', e => {
           let b = e.target.closest('button'); if (!b) return;
@@ -4480,8 +4693,7 @@
           if (b.dataset.color) teApplyColor(b.dataset.color);
           if (b.dataset.align) { ed.querySelectorAll('.te-al button').forEach(x => x.classList.toggle('on', x === b)); body.querySelectorAll('div').forEach(d => d.style.textAlign = b.dataset.align); txtEdit.align = b.dataset.align; }
       });
-      sizeSel.addEventListener('change', () => teApplySize(+sizeSel.value));
-      ed.querySelector('.te-color').addEventListener('input', e => teApplyColor(e.target.value));
+
       body.addEventListener('paste', e => { e.preventDefault(); let t = (e.clipboardData || window.clipboardData).getData('text/plain'); document.execCommand('insertText', false, t); });
       body.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); commitTextEditor(); } e.stopPropagation(); });
       body.focus();
@@ -4577,6 +4789,10 @@
   //  MEASUREMENTS: red dimension lines with a typed value (inches), drawn over the page
   // =====================================================================
   const MEAS_RED = '#E00000';
+  function annoSize(key) { return String(key || '').indexOf('prod-') === 0 ? 16 : 14; }     // v4.10: px on the page
+  function normTexts(key) {                       // v4.10: every text layer is red, one size per page kind
+      let s0 = annoSize(key); (pageTexts[key] || []).forEach(tx => tx.paras.forEach(p => p.forEach(r => { r.s = s0; r.c = MEAS_RED; })));
+  }
   let pageMeasures = {}, measureKey = null;
   function measureText(label) {
       let t = String(label || '').trim();
@@ -4586,12 +4802,13 @@
       let dx = m.x2 - m.x1, dy = m.y2 - m.y1, len = Math.hypot(dx, dy) || 1;
       let ux = dx / len, uy = dy / len, nx = -uy, ny = ux, t = 5;
       let ang = Math.atan2(dy, dx) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang <= -90) ang += 180;
+      if (ang > 80) ang -= 180;                  // v4.10: (near) vertical lines read bottom to top
       let f = v => v.toFixed(2), tick = (x, y) => L(x - nx * t, y - ny * t, x + nx * t, y + ny * t, MEAS_RED, 1.2);
       let txt = measureText(m.label), shown = txt || (EXPORTING ? '' : '?');
       let o = `<g id="Measure_${i + 1}" data-meas="${key}|${i}">` + L(m.x1, m.y1, m.x2, m.y2, MEAS_RED, 1.2) + tick(m.x1, m.y1) + tick(m.x2, m.y2);
       if (shown) {
           // label centred on the line, on a white box, rotated to follow the line (kept upright)
-          let cx = (m.x1 + m.x2) / 2, cy = (m.y1 + m.y2) / 2, size = 10, w = tw(shown, size, true) + 8, h = size + 5;
+          let cx = (m.x1 + m.x2) / 2, cy = (m.y1 + m.y2) / 2, size = annoSize(key), w = tw(shown, size, true) + 8, h = size + 5;
           o += `<g transform="translate(${f(cx)} ${f(cy)}) rotate(${f(ang)})">` +
                `<rect x="${f(-w / 2)}" y="${f(-h / 2)}" width="${f(w)}" height="${f(h)}" fill="#FFFFFF"/>` +
                `<text x="0" y="${f(size * 0.36)}" font-family="Arial" font-size="${size}" font-weight="bold" fill="${txt ? MEAS_RED : '#999999'}" text-anchor="middle">${xText(shown)}</text></g>`;
@@ -4882,7 +5099,9 @@
               if (pages.length) html += `<div class="sheet-add"><button type="button" class="btn-tonal" onclick="addProdPage()">+ Add production page</button><span>A blank production page for images, notes or details; prints after the production proofs</span></div>`;
               if (pages.length) {
                   let snaps = buildSnapshotPages(pages, info);
-                  snaps.forEach((svg, i) => html += bar(`Production snapshot${snaps.length > 1 ? ` ${i + 1} / ${snaps.length}` : ''} <span class="st-note">colors, materials and department tasks</span>`, 'snapshot', i, ' prod') + `<div class="sheet prod">${strip(svg)}</div>`);
+                  let chg = snapChanges(pages);
+                  snaps.forEach((svg, i) => html += bar(`Production snapshot${snaps.length > 1 ? ` ${i + 1} / ${snaps.length}` : ''} <span class="st-note">${snapEdit ? 'edited' + (chg.length ? ` &middot; <b class="snap-chg">${chg.length} section${chg.length === 1 ? '' : 's'} changed in the specs</b>` : '') : 'colors, materials and department tasks'}</span>` +
+                      (i === 0 ? `<button type="button" class="st-btn snap-edit-btn" onclick="openSnapEditor()">Edit snapshot</button>` : ''), 'snapshot', i, ' prod portrait') + `<div class="sheet prod portrait">${strip(svg)}</div>`);
               }
               html += qa.map((svg, i) => bar(`QA sheet ${i + 1} / ${qa.length}`, 'qa', i, ' portrait') + `<div class="sheet portrait">${strip(svg)}</div>`).join('');   // v4.3: QA last
               document.getElementById('qa-sheets').innerHTML = html || '<div class="sheets-empty">Add a product on the Design tab to see its QA sheet and production proofs.</div>';
@@ -5218,7 +5437,7 @@
                                       fmode: Object.assign({}, p.fmode || {}), fcustom: Object.assign({}, p.fcustom || {}), fhex: Object.assign({}, p.fhex || {}),
                                       fields: appData.components[p.comp].custom ? null : appData.components[p.comp].fields.map(f => String(f.variable).toUpperCase()),
                                       values: captureValues(document.getElementById(`part-${p.uid}`), p.uid) })),
-          excludedDrawings: Object.assign({}, excludedDrawings), customer, art, measures: JSON.parse(JSON.stringify(pageMeasures)), texts: JSON.parse(JSON.stringify(pageTexts)), prodPages: prodExtra.map(x => Object.assign({}, x)), prodUnlocked, pageOrder: pageOrder.slice(), cover: withCover,
+          excludedDrawings: Object.assign({}, excludedDrawings), customer, art, measures: JSON.parse(JSON.stringify(pageMeasures)), texts: JSON.parse(JSON.stringify(pageTexts)), prodPages: prodExtra.map(x => Object.assign({}, x)), prodUnlocked, snapEdit: snapEdit ? JSON.parse(JSON.stringify(snapEdit)) : null, pageOrder: pageOrder.slice(), cover: withCover,
           pageLayout: pageLayout ? pageLayout.map(g => g.uids.map(u => allParts.findIndex(p => p.uid === u)).filter(i => i !== -1)) : null,
           prod: { info: Object.assign({}, shopInfo), answers: Object.assign({}, prodAnswers) }
       };
@@ -5269,6 +5488,7 @@
   }
 
   // called by addPart while restoring: give the new section its saved lists before its fields are drawn
+  const MM_STANDOFF = { '25 mm dia. x 30 mm': '1" dia. x 1-1/8"', '16 mm dia. x 25 mm': '5/8" dia. x 1"' };
   function takeSavedPart(part) {
       let n = restoring.taken[part.di] || 0;
       restoring.taken[part.di] = n + 1;
@@ -5276,6 +5496,7 @@
       if (!sp) return;
       let fm = savedFieldMap(part, sp), byNew = o => { if (!fm) return o; let r = {}; Object.keys(o || {}).forEach(k => { let j = fm.map[+k]; if (j !== undefined) r[j] = o[k]; }); return r; };
       sp.values = remapSavedValues(part, sp);
+      Object.keys(sp.values || {}).forEach(k => { let e = sp.values[k]; if (e && MM_STANDOFF[String(e.v).trim()]) e.v = MM_STANDOFF[String(e.v).trim()]; });
       if (fm) { sp.colorLines = byNew(sp.colorLines); sp.fmode = byNew(sp.fmode); sp.fcustom = byNew(sp.fcustom); sp.fhex = byNew(sp.fhex); }
       part.colorLines = JSON.parse(JSON.stringify(sp.colorLines || {})); part.colorSeq = sp.colorSeq || 0;
       part.xcolors = (sp.xcolors || []).slice(); part.xcolorSeq = sp.xcolorSeq || 0;
@@ -5303,7 +5524,7 @@
       document.getElementById('items').innerHTML = '';
       pkgItems = []; allParts = []; selection = [];
       if (txtEdit && txtEdit.ed) txtEdit.ed.remove(); txtEdit = null;
-      pageArt = {}; pageMeasures = {}; pageTexts = {}; prodExtra = []; prodExtraSeq = 0; prodUnlocked = false; updateProdLock(); excludedDrawings = {}; activeArtKey = null; measureKey = null; selArt = null; pageOrder = []; pageLayout = null; withCover = true;
+      pageArt = {}; pageMeasures = {}; pageTexts = {}; prodExtra = []; prodExtraSeq = 0; prodUnlocked = false; snapEdit = null; updateProdLock(); excludedDrawings = {}; activeArtKey = null; measureKey = null; selArt = null; pageOrder = []; pageLayout = null; withCover = true;
       shopInfo = { wo: '', due: '', install: '' }; prodAnswers = {}; prodPanelSig = null;
       Object.keys(appData.components).forEach(id => { if (appData.components[id].custom) delete appData.components[id]; });
       customProducts = {};
@@ -5359,6 +5580,7 @@
       document.getElementById('cf-sub-group').style.display = document.getElementById('cf-has-sub').checked ? 'flex' : 'none';
       pageMeasures = JSON.parse(JSON.stringify(st.measures || {})); pageTexts = JSON.parse(JSON.stringify(st.texts || {}));
       prodUnlocked = st.prodUnlocked === undefined ? true : !!st.prodUnlocked; updateProdLock();
+      snapEdit = st.snapEdit ? JSON.parse(JSON.stringify(st.snapEdit)) : null;
       prodExtra = (st.prodPages || []).map(x => Object.assign({}, x)); prodExtraSeq = prodExtra.reduce((m, x) => Math.max(m, x.id), 0); pageOrder = (st.pageOrder || []).slice(); withCover = st.cover === undefined ? false : !!st.cover;
       shopInfo = Object.assign({ wo: '', due: '', install: '' }, (st.prod || {}).info || {}); prodAnswers = Object.assign({}, (st.prod || {}).answers || {}); prodPanelSig = null;
       for (let key of Object.keys(st.art || {})) {
@@ -5438,6 +5660,7 @@
   }
   function openSaveDialog() {
       if (!pkgItems.length) { toast('Add at least one product before saving.'); return; }
+      if (readOnly) { toast('Read-only: someone else is editing this project. Take over to save.'); return; }
       document.getElementById('save-title').innerText = proofLabel();
       let rev = document.getElementById('cf-rev'); if (rev && !rev.value) rev.value = todayStr();
       document.getElementById('save-where').innerText = currentProof
@@ -5488,6 +5711,7 @@
   }
   function saveVersionNow(opts) {
       opts = opts || {};
+      if (readOnly) { toast('Read-only: nothing was saved.'); return Promise.resolve(null); }
       let asNew = !!opts.asNew, note = opts.note || '';
       let cap = captureState(), info = getCustomerInfo(), snap = snapOf(cap.state);
       let images = Object.keys(cap.images).map(h => ({ hash: h, data: cap.images[h].replace(/^data:[^,]*,/, ''), mime: 'image/jpeg' }));
@@ -5498,7 +5722,7 @@
       return new Promise(resolve => google.script.run
           .withSuccessHandler(r => {
               btn.disabled = false; btn.innerText = 'Save';
-              currentProof = { proofId: r.proofId, rev: r.rev, savedAt: r.savedAt, status: r.status, label: proofLabel() };
+              currentProof = { proofId: r.proofId, rev: r.rev, savedAt: r.savedAt, status: r.status, label: proofLabel() };   // v4.10: viewRev cleared
               currentDraft = null; draftUploaded = {}; lastSavedSnap = snap; lastDraftSnap = snap; forgetLocalDraft();
               if (!opts.quiet) closeSaveDialog();
               updateProofStatus();
@@ -5509,13 +5733,105 @@
           .saveProof({ proofId: asNew || !currentProof ? null : currentProof.proofId, draftId: asNew ? null : draftId, dropKey: currentDraft ? currentDraft.key : null,
                        meta, state: JSON.stringify(cap.state), images }));
   }
+  // ---------- v4.10: saved versions (top bar) ----------
+  function openVersionMenu(e) {
+      if (e) e.stopPropagation();
+      let m = document.getElementById('ver-menu');
+      if (m && m.style.display === 'block') { m.style.display = 'none'; return; }
+      if (!m) { m = document.createElement('div'); m.id = 'ver-menu'; m.setAttribute('role', 'menu'); document.body.appendChild(m); }
+      let r = document.getElementById('proof-status').getBoundingClientRect();
+      m.style.top = (r.bottom + 6) + 'px'; m.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; m.style.display = 'block';
+      m.innerHTML = '<div class="vm-empty">Loading versions…</div>';
+      google.script.run.withSuccessHandler(list => renderVersionMenu(list || []))
+          .withFailureHandler(err => { m.innerHTML = `<div class="vm-empty">Could not load the versions: ${esc(err && err.message || err)}</div>`; })
+          .listProofRevs(currentProof.proofId);
+  }
+  function renderVersionMenu(list) {
+      let m = document.getElementById('ver-menu'); if (!m || !currentProof) return;
+      let showing = currentProof.viewRev || currentProof.rev;
+      m.innerHTML = `<div class="vm-head">Saved versions <span>open one to roll back or forward; saving makes v${currentProof.rev + 1}</span></div>` +
+          list.map(v => `<button type="button" role="menuitem" class="vm-item${v.rev === showing ? ' on' : ''}" onclick="switchVersion(${v.rev})">` +
+              `<b>v${v.rev}</b><span class="vm-when">${esc(v.savedAt)}${v.rev === currentProof.rev ? ' &middot; newest' : ''}</span>` +
+              `<span class="vm-who">${esc(v.savedBy || 'unknown')}${v.status ? ' &middot; ' + esc(v.status) : ''}</span>` +
+              (v.note ? `<span class="vm-note">${esc(v.note)}</span>` : '') + (v.rev === showing ? '<em>open</em>' : '') + `</button>`).join('') ||
+          '<div class="vm-empty">No saved versions yet.</div>';
+  }
+  document.addEventListener('click', e => { let m = document.getElementById('ver-menu'); if (m && m.style.display === 'block' && !e.target.closest('#ver-menu, #proof-status')) m.style.display = 'none'; });
+  function switchVersion(rev) {
+      let m = document.getElementById('ver-menu'); if (m) m.style.display = 'none';
+      if (!currentProof || rev === (currentProof.viewRev || currentProof.rev)) return;
+      let go = () => {
+          let keepTab = step, pid = currentProof.proofId, latest = currentProof.rev, keepDraft = currentDraft, keepUp = draftUploaded;
+          toast(`Opening v${rev}…`);
+          google.script.run.withSuccessHandler(async r => {
+              try {
+                  await applyLoaded(r);
+                  currentProof = { proofId: pid, rev: latest, savedAt: r.savedAt, label: proofLabel(), viewRev: r.rev < latest ? r.rev : 0 };
+                  currentDraft = keepDraft; draftUploaded = keepUp; lastSavedSnap = currentSnap(); lastDraftSnap = lastSavedSnap;
+                  updateProofStatus();
+                  if (keepTab === 'production' && prodUnlocked) showTab('production'); else showTab('design');
+                  toast(r.rev < latest ? `Showing v${r.rev}. Save to make it v${latest + 1}, the newest version.` : `Showing v${r.rev}, the newest version.`);
+              } catch (err) { alert('Could not open v' + rev + ': ' + err.message); }
+          }).withFailureHandler(err => alert('Could not open v' + rev + ': ' + (err && err.message || err))).loadProof(pid, rev);
+      };
+      if (hasUnsavedChanges()) appConfirm({ title: 'Open v' + rev + '?', yes: 'Open v' + rev, no: 'Cancel',
+          msg: 'You have changes that aren’t saved as a version. Opening v' + rev + ' replaces them on screen.', note: 'Save first to keep them as a new version.', onYes: go });
+      else go();
+  }
+
+  // ---------- v4.10: who has this project open (one editor at a time; others read-only or take over) ----------
+  const HOLD_SESSION = 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), HOLD_MS = 45000;
+  let heldId = '', readOnly = false, holdTimer = null;
+  function holdHint() { return (document.getElementById('cf-designer') || {}).value || ''; }
+  function syncHold() {
+      let want = currentProof && step !== 'start' ? currentProof.proofId : '';
+      if (want === heldId) return;
+      if (heldId && typeof google.script.run.releaseProof === 'function') google.script.run.releaseProof(heldId, HOLD_SESSION);
+      heldId = want; setReadOnly(false);
+      if (heldId) holdNow(false, true);
+  }
+  function holdNow(takeover, ask) {
+      if (!heldId || typeof google.script.run.holdProof !== 'function') return;
+      let id = heldId;
+      google.script.run.withSuccessHandler(r => {
+          if (id !== heldId || !r) return;
+          if (r.ok) { if (readOnly) setReadOnly(false); if (r.tookFrom) toast(`You took over from ${r.tookFrom}. They're now read-only.`); return; }
+          if (ask) askHolder(r.holder); else { setReadOnly(true, r.holder); toast(`${r.holder.user} took over this project. You're read-only now.`); }
+      }).withFailureHandler(() => { /* offline: try again on the next beat */ }).holdProof(id, HOLD_SESSION, !!takeover, holdHint());
+      clearInterval(holdTimer); holdTimer = setInterval(() => { if (heldId && !readOnly) holdNow(false, false); }, HOLD_MS);
+  }
+  function askHolder(h) {
+      let m = document.getElementById('po-modal');
+      if (!m) { m = document.createElement('div'); m.id = 'po-modal'; m.className = 'po-modal'; document.body.appendChild(m); }
+      m.innerHTML = `<div class="po-dialog" role="alertdialog" aria-modal="true" aria-labelledby="po-mh"><h3 id="po-mh">Someone has this project open</h3>` +
+          `<p><b>${esc(h.user)}</b> has had it open since ${esc(h.since || 'earlier')}. Two people editing at once would overwrite each other's work.</p>` +
+          `<p class="po-note">Read-only: look, export and copy, but no saving. Take over: they become read-only and you edit.</p>` +
+          `<div class="po-acts"><button type="button" class="btn-plain" id="po-no">Open read-only</button><button type="button" class="btn-filled" id="po-yes">Take over</button></div></div>`;
+      m.style.display = 'flex';
+      m.querySelector('#po-no').onclick = () => { m.style.display = 'none'; setReadOnly(true, h); };
+      m.querySelector('#po-yes').onclick = () => { m.style.display = 'none'; holdNow(true, false); };
+      m.onclick = null;
+  }
+  function setReadOnly(on, h) {
+      readOnly = !!on; document.body.classList.toggle('read-only', readOnly);
+      let b = document.getElementById('ro-banner');
+      if (!b) { b = document.createElement('div'); b.id = 'ro-banner'; document.body.appendChild(b); }
+      b.innerHTML = readOnly ? `<span>Read-only: <b>${esc(h && h.user || 'someone else')}</b> is editing this project. Changes here can't be saved.</span><button type="button" onclick="holdNow(true, false)">Take over</button>` : '';
+      b.style.display = readOnly ? 'flex' : 'none';
+  }
+  window.addEventListener('beforeunload', () => { if (heldId && !readOnly && typeof google.script.run.releaseProof === 'function') google.script.run.releaseProof(heldId, HOLD_SESSION); });
+
   function updateProofStatus() {
       let el = document.getElementById('proof-status'); if (!el) return;
       let html = '';
-      if (currentProof) html += `<span class="ps-dot"></span>v${currentProof.rev} <span class="ps-time">saved ${esc(currentProof.savedAt)}</span>`;
+      let older = currentProof && currentProof.viewRev && currentProof.viewRev < currentProof.rev;
+      if (currentProof) html += `<span class="ps-dot${older ? ' old' : ''}"></span>${older ? `v${currentProof.viewRev} <span class="ps-time">of v${currentProof.rev}</span>` : `v${currentProof.rev} <span class="ps-time">saved ${esc(currentProof.savedAt)}</span>`}<span class="ps-caret" aria-hidden="true">&#9662;</span>`;
       if (currentDraft && currentDraft.savedAt) html += `<span class="ps-draft">Draft saved ${esc(String(currentDraft.savedAt).slice(11, 16))}</span>`;
       el.innerHTML = html;
-      el.title = currentProof ? `${currentProof.label} (${currentProof.proofId})` : (currentDraft ? 'Not saved yet; autosaved as a draft' : '');
+      el.title = currentProof ? 'Saved versions: click to open an earlier or later one' : (currentDraft ? 'Not saved yet; autosaved as a draft' : '');
+      el.classList.toggle('ps-btn', !!currentProof); el.onclick = currentProof ? openVersionMenu : null;
+      el.setAttribute('role', currentProof ? 'button' : ''); el.tabIndex = currentProof ? 0 : -1;
+      syncHold();
       el.style.display = html ? 'inline-flex' : 'none';
   }
 
@@ -5603,7 +5919,7 @@
       checkLocalDraft();
   }
   function autosaveTick() {
-      if (autosaveBusy || savingNow || restoringNow || !pkgItems.length) return;
+      if (autosaveBusy || savingNow || restoringNow || readOnly || !pkgItems.length) return;
       if (typeof google.script.run.saveDraft !== 'function') {               // this tab's copy of the server code is out of date
           clearInterval(autosaveTimer); autosaveTimer = null; showUpdateNotice(null); return;
       }
@@ -5938,7 +6254,7 @@
           let fb = shortBase(prodInfo(info), exportBase(prodInfo(info))), plist = prodPageList(pages);
           plist.forEach((p, i) => jobs.push({ label: p.prodExtra ? p.title : `${prName(p.item)}${p.total > 1 ? ` ${p.n}/${p.total}` : ''}`, file: `${fb} - prod${pad(i + 1)}`, svg: run(() => buildProductionSVG(p, i + 1, plist.length, info)) }));
           let snaps = run(() => buildSnapshotPages(pages, info))();
-          snaps.forEach((svg, k) => jobs.push({ label: `Snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, file: `${fb} - prod${pad(plist.length + 1 + k)} - snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, svg: () => svg }));
+          snaps.forEach((svg, k) => jobs.push({ label: `Snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, file: `${fb} - prod${pad(plist.length + 1 + k)} - snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, svg: () => svg, w: 2550, h: 3300 }));
           if (qaOn()) run(() => buildQAPages(pages, info, total))().forEach((svg, i) => jobs.push({ label: 'QA sheet' + (i ? ' ' + (i + 1) : ''), file: `${fb} - qa${pad(i + 1)}`, svg: () => svg, w: 2550, h: 3300 }));
           jobs.forEach(j => { j.svgName = j.file + '.svg'; j.jpgName = j.file + '.jpg'; });
       }
@@ -6014,7 +6330,7 @@
       let plist = prodPageList(pages);
       plist.forEach((p, i) => jobs.push({ file: `${fb} - prod${pad(i + 1)}`, svg: () => buildProductionSVG(p, i + 1, plist.length, info) }));
       let snaps = buildSnapshotPages(pages, info);
-      snaps.forEach((svg, k) => jobs.push({ file: `${fb} - prod${pad(plist.length + 1 + k)} - snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, svg: () => svg }));
+      snaps.forEach((svg, k) => jobs.push({ file: `${fb} - prod${pad(plist.length + 1 + k)} - snapshot${snaps.length > 1 ? ' ' + (k + 1) : ''}`, svg: () => svg, w: 2550, h: 3300 }));
       if (qaOn()) buildQAPages(pages, info, total).forEach((svg, i) => jobs.push({ file: `${fb} - qa${pad(i + 1)}`, svg: () => svg, w: 2550, h: 3300 }));   // v4.3: QA last
       for (let i = 0; i < jobs.length; i++) {
           progress(`Production page ${i + 1} of ${jobs.length}...`);

@@ -1,4 +1,4 @@
-SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.9.3  (October 21, 2026)
+SIGNSTUDIO (SIGN PROOF GENERATOR)  v4.10  (October 26, 2026)
 The Sign Store Online, Inc. - Design Department
 =============================================================================
 
@@ -296,6 +296,19 @@ Export  One zip (Chrome / Edge ask where to save it when they can; inside
 
 CHANGELOG
 -----------------------------------------------------------------------------
+v4.10  (2026-10-26)
+  - Production snapshot: portrait, editable (titles, values, add / remove,
+    drag tasks between departments), colors by product; edits flow to QA.
+  - Shear / hand cut department (3mm ACM, polycarbonate); router for 6mm ACM
+    and acrylic.
+  - QA Approval block at the top of QA page 1; Design Ticket # and a blank
+    Work Order # line on the snapshot and QA sheet.
+  - Saved-versions menu in the top bar; one editor at a time (read-only or
+    take over).
+  - Red 14 / 16 px measurements and text; AI disclaimer in the sidebar.
+  - Etched vinyl, routed face print, pattern (Styrene / Paper), standoffs in
+    inches, material thickness titles, Add Another copies the section.
+
 v4.9.3  (2026-10-21)
   - Letter QTY & HEIGHT gets a SETS box: "2 Sets of 23 @ 30"" in one cell.
 
